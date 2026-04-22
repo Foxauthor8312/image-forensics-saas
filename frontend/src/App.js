@@ -1,38 +1,26 @@
-import { useState } from "react";
-import axios from "axios";
+const upload = async () => {
+  if (!file) {
+    alert("Please select a file first");
+    return;
+  }
 
-function App() {
-  const [file, setFile] = useState(null);
-  const [result, setResult] = useState(null);
+  const formData = new FormData();
+  formData.append("image", file);
 
-  const upload = async () => {
-    const formData = new FormData();
-    formData.append("image", file);
-
+  try {
     const res = await axios.post(
-      process.env.REACT_APP_API_URL + "/api/analyze",
-      formData
+      "https://pixelproof-backend.onrender.com/api/analyze",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
     );
 
     setResult(res.data);
-  };
-
-  return (
-    <div style={{ padding: 20 }}>
-      <h1>PixelProof</h1>
-
-      <input type="file" onChange={(e) => setFile(e.target.files[0])} />
-
-      <button onClick={upload}>Analyze</button>
-
-      {result && (
-        <div>
-          <p>Score: {result.score}%</p>
-          <p>{result.ela_result}</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default App;
+  } catch (err) {
+    console.error(err);
+    alert("Upload failed");
+  }
+};
