@@ -4,5 +4,5 @@ gunicorn
 Pillow
 exifread
 numpy
-reportlab
 opencv-python-headless
+reportlab
