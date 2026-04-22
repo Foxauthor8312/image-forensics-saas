@@ -14,12 +14,12 @@ CORS(app)
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# 🔥 CHANGE THIS TO YOUR ACTUAL RENDER URL
+# 🔥 CHANGE THIS
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 
 
 # -----------------------------
-# Home route
+# Home
 # -----------------------------
 @app.route("/")
 def home():
@@ -27,7 +27,7 @@ def home():
 
 
 # -----------------------------
-# Serve generated files
+# Serve files
 # -----------------------------
 @app.route('/files/<filename>')
 def uploaded_file(filename):
@@ -35,7 +35,7 @@ def uploaded_file(filename):
 
 
 # -----------------------------
-# Analyze image
+# Analyze Image
 # -----------------------------
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
@@ -50,7 +50,7 @@ def analyze():
     metadata = {}
 
     # -----------------------------
-    # EXIF METADATA
+    # EXIF Metadata
     # -----------------------------
     try:
         with open(filepath, 'rb') as f:
@@ -75,7 +75,7 @@ def analyze():
         metadata["exif_error"] = str(e)
 
     # -----------------------------
-    # PIL METADATA
+    # PIL Metadata
     # -----------------------------
     try:
         image = Image.open(filepath)
@@ -92,7 +92,7 @@ def analyze():
         metadata["pil_error"] = str(e)
 
     # -----------------------------
-    # ELA (Error Level Analysis)
+    # ELA Analysis
     # -----------------------------
     try:
         original = Image.open(filepath).convert('RGB')
@@ -111,33 +111,35 @@ def analyze():
         ela_image.save(ela_path)
 
         ela_array = np.array(ela_image)
+
         mean_diff = np.mean(ela_array)
         max_diff = np.max(ela_array)
 
-# Normalize score (0–100)
-score = int((mean_diff / (max_diff + 1e-5)) * 100)
+        # Normalize score (0–100)
+        score = int((mean_diff / (max_diff + 1e-5)) * 100)
 
     except Exception as e:
         return jsonify({"error": f"ELA processing failed: {str(e)}"}), 500
 
     # -----------------------------
-    # Findings logic
+    # Findings Logic
     # -----------------------------
     findings = []
 
-    findings = []
+    if score > 60:
+        findings.append("Strong signs of manipulation (high compression inconsistency)")
+        result = "Likely manipulated"
 
-if score > 60:
-    findings.append("Strong signs of manipulation (high compression inconsistency)")
-    result = "Likely manipulated"
+    elif score > 30:
+        findings.append("Moderate inconsistencies detected")
+        result = "Possibly manipulated"
 
-elif score > 30:
-    findings.append("Moderate inconsistencies detected")
-    result = "Possibly manipulated"
+    else:
+        findings.append("Low compression differences detected")
+        result = "No strong evidence of manipulation"
 
-else:
-    findings.append("Low compression differences detected")
-    result = "No strong evidence of manipulation"
+    if len(metadata) == 0:
+        findings.append("No metadata found (possibly stripped)")
 
     # -----------------------------
     # Response
@@ -152,7 +154,7 @@ else:
 
 
 # -----------------------------
-# Generate PDF report
+# PDF Report
 # -----------------------------
 @app.route("/api/report", methods=["POST"])
 def generate_report():
@@ -180,10 +182,7 @@ def generate_report():
     content.append(Spacer(1, 10))
     content.append(Paragraph("Metadata Summary:", styles["Heading2"]))
 
-    # limit metadata to avoid huge PDF
-    metadata_items = list(data.get("metadata", {}).items())[:15]
-
-    for k, v in metadata_items:
+    for k, v in list(data.get("metadata", {}).items())[:15]:
         content.append(Paragraph(f"{k}: {v}", styles["Normal"]))
 
     doc.build(content)
@@ -194,7 +193,7 @@ def generate_report():
 
 
 # -----------------------------
-# Run locally (not used on Render)
+# Run locally
 # -----------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000)
