@@ -5,66 +5,41 @@
 
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: Arial;
       background: #0f172a;
       color: white;
       text-align: center;
-      margin: 0;
     }
 
     .container {
       max-width: 900px;
-      margin: 60px auto;
-    }
-
-    h1 {
-      font-size: 36px;
+      margin: 50px auto;
     }
 
     button {
+      padding: 10px 20px;
       background: #3b82f6;
-      color: white;
-      padding: 12px 25px;
       border: none;
-      border-radius: 6px;
+      color: white;
       cursor: pointer;
-      margin-top: 15px;
-    }
-
-    button:hover {
-      background: #2563eb;
+      margin-top: 10px;
     }
 
     .card {
       background: #1e293b;
       padding: 20px;
-      margin-top: 25px;
-      border-radius: 10px;
+      margin-top: 20px;
+      border-radius: 8px;
       text-align: left;
     }
 
     .comparison {
       display: flex;
-      gap: 15px;
-      flex-wrap: wrap;
-    }
-
-    .comparison div {
-      flex: 1;
-      min-width: 250px;
+      gap: 10px;
     }
 
     img {
-      margin-top: 10px;
-      border-radius: 8px;
       width: 100%;
-    }
-
-    pre {
-      background: #020617;
-      padding: 10px;
-      overflow-x: auto;
-      font-size: 12px;
     }
   </style>
 </head>
@@ -74,120 +49,75 @@
     <h1>PixelProof 🔍</h1>
 
     <input type="file" id="fileInput"><br>
-    <button onclick="upload()">Analyze Image</button>
+    <button onclick="upload()">Analyze</button>
 
     <div id="result"></div>
 
-    <br>
-    <button id="pdfBtn" onclick="downloadReport()" style="display:none;">
-      Download PDF Report
+    <button id="pdfBtn" style="display:none;" onclick="downloadReport()">
+      Download PDF
     </button>
   </div>
 
   <script>
-    const API_BASE = "https://pixelproof-backend-v2.onrender.com";
+    const API = "https://pixelproof-backend-v2.onrender.com";
 
     async function upload() {
       const file = document.getElementById("fileInput").files[0];
-      const resultDiv = document.getElementById("result");
+      const result = document.getElementById("result");
       const pdfBtn = document.getElementById("pdfBtn");
 
-      if (!file) {
-        alert("Please select a file");
-        return;
-      }
+      if (!file) return alert("Select a file");
 
-      resultDiv.innerHTML = "<p>Analyzing image...</p>";
+      result.innerHTML = "Analyzing...";
       pdfBtn.style.display = "none";
 
-      const formData = new FormData();
-      formData.append("image", file);
+      const form = new FormData();
+      form.append("image", file);
 
       try {
-        const res = await fetch(`${API_BASE}/api/analyze`, {
+        const res = await fetch(API + "/api/analyze", {
           method: "POST",
-          body: formData
+          body: form
         });
 
         const data = await res.json();
-
         window.lastResult = data;
-        pdfBtn.style.display = "inline-block";
 
-        const confidenceLabel =
-          data.confidence > 70 ? "High suspicion" :
-          data.confidence > 40 ? "Moderate" :
-          "Low";
+        pdfBtn.style.display = "block";
 
-        const originalURL = URL.createObjectURL(file);
+        const original = URL.createObjectURL(file);
 
-        resultDiv.innerHTML = `
+        result.innerHTML = `
           <div class="card">
-            <h2>Analysis Result</h2>
+            <h3>Result</h3>
+            Score: ${data.score}<br>
+            Confidence: ${data.confidence}%<br>
+            ${data.ela_result}
 
-            <p><strong>Score:</strong> ${data.score}</p>
-            <p><strong>Confidence:</strong> ${data.confidence || 0}% (${confidenceLabel})</p>
-            <p><strong>Conclusion:</strong> ${data.ela_result}</p>
-
-            <h3>Findings</h3>
-            <ul>
-              ${data.findings.map(f => `<li>${f}</li>`).join("")}
-            </ul>
-
-            <h3>Image Comparison</h3>
+            <h4>Images</h4>
             <div class="comparison">
-              <div>
-                <p><strong>Original</strong></p>
-                <img src="${originalURL}" />
-              </div>
-              <div>
-                <p><strong>ELA</strong></p>
-                <img src="${data.ela_image}" />
-              </div>
+              <div><img src="${original}"></div>
+              <div><img src="${data.ela_image}"></div>
             </div>
 
-            <h3>Metadata</h3>
-            ${
-              Object.keys(data.metadata || {}).length === 0
-              ? "<p>No metadata found</p>"
-              : `<pre>${JSON.stringify(data.metadata, null, 2)}</pre>`
-            }
+            <h4>Metadata</h4>
+            <pre>${JSON.stringify(data.metadata, null, 2)}</pre>
           </div>
         `;
-
-      } catch (err) {
-        console.error(err);
-        resultDiv.innerHTML = "<p style='color:red;'>Error analyzing image</p>";
+      } catch (e) {
+        result.innerHTML = "Error: " + e;
       }
     }
 
     async function downloadReport() {
-      if (!window.lastResult) {
-        alert("Run analysis first");
-        return;
-      }
+      const res = await fetch(API + "/api/report", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(window.lastResult)
+      });
 
-      try {
-        const res = await fetch(`${API_BASE}/api/report`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(window.lastResult)
-        });
-
-        const data = await res.json();
-
-        if (data.report) {
-          window.open(data.report, "_blank");
-        } else {
-          alert("Report generation failed");
-        }
-
-      } catch (err) {
-        console.error(err);
-        alert("Failed to generate report");
-      }
+      const data = await res.json();
+      window.open(data.report);
     }
   </script>
 </body>
