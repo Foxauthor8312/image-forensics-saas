@@ -11,7 +11,7 @@ CORS(app)
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-BASE_URL = "BASE_URL = "https://pixelproof-backend-v2.onrender.com""  # 🔥 CHANGE THIS
+BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 
 # -----------------------------
 # Home route
