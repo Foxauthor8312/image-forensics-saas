@@ -4,3 +4,4 @@ gunicorn
 Pillow
 exifread
 numpy
+reportlab
