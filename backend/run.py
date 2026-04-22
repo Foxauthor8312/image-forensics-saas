@@ -15,24 +15,18 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 
-# In-memory job store (simple + fast)
 jobs = {}
 
-# -----------------------------
-# HOME
-# -----------------------------
 @app.route("/")
 def home():
     return "Backend is running"
-
 
 @app.route("/files/<filename>")
 def files(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
-
 # -----------------------------
-# HEAVY PROCESSING (worker)
+# WORKER
 # -----------------------------
 def process_job(job_id, path):
     try:
@@ -67,7 +61,7 @@ def process_job(job_id, path):
         arr = np.array(ela)
         score = int((np.mean(arr) / (np.max(arr) + 1e-5)) * 100)
 
-        # ---- Fast CV ----
+        # ---- CV ----
         img_cv = cv2.imread(path, 0)
         noise = float(np.mean(cv2.absdiff(img_cv, cv2.GaussianBlur(img_cv,(5,5),0)))) if img_cv is not None else 0
         sharp = float(cv2.Laplacian(img_cv, cv2.CV_64F).var()) if img_cv is not None else 0
@@ -75,9 +69,15 @@ def process_job(job_id, path):
         noise_n = min(100, noise / 2)
         sharp_n = min(100, sharp / 50)
 
-        confidence = int(min(100, score*0.4 + noise_n*0.3 + sharp_n*0.3))
+        # ---- Confidence breakdown ----
+        ela_contrib = score * 0.4
+        noise_contrib = noise_n * 0.3
+        sharp_contrib = sharp_n * 0.3
+        meta_bonus = 10 if len(metadata) == 0 else 0
 
-        # ---- Heatmap (safe + small) ----
+        confidence = int(min(100, ela_contrib + noise_contrib + sharp_contrib + meta_bonus))
+
+        # ---- Heatmap ----
         heatmap_file = None
         regions = []
 
@@ -107,6 +107,28 @@ def process_job(job_id, path):
         except:
             pass
 
+        # ---- Explanation ----
+        explanation = []
+
+        if score < 10:
+            explanation.append("Very low compression differences detected.")
+        elif score < 40:
+            explanation.append("Moderate compression differences detected.")
+        else:
+            explanation.append("High compression inconsistencies detected.")
+
+        if noise_n > 40:
+            explanation.append("Noise inconsistency detected.")
+
+        if sharp_n > 40:
+            explanation.append("Sharpness irregularities detected.")
+
+        if len(metadata) == 0:
+            explanation.append("Metadata missing or stripped.")
+
+        if not explanation:
+            explanation.append("No strong anomalies detected.")
+
         # ---- Result ----
         result = "Likely manipulated" if confidence > 70 else \
                  "Possibly manipulated" if confidence > 40 else \
@@ -121,13 +143,19 @@ def process_job(job_id, path):
                 "metadata": metadata,
                 "ela_image": f"{BASE_URL}/files/{ela_file}",
                 "heatmap": f"{BASE_URL}/files/{heatmap_file}" if heatmap_file else None,
-                "regions": regions
+                "regions": regions,
+                "explanation": explanation,
+                "confidence_breakdown": {
+                    "ela": int(ela_contrib),
+                    "noise": int(noise_contrib),
+                    "sharpness": int(sharp_contrib),
+                    "metadata_bonus": meta_bonus
+                }
             }
         }
 
     except Exception as e:
         jobs[job_id] = {"status": "error", "error": str(e)}
-
 
 # -----------------------------
 # START JOB
@@ -144,23 +172,16 @@ def analyze():
 
     jobs[job_id] = {"status": "processing"}
 
-    # Run in background thread
     threading.Thread(target=process_job, args=(job_id, path)).start()
 
     return jsonify({"job_id": job_id})
 
-
 # -----------------------------
-# CHECK STATUS
+# STATUS
 # -----------------------------
 @app.route("/api/status/<job_id>")
 def status(job_id):
-    job = jobs.get(job_id)
-    if not job:
-        return jsonify({"error": "Invalid job ID"}), 404
-
-    return jsonify(job)
-
+    return jsonify(jobs.get(job_id, {"error": "Invalid job"}))
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000)
