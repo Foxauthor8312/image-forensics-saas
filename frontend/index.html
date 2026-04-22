@@ -4,79 +4,193 @@
   <title>PixelProof</title>
 
   <style>
-    body { font-family: Arial; background:#0f172a; color:white; text-align:center; }
-    .container { max-width:900px; margin:40px auto; }
-    .card { background:#1e293b; padding:20px; margin-top:20px; border-radius:8px; text-align:left; }
-    .row { display:flex; gap:10px; flex-wrap:wrap; }
-    img { width:100%; border-radius:6px; }
-    button { padding:10px 20px; background:#3b82f6; border:none; color:white; margin-top:10px; cursor:pointer; }
+    body {
+      font-family: Arial;
+      background: #0f172a;
+      color: white;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 20px auto;
+      padding: 15px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    input {
+      margin-top: 10px;
+    }
+
+    button {
+      padding: 10px 20px;
+      background: #3b82f6;
+      border: none;
+      color: white;
+      margin-top: 10px;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .row > div {
+      flex: 1 1 45%;
+      min-width: 250px;
+    }
+
+    img {
+      width: 100%;
+      max-width: 100%;
+      max-height: 400px;
+      object-fit: contain;
+      border-radius: 6px;
+    }
+
+    .section-title {
+      margin-top: 20px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    pre {
+      background: #020617;
+      padding: 10px;
+      border-radius: 6px;
+      max-height: 250px;
+      overflow-y: auto;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 12px;
+    }
+
+    .loading {
+      margin-top: 20px;
+      font-size: 16px;
+      color: #94a3b8;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 6px;
+      background: #334155;
+      margin-top: 5px;
+    }
   </style>
 </head>
 
 <body>
-<div class="container">
-  <h1>PixelProof 🔍</h1>
+  <div class="container">
+    <h1>PixelProof 🔍</h1>
 
-  <input type="file" id="file"><br>
-  <button onclick="upload()">Analyze</button>
+    <input type="file" id="file"><br>
+    <button onclick="upload()">Analyze</button>
 
-  <div id="result"></div>
+    <div id="result"></div>
 
-  <button id="pdf" style="display:none;" onclick="pdf()">Download PDF</button>
-</div>
+    <button id="pdfBtn" style="display:none;" onclick="downloadPDF()">
+      Download PDF Report
+    </button>
+  </div>
 
-<script>
-const API = "https://pixelproof-backend-v2.onrender.com";
+  <script>
+    const API = "https://pixelproof-backend-v2.onrender.com";
 
-async function upload(){
-  const f = document.getElementById("file").files[0];
-  if(!f) return alert("Select file");
+    async function upload() {
+      const file = document.getElementById("file").files[0];
+      const result = document.getElementById("result");
+      const pdfBtn = document.getElementById("pdfBtn");
 
-  const form = new FormData();
-  form.append("image", f);
+      if (!file) return alert("Select a file");
 
-  const res = await fetch(API+"/api/analyze",{method:"POST", body:form});
-  const data = await res.json();
+      result.innerHTML = "<div class='loading'>Analyzing image...</div>";
+      pdfBtn.style.display = "none";
 
-  window.last = data;
-  document.getElementById("pdf").style.display="block";
+      const form = new FormData();
+      form.append("image", file);
 
-  const orig = URL.createObjectURL(f);
+      try {
+        const res = await fetch(API + "/api/analyze", {
+          method: "POST",
+          body: form
+        });
 
-  document.getElementById("result").innerHTML = `
-  <div class="card">
-    <h3>Result</h3>
-    Score: ${data.score}<br>
-    Confidence: ${data.confidence}%<br>
-    ${data.ela_result}
+        const data = await res.json();
+        window.lastResult = data;
 
-    <h4>Comparison</h4>
-    <div class="row">
-      <div><img src="${orig}"></div>
-      <div><img src="${data.ela_image}"></div>
-    </div>
+        pdfBtn.style.display = "block";
 
-    <h4>Heatmap</h4>
-    <img src="${data.heatmap}">
+        const original = URL.createObjectURL(file);
 
-    <h4>Detected Regions</h4>
-    ${data.regions.map(r=>`<div>x:${r[0]} y:${r[1]} w:${r[2]} h:${r[3]}</div>`).join("")}
+        result.innerHTML = `
+          <div class="card">
 
-    <h4>Metadata</h4>
-    <pre>${JSON.stringify(data.metadata,null,2)}</pre>
-  </div>`;
-}
+            <div class="section-title">Result</div>
+            <div class="badge">Score: ${data.score}</div><br>
+            <div class="badge">Confidence: ${data.confidence}%</div><br>
+            <div class="badge">${data.ela_result}</div>
 
-async function pdf(){
-  const res = await fetch(API+"/api/report",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(window.last)
-  });
+            <div class="section-title">Image Comparison</div>
+            <div class="row">
+              <div>
+                <p>Original</p>
+                <img src="${original}">
+              </div>
+              <div>
+                <p>ELA</p>
+                <img src="${data.ela_image}">
+              </div>
+            </div>
 
-  const data = await res.json();
-  window.open(data.report);
-}
-</script>
+            <div class="section-title">Heatmap Analysis</div>
+            <img src="${data.heatmap}">
+
+            <div class="section-title">Detected Regions</div>
+            ${data.regions.length > 0 
+              ? data.regions.map(r => `<div class="badge">x:${r[0]} y:${r[1]} w:${r[2]} h:${r[3]}</div>`).join("")
+              : "<p>No significant regions detected</p>"
+            }
+
+            <div class="section-title">Metadata</div>
+            <pre>${JSON.stringify(data.metadata, null, 2)}</pre>
+
+          </div>
+        `;
+
+      } catch (e) {
+        result.innerHTML = `<div class="card">Error: ${e}</div>`;
+      }
+    }
+
+    async function downloadPDF() {
+      const res = await fetch(API + "/api/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(window.lastResult)
+      });
+
+      const data = await res.json();
+      window.open(data.report);
+    }
+  </script>
 </body>
 </html>
