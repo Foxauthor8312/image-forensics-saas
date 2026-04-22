@@ -64,12 +64,12 @@ def analyze():
         findings.append("No strong manipulation signals")
 
     return jsonify({
-        "score": score,
-        "ela_result": "Potential manipulation" if score > 20 else "Likely original",
-        "metadata": metadata,
-        "findings": findings,
-        "ela_image": f"/files/{ela_filename}"
-    })
+    "score": score,
+    "ela_result": "Potential manipulation" if score > 20 else "Likely original",
+    "metadata": metadata,
+    "findings": findings,
+    "ela_image": f"https://pixelproof-backend-v2.onrender.com/files/{ela_filename}"
+})
 @app.route('/files/<filename>')
 def uploaded_file(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
