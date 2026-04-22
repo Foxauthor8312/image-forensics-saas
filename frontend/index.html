@@ -80,40 +80,20 @@
         return;
       }
 
-resultDiv.innerHTML = `
-  <div class="card">
-    <h2>Analysis Result</h2>
-
-    <p><strong>Score:</strong> ${data.score}</p>
-    <p><strong>Conclusion:</strong> ${data.ela_result}</p>
-
-    <h3>Findings</h3>
-    <ul>
-      ${data.findings.map(f => `<li>${f}</li>`).join("")}
-    </ul>
-
-    <h3>Metadata</h3>
-    <pre>${JSON.stringify(data.metadata, null, 2)}</pre>
-
-    <h3>ELA Visualization</h3>
-    <img src="${data.ela_image}" width="100%"/>
-
-    <br>
-    <button onclick="downloadReport()">Download PDF Report</button>
-  </div>
-`;
+      resultDiv.innerHTML = "<p>Analyzing image...</p>";
 
       const formData = new FormData();
       formData.append("image", file);
 
       try {
-        const res = await fetch("https://pixelproof-backend-v2.onrender.com/api/analyze", {
+        const res = await fetch("https://YOUR-RENDER-URL.onrender.com/api/analyze", {
           method: "POST",
           body: formData
         });
 
         const data = await res.json();
 
+        // Save result for PDF
         window.lastResult = data;
 
         resultDiv.innerHTML = `
@@ -141,11 +121,40 @@ resultDiv.innerHTML = `
               ? `<img src="${data.ela_image}" width="100%"/>`
               : "<p>No ELA image available</p>"
             }
+
+            <br>
+            <button onclick="downloadReport()">Download PDF Report</button>
           </div>
         `;
+
       } catch (err) {
         console.error(err);
         resultDiv.innerHTML = "<p style='color:red;'>Error analyzing image</p>";
+      }
+    }
+
+    async function downloadReport() {
+      if (!window.lastResult) {
+        alert("Run analysis first");
+        return;
+      }
+
+      try {
+        const res = await fetch("https://YOUR-RENDER-URL.onrender.com/api/report", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(window.lastResult)
+        });
+
+        const data = await res.json();
+
+        window.open(data.report, "_blank");
+
+      } catch (err) {
+        console.error(err);
+        alert("Failed to generate report");
       }
     }
   </script>
