@@ -144,7 +144,7 @@ else:
     # -----------------------------
     return jsonify({
         "score": score,
-        "ela_result": result,",
+        "ela_result": result,
         "metadata": metadata,
         "findings": findings,
         "ela_image": f"{BASE_URL}/files/{ela_filename}"
