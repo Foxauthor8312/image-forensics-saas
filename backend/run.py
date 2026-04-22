@@ -126,13 +126,21 @@ def analyze():
     # -----------------------------
     findings = []
 
-    if score > 60:
-        findings.append("Strong signs of manipulation (high compression inconsistency)")
-        result = "Likely manipulated"
+    # -----------------------------
+# Confidence scoring
+# -----------------------------
+confidence = score  # base from ELA
 
-    elif score > 30:
-        findings.append("Moderate inconsistencies detected")
-        result = "Possibly manipulated"
+# Boost confidence if metadata is missing (common in edited images)
+if len(metadata) == 0:
+    confidence += 15
+
+# Boost if GPS missing but camera exists (suspicious pattern)
+if "Image Make" in metadata and "GPS" not in metadata:
+    confidence += 10
+
+# Clamp to 0–100
+confidence = max(0, min(100, confidence))
 
     else:
         findings.append("Low compression differences detected")
