@@ -30,12 +30,16 @@ def files(filename):
 
 
 # -----------------------------
-# Heatmap + region detection
+# HEATMAP + REGION DETECTION
 # -----------------------------
 def generate_heatmap(path):
     img = cv2.imread(path)
+
     if img is None:
         return None, []
+
+    # 🔥 resize for performance
+    img = cv2.resize(img, (800, 800))
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -59,21 +63,21 @@ def generate_heatmap(path):
 
 
 # -----------------------------
-# AI-style scoring
+# AI STYLE DETECTION
 # -----------------------------
 def ai_detection(score, noise, sharpness):
     value = (score * 0.5) + (noise * 0.25) + (sharpness * 0.25)
 
     if value > 60:
-        return "AI: Likely manipulated"
+        return "Likely manipulated"
     elif value > 35:
-        return "AI: Possibly manipulated"
+        return "Possibly manipulated"
     else:
-        return "AI: Likely original"
+        return "Likely original"
 
 
 # -----------------------------
-# Analyze
+# ANALYZE
 # -----------------------------
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
@@ -86,21 +90,44 @@ def analyze():
         file.save(path)
 
         metadata = {}
+
+        # -----------------------------
+        # EXIF
+        # -----------------------------
         try:
             with open(path, "rb") as f:
                 tags = exifread.process_file(f)
+
             for tag in tags:
-                metadata[tag] = str(tags[tag])
+                val = str(tags[tag])
+                if len(val) < 200:  # 🔥 prevent huge metadata
+                    metadata[tag] = val
         except:
             pass
 
-        image = Image.open(path).convert("RGB")
+        # -----------------------------
+        # LOAD IMAGE SAFELY
+        # -----------------------------
+        try:
+            image = Image.open(path).convert("RGB")
 
-        # ---- ELA ----
+            # 🔥 resize large images (CRITICAL FIX)
+            max_size = 1200
+            image.thumbnail((max_size, max_size))
+            image.save(path)
+
+        except:
+            return jsonify({"error": "Invalid image format"}), 400
+
+        # -----------------------------
+        # ELA
+        # -----------------------------
         temp = path + "_c.jpg"
         image.save(temp, "JPEG", quality=90)
 
-        diff = ImageChops.difference(image, Image.open(temp))
+        compressed = Image.open(temp)
+        diff = ImageChops.difference(image, compressed)
+
         ela = ImageEnhance.Brightness(diff).enhance(10)
 
         ela_file = "ela.jpg"
@@ -109,25 +136,38 @@ def analyze():
         arr = np.array(ela)
         score = int((np.mean(arr) / (np.max(arr) + 1e-5)) * 100)
 
-        # ---- Simple noise + sharpness ----
+        # -----------------------------
+        # FAST NOISE + SHARPNESS
+        # -----------------------------
         img_cv = cv2.imread(path, 0)
-        noise = float(np.mean(cv2.absdiff(img_cv, cv2.GaussianBlur(img_cv,(5,5),0)))) if img_cv is not None else 0
-        sharp = float(cv2.Laplacian(img_cv, cv2.CV_64F).var()) if img_cv is not None else 0
 
-        noise_n = min(100, noise/2)
-        sharp_n = min(100, sharp/50)
+        if img_cv is not None:
+            noise = float(np.mean(cv2.absdiff(img_cv, cv2.GaussianBlur(img_cv,(5,5),0))))
+            sharp = float(cv2.Laplacian(img_cv, cv2.CV_64F).var())
+        else:
+            noise = 0
+            sharp = 0
 
-        # ---- Confidence ----
+        noise_n = min(100, noise / 2)
+        sharp_n = min(100, sharp / 50)
+
+        # -----------------------------
+        # CONFIDENCE
+        # -----------------------------
         confidence = int(min(100, score*0.4 + noise_n*0.3 + sharp_n*0.3))
 
-        # ---- Heatmap ----
+        # -----------------------------
+        # HEATMAP
+        # -----------------------------
         heatmap_img, boxes = generate_heatmap(path)
         heatmap_file = "heatmap.jpg"
 
         if heatmap_img is not None:
             cv2.imwrite(os.path.join(UPLOAD_FOLDER, heatmap_file), heatmap_img)
 
-        # ---- AI ----
+        # -----------------------------
+        # AI RESULT
+        # -----------------------------
         ai = ai_detection(score, noise_n, sharp_n)
 
         return jsonify({
@@ -145,29 +185,36 @@ def analyze():
 
 
 # -----------------------------
-# PDF
+# PDF REPORT
 # -----------------------------
 @app.route("/api/report", methods=["POST"])
 def report():
-    data = request.json
+    try:
+        data = request.json
 
-    file_path = os.path.join(UPLOAD_FOLDER, "report.pdf")
-    doc = SimpleDocTemplate(file_path)
-    styles = getSampleStyleSheet()
+        file_path = os.path.join(UPLOAD_FOLDER, "report.pdf")
+        doc = SimpleDocTemplate(file_path)
+        styles = getSampleStyleSheet()
 
-    content = []
-    content.append(Paragraph("PixelProof Report", styles["Title"]))
-    content.append(Spacer(1, 10))
-    content.append(Paragraph(f"Score: {data['score']}", styles["Normal"]))
-    content.append(Paragraph(f"Confidence: {data['confidence']}%", styles["Normal"]))
-    content.append(Paragraph(f"AI Result: {data['ela_result']}", styles["Normal"]))
+        content = []
+        content.append(Paragraph("PixelProof Report", styles["Title"]))
+        content.append(Spacer(1, 10))
+        content.append(Paragraph(f"Score: {data['score']}", styles["Normal"]))
+        content.append(Paragraph(f"Confidence: {data['confidence']}%", styles["Normal"]))
+        content.append(Paragraph(f"Result: {data['ela_result']}", styles["Normal"]))
 
-    doc.build(content)
+        doc.build(content)
 
-    return jsonify({
-        "report": f"{BASE_URL}/files/report.pdf"
-    })
+        return jsonify({
+            "report": f"{BASE_URL}/files/report.pdf"
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
+# -----------------------------
+# RUN
+# -----------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000)
