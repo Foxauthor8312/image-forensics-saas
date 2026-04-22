@@ -1,207 +1,199 @@
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
-import os
-from PIL import Image, ImageChops, ImageEnhance
-import exifread
-import numpy as np
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PixelProof</title>
 
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+      text-align: center;
+      margin: 0;
+    }
 
-app = Flask(__name__)
-CORS(app)
+    .container {
+      max-width: 900px;
+      margin: 60px auto;
+    }
 
-UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    h1 {
+      font-size: 36px;
+      margin-bottom: 10px;
+    }
 
-# 🔥 CHANGE THIS
-BASE_URL = "https://pixelproof-backend-v2.onrender.com"
+    button {
+      background: #3b82f6;
+      color: white;
+      padding: 12px 25px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 15px;
+    }
 
+    button:hover {
+      background: #2563eb;
+    }
 
-# -----------------------------
-# Home
-# -----------------------------
-@app.route("/")
-def home():
-    return "Backend is running"
+    .card {
+      background: #1e293b;
+      padding: 20px;
+      margin-top: 25px;
+      border-radius: 10px;
+      text-align: left;
+    }
 
+    .comparison {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
 
-# -----------------------------
-# Serve files
-# -----------------------------
-@app.route('/files/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
+    .comparison div {
+      flex: 1;
+      min-width: 250px;
+    }
 
+    img {
+      margin-top: 10px;
+      border-radius: 8px;
+      width: 100%;
+    }
 
-# -----------------------------
-# Analyze Image
-# -----------------------------
-@app.route("/api/analyze", methods=["POST"])
-def analyze():
-    file = request.files.get("image")
+    pre {
+      background: #020617;
+      padding: 10px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+  </style>
+</head>
 
-    if not file:
-        return jsonify({"error": "No file uploaded"}), 400
+<body>
+  <div class="container">
+    <h1>PixelProof 🔍</h1>
 
-    filepath = os.path.join(UPLOAD_FOLDER, file.filename)
-    file.save(filepath)
+    <input type="file" id="fileInput"><br>
+    <button onclick="upload()">Analyze Image</button>
 
-    metadata = {}
+    <div id="result"></div>
 
-    # -----------------------------
-    # EXIF Metadata
-    # -----------------------------
-    try:
-        with open(filepath, 'rb') as f:
-            tags = exifread.process_file(f)
+    <br>
+    <button id="pdfBtn" onclick="downloadReport()" style="display:none;">
+      Download PDF Report
+    </button>
+  </div>
 
-        for tag in tags.keys():
-            try:
-                metadata[tag] = str(tags[tag])
-            except:
-                metadata[tag] = "Unreadable"
+  <script>
+    // 🔥 CHANGE THIS TO YOUR BACKEND
+    const API_BASE = "https://pixelproof-backend-v2.onrender.com";
 
-        # GPS extraction
-        gps_data = {}
-        for tag in tags:
-            if "GPS" in tag:
-                gps_data[tag] = str(tags[tag])
+    async function upload() {
+      const file = document.getElementById("fileInput").files[0];
+      const resultDiv = document.getElementById("result");
+      const pdfBtn = document.getElementById("pdfBtn");
 
-        if gps_data:
-            metadata["GPS"] = gps_data
+      if (!file) {
+        alert("Please select a file");
+        return;
+      }
 
-    except Exception as e:
-        metadata["exif_error"] = str(e)
+      resultDiv.innerHTML = "<p>Analyzing image...</p>";
+      pdfBtn.style.display = "none";
 
-    # -----------------------------
-    # PIL Metadata
-    # -----------------------------
-    try:
-        image = Image.open(filepath)
+      const formData = new FormData();
+      formData.append("image", file);
 
-        metadata["Format"] = image.format
-        metadata["Mode"] = image.mode
-        metadata["Size"] = image.size
+      try {
+        const res = await fetch(`${API_BASE}/api/analyze`, {
+          method: "POST",
+          body: formData
+        });
 
-        if hasattr(image, "info"):
-            for k, v in image.info.items():
-                metadata[k] = str(v)
+        const data = await res.json();
 
-    except Exception as e:
-        metadata["pil_error"] = str(e)
+        window.lastResult = data;
 
-    # -----------------------------
-    # ELA Analysis
-    # -----------------------------
-    try:
-        original = Image.open(filepath).convert('RGB')
+        // Show PDF button
+        pdfBtn.style.display = "inline-block";
 
-        temp_path = filepath + "_compressed.jpg"
-        original.save(temp_path, 'JPEG', quality=90)
+        // Confidence label
+        const confidenceLabel =
+          data.confidence > 70 ? "High suspicion" :
+          data.confidence > 40 ? "Moderate" :
+          "Low";
 
-        compressed = Image.open(temp_path)
-        diff = ImageChops.difference(original, compressed)
+        const originalURL = URL.createObjectURL(file);
 
-        enhancer = ImageEnhance.Brightness(diff)
-        ela_image = enhancer.enhance(10)
+        resultDiv.innerHTML = `
+          <div class="card">
+            <h2>Analysis Result</h2>
 
-        ela_filename = os.path.basename(filepath) + "_ela.jpg"
-        ela_path = os.path.join(UPLOAD_FOLDER, ela_filename)
-        ela_image.save(ela_path)
+            <p><strong>Score:</strong> ${data.score}</p>
+            <p><strong>Confidence:</strong> ${data.confidence}% (${confidenceLabel})</p>
+            <p><strong>Conclusion:</strong> ${data.ela_result}</p>
 
-        ela_array = np.array(ela_image)
+            <h3>Findings</h3>
+            <ul>
+              ${data.findings.map(f => `<li>${f}</li>`).join("")}
+            </ul>
 
-        mean_diff = np.mean(ela_array)
-        max_diff = np.max(ela_array)
+            <h3>Image Comparison</h3>
+            <div class="comparison">
+              <div>
+                <p><strong>Original</strong></p>
+                <img src="${originalURL}" />
+              </div>
+              <div>
+                <p><strong>ELA</strong></p>
+                <img src="${data.ela_image}" />
+              </div>
+            </div>
 
-        # Normalize score (0–100)
-        score = int((mean_diff / (max_diff + 1e-5)) * 100)
+            <h3>Metadata</h3>
+            ${
+              Object.keys(data.metadata || {}).length === 0
+              ? "<p>No metadata found</p>"
+              : `<pre>${JSON.stringify(data.metadata, null, 2)}</pre>`
+            }
+          </div>
+        `;
 
-    except Exception as e:
-        return jsonify({"error": f"ELA processing failed: {str(e)}"}), 500
+      } catch (err) {
+        console.error(err);
+        resultDiv.innerHTML = "<p style='color:red;'>Error analyzing image</p>";
+      }
+    }
 
-    # -----------------------------
-    # Findings Logic
-    # -----------------------------
-    findings = []
+    async function downloadReport() {
+      if (!window.lastResult) {
+        alert("Run analysis first");
+        return;
+      }
 
-    # -----------------------------
-# Confidence scoring
-# -----------------------------
-confidence = score  # base from ELA
+      try {
+        const res = await fetch(`${API_BASE}/api/report`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(window.lastResult)
+        });
 
-# Boost confidence if metadata is missing (common in edited images)
-if len(metadata) == 0:
-    confidence += 15
+        const data = await res.json();
 
-# Boost if GPS missing but camera exists (suspicious pattern)
-if "Image Make" in metadata and "GPS" not in metadata:
-    confidence += 10
+        if (data.report) {
+          window.open(data.report, "_blank");
+        } else {
+          alert("Report generation failed");
+        }
 
-# Clamp to 0–100
-confidence = max(0, min(100, confidence))
-
-    else:
-        findings.append("Low compression differences detected")
-        result = "No strong evidence of manipulation"
-
-    if len(metadata) == 0:
-        findings.append("No metadata found (possibly stripped)")
-
-    # -----------------------------
-    # Response
-    # -----------------------------
-    return jsonify({
-        "score": score,
-        "ela_result": result,
-        "metadata": metadata,
-        "findings": findings,
-        "ela_image": f"{BASE_URL}/files/{ela_filename}"
-    })
-
-
-# -----------------------------
-# PDF Report
-# -----------------------------
-@app.route("/api/report", methods=["POST"])
-def generate_report():
-    data = request.json
-
-    filename = "report.pdf"
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
-
-    doc = SimpleDocTemplate(file_path)
-    styles = getSampleStyleSheet()
-
-    content = []
-
-    content.append(Paragraph("PixelProof Forensic Report", styles["Title"]))
-    content.append(Spacer(1, 12))
-
-    content.append(Paragraph(f"Score: {data['score']}", styles["Normal"]))
-    content.append(Paragraph(f"Conclusion: {data['ela_result']}", styles["Normal"]))
-    content.append(Spacer(1, 10))
-
-    content.append(Paragraph("Findings:", styles["Heading2"]))
-    for f in data["findings"]:
-        content.append(Paragraph(f"- {f}", styles["Normal"]))
-
-    content.append(Spacer(1, 10))
-    content.append(Paragraph("Metadata Summary:", styles["Heading2"]))
-
-    for k, v in list(data.get("metadata", {}).items())[:15]:
-        content.append(Paragraph(f"{k}: {v}", styles["Normal"]))
-
-    doc.build(content)
-
-    return jsonify({
-        "report": f"{BASE_URL}/files/{filename}"
-    })
-
-
-# -----------------------------
-# Run locally
-# -----------------------------
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3000)
+      } catch (err) {
+        console.error(err);
+        alert("Failed to generate report");
+      }
+    }
+  </script>
+</body>
+</html>
