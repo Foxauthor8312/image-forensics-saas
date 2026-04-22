@@ -1,272 +1,119 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>PixelProof</title>
-
-  <style>
-    body {
-      font-family: system-ui, Arial;
-      background: #0f172a;
-      color: white;
-      margin: 0;
-    }
-
-    .container {
-      max-width: 1000px;
-      margin: 40px auto;
-      padding: 20px;
-    }
-
-    h1 {
-      text-align: center;
-      margin-bottom: 30px;
-    }
-
-    /* Upload box */
-    .dropzone {
-      border: 2px dashed #334155;
-      padding: 40px;
-      text-align: center;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-
-    .dropzone:hover {
-      border-color: #3b82f6;
-      background: #020617;
-    }
-
-    .card {
-      background: #1e293b;
-      padding: 20px;
-      margin-top: 25px;
-      border-radius: 10px;
-    }
-
-    button {
-      padding: 10px 20px;
-      background: #3b82f6;
-      border: none;
-      color: white;
-      border-radius: 6px;
-      cursor: pointer;
-      margin-top: 15px;
-    }
-
-    /* Tabs */
-    .tabs {
-      display: flex;
-      gap: 10px;
-      margin-top: 20px;
-    }
-
-    .tab {
-      padding: 10px 15px;
-      background: #334155;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    .tab.active {
-      background: #3b82f6;
-    }
-
-    .tab-content {
-      display: none;
-      margin-top: 20px;
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
-    .row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .row div {
-      flex: 1 1 45%;
-      min-width: 250px;
-    }
-
-    img {
-      width: 100%;
-      max-height: 400px;
-      object-fit: contain;
-      border-radius: 6px;
-    }
-
-    pre {
-      background: #020617;
-      padding: 10px;
-      border-radius: 6px;
-      max-height: 300px;
-      overflow: auto;
-      font-size: 12px;
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 5px 10px;
-      margin: 5px 5px 0 0;
-      background: #334155;
-      border-radius: 6px;
-    }
-
-    .loading {
-      text-align: center;
-      margin-top: 20px;
-      color: #94a3b8;
-    }
-  </style>
+<title>PixelProof</title>
+<style>
+body{font-family:Arial;background:#0f172a;color:white;margin:0}
+.container{max-width:1000px;margin:40px auto;padding:20px}
+.drop{border:2px dashed #334155;padding:40px;text-align:center;border-radius:10px;cursor:pointer}
+.tabs{display:flex;gap:10px;margin-top:20px}
+.tab{padding:10px;background:#334155;border-radius:6px;cursor:pointer}
+.tab.active{background:#3b82f6}
+.tab-content{display:none;margin-top:20px}
+.tab-content.active{display:block}
+img{width:100%;max-height:400px;object-fit:contain}
+pre{background:#020617;padding:10px;max-height:300px;overflow:auto}
+.bar{background:#1e293b;border-radius:6px;margin-bottom:10px}
+.bar-inner{background:#3b82f6;height:10px;border-radius:6px}
+</style>
 </head>
 
 <body>
-
 <div class="container">
-  <h1>PixelProof 🔍</h1>
+<h1>PixelProof</h1>
 
-  <!-- Drag & Drop -->
-  <div class="dropzone" id="dropzone">
-    Drag & Drop Image or Click to Upload
-    <input type="file" id="fileInput" hidden>
-  </div>
+<div class="drop" id="drop">Drop Image or Click<input type="file" hidden id="file"></div>
+<button onclick="upload()">Analyze</button>
 
-  <button onclick="upload()">Analyze Image</button>
-
-  <div id="result"></div>
-
-  <button id="pdfBtn" style="display:none;" onclick="downloadPDF()">Download PDF</button>
+<div id="result"></div>
 </div>
 
 <script>
-const API = "https://pixelproof-backend-v2.onrender.com";
+const API="https://pixelproof-backend-v2.onrender.com";
+let file=null;
 
-let selectedFile = null;
+document.getElementById("drop").onclick=()=>fileInput.click();
+fileInput.onchange=e=>file=e.target.files[0];
+drop.ondrop=e=>{e.preventDefault();file=e.dataTransfer.files[0]};
 
-/* Drag & Drop */
-const dz = document.getElementById("dropzone");
-const fileInput = document.getElementById("fileInput");
+async function upload(){
+ if(!file) return alert("Select file");
 
-dz.onclick = () => fileInput.click();
+ const form=new FormData();
+ form.append("image",file);
 
-fileInput.onchange = (e) => {
-  selectedFile = e.target.files[0];
-  dz.innerHTML = selectedFile.name;
-};
+ const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+ const {job_id}=await res.json();
 
-dz.ondragover = (e) => {
-  e.preventDefault();
-  dz.style.borderColor = "#3b82f6";
-};
-
-dz.ondragleave = () => {
-  dz.style.borderColor = "#334155";
-};
-
-dz.ondrop = (e) => {
-  e.preventDefault();
-  selectedFile = e.dataTransfer.files[0];
-  dz.innerHTML = selectedFile.name;
-};
-
-/* Upload */
-async function upload() {
-  if (!selectedFile) return alert("Select or drop a file");
-
-  const result = document.getElementById("result");
-  result.innerHTML = "<div class='loading'>Analyzing...</div>";
-
-  const form = new FormData();
-  form.append("image", selectedFile);
-
-  const res = await fetch(API + "/api/analyze", {
-    method: "POST",
-    body: form
-  });
-
-  const data = await res.json();
-  window.last = data;
-
-  document.getElementById("pdfBtn").style.display = "block";
-
-  const original = URL.createObjectURL(selectedFile);
-
-  result.innerHTML = `
-  <div class="card">
-
-    <div>
-      <span class="badge">Score: ${data.score}</span>
-      <span class="badge">Confidence: ${data.confidence}%</span>
-      <span class="badge">${data.ela_result}</span>
-    </div>
-
-    <!-- Tabs -->
-    <div class="tabs">
-      <div class="tab active" onclick="openTab(event,'results')">Results</div>
-      <div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
-      <div class="tab" onclick="openTab(event,'metadata')">Metadata</div>
-    </div>
-
-    <!-- Results -->
-    <div id="results" class="tab-content active">
-      <div class="row">
-        <div>
-          <p>Original</p>
-          <img src="${original}">
-        </div>
-        <div>
-          <p>ELA</p>
-          <img src="${data.ela_image}">
-        </div>
-      </div>
-
-      <h4>Detected Regions</h4>
-      ${
-        data.regions.length
-        ? data.regions.map(r => `<div class="badge">x:${r[0]} y:${r[1]} w:${r[2]} h:${r[3]}</div>`).join("")
-        : "<p>No significant regions</p>"
-      }
-    </div>
-
-    <!-- Heatmap -->
-    <div id="heatmap" class="tab-content">
-      <img src="${data.heatmap}">
-    </div>
-
-    <!-- Metadata -->
-    <div id="metadata" class="tab-content">
-      <pre>${JSON.stringify(data.metadata,null,2)}</pre>
-    </div>
-
-  </div>
-  `;
+ check(job_id);
 }
 
-/* Tabs */
-function openTab(evt, name) {
-  document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+async function check(id){
+ const interval=setInterval(async()=>{
+   const res=await fetch(API+"/api/status/"+id);
+   const data=await res.json();
 
-  document.getElementById(name).classList.add("active");
-  evt.target.classList.add("active");
+   if(data.status==="done"){
+     clearInterval(interval);
+     render(data.result);
+   }
+ },1500);
 }
 
-/* PDF */
-async function downloadPDF() {
-  const res = await fetch(API + "/api/report", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(window.last)
-  });
+function render(data){
+ const orig=URL.createObjectURL(file);
 
-  const data = await res.json();
-  window.open(data.report);
+ document.getElementById("result").innerHTML=`
+ <div>
+   <b>Score:</b> ${data.score} | 
+   <b>Confidence:</b> ${data.confidence}% | 
+   ${data.ela_result}
+
+   <div class="tabs">
+     <div class="tab active" onclick="tab(event,'res')">Results</div>
+     <div class="tab" onclick="tab(event,'heat')">Heatmap</div>
+     <div class="tab" onclick="tab(event,'meta')">Metadata</div>
+     <div class="tab" onclick="tab(event,'exp')">Explanation</div>
+   </div>
+
+   <div id="res" class="tab-content active">
+     <img src="${orig}">
+     <img src="${data.ela_image}">
+   </div>
+
+   <div id="heat" class="tab-content">
+     <img src="${data.heatmap}">
+   </div>
+
+   <div id="meta" class="tab-content">
+     <pre>${JSON.stringify(data.metadata,null,2)}</pre>
+   </div>
+
+   <div id="exp" class="tab-content">
+     ${data.explanation.map(e=>`<p>${e}</p>`).join("")}
+
+     <h3>Confidence Breakdown</h3>
+     ${bar("ELA",data.confidence_breakdown.ela)}
+     ${bar("Noise",data.confidence_breakdown.noise)}
+     ${bar("Sharpness",data.confidence_breakdown.sharpness)}
+     ${bar("Metadata",data.confidence_breakdown.metadata_bonus)}
+   </div>
+ </div>`;
+}
+
+function tab(e,id){
+ document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+ document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+ document.getElementById(id).classList.add("active");
+ e.target.classList.add("active");
+}
+
+function bar(name,val){
+ return `
+ <div>${name}: ${val}</div>
+ <div class="bar"><div class="bar-inner" style="width:${val}%"></div></div>
+ `;
 }
 </script>
-
 </body>
 </html>
