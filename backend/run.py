@@ -5,13 +5,18 @@ from PIL import Image, ImageChops, ImageEnhance
 import exifread
 import numpy as np
 
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+
 app = Flask(__name__)
 CORS(app)
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# 🔥 CHANGE THIS TO YOUR ACTUAL RENDER URL
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
+
 
 # -----------------------------
 # Home route
@@ -20,12 +25,14 @@ BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 def home():
     return "Backend is running"
 
+
 # -----------------------------
 # Serve generated files
 # -----------------------------
 @app.route('/files/<filename>')
 def uploaded_file(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
+
 
 # -----------------------------
 # Analyze image
@@ -40,11 +47,11 @@ def analyze():
     filepath = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(filepath)
 
+    metadata = {}
+
     # -----------------------------
     # EXIF METADATA
     # -----------------------------
-    metadata = {}
-
     try:
         with open(filepath, 'rb') as f:
             tags = exifread.process_file(f)
@@ -65,7 +72,7 @@ def analyze():
             metadata["GPS"] = gps_data
 
     except Exception as e:
-        metadata["error"] = str(e)
+        metadata["exif_error"] = str(e)
 
     # -----------------------------
     # PIL METADATA
@@ -135,7 +142,49 @@ def analyze():
 
 
 # -----------------------------
-# Run server
+# Generate PDF report
+# -----------------------------
+@app.route("/api/report", methods=["POST"])
+def generate_report():
+    data = request.json
+
+    filename = "report.pdf"
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+
+    doc = SimpleDocTemplate(file_path)
+    styles = getSampleStyleSheet()
+
+    content = []
+
+    content.append(Paragraph("PixelProof Forensic Report", styles["Title"]))
+    content.append(Spacer(1, 12))
+
+    content.append(Paragraph(f"Score: {data['score']}", styles["Normal"]))
+    content.append(Paragraph(f"Conclusion: {data['ela_result']}", styles["Normal"]))
+    content.append(Spacer(1, 10))
+
+    content.append(Paragraph("Findings:", styles["Heading2"]))
+    for f in data["findings"]:
+        content.append(Paragraph(f"- {f}", styles["Normal"]))
+
+    content.append(Spacer(1, 10))
+    content.append(Paragraph("Metadata Summary:", styles["Heading2"]))
+
+    # limit metadata to avoid huge PDF
+    metadata_items = list(data.get("metadata", {}).items())[:15]
+
+    for k, v in metadata_items:
+        content.append(Paragraph(f"{k}: {v}", styles["Normal"]))
+
+    doc.build(content)
+
+    return jsonify({
+        "report": f"{BASE_URL}/files/{filename}"
+    })
+
+
+# -----------------------------
+# Run locally (not used on Render)
 # -----------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000)
