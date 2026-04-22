@@ -80,7 +80,28 @@
         return;
       }
 
-      resultDiv.innerHTML = "<p>Analyzing image...</p>";
+resultDiv.innerHTML = `
+  <div class="card">
+    <h2>Analysis Result</h2>
+
+    <p><strong>Score:</strong> ${data.score}</p>
+    <p><strong>Conclusion:</strong> ${data.ela_result}</p>
+
+    <h3>Findings</h3>
+    <ul>
+      ${data.findings.map(f => `<li>${f}</li>`).join("")}
+    </ul>
+
+    <h3>Metadata</h3>
+    <pre>${JSON.stringify(data.metadata, null, 2)}</pre>
+
+    <h3>ELA Visualization</h3>
+    <img src="${data.ela_image}" width="100%"/>
+
+    <br>
+    <button onclick="downloadReport()">Download PDF Report</button>
+  </div>
+`;
 
       const formData = new FormData();
       formData.append("image", file);
