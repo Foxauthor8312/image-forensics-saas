@@ -111,7 +111,11 @@ def analyze():
         ela_image.save(ela_path)
 
         ela_array = np.array(ela_image)
-        score = int(np.mean(ela_array))
+        mean_diff = np.mean(ela_array)
+        max_diff = np.max(ela_array)
+
+# Normalize score (0–100)
+score = int((mean_diff / (max_diff + 1e-5)) * 100)
 
     except Exception as e:
         return jsonify({"error": f"ELA processing failed: {str(e)}"}), 500
@@ -121,20 +125,26 @@ def analyze():
     # -----------------------------
     findings = []
 
-    if score > 20:
-        findings.append("High compression differences detected")
-    else:
-        findings.append("No strong manipulation signals")
+    findings = []
 
-    if len(metadata) == 0:
-        findings.append("No metadata found (possibly stripped)")
+if score > 60:
+    findings.append("Strong signs of manipulation (high compression inconsistency)")
+    result = "Likely manipulated"
+
+elif score > 30:
+    findings.append("Moderate inconsistencies detected")
+    result = "Possibly manipulated"
+
+else:
+    findings.append("Low compression differences detected")
+    result = "No strong evidence of manipulation"
 
     # -----------------------------
     # Response
     # -----------------------------
     return jsonify({
         "score": score,
-        "ela_result": "Potential manipulation" if score > 20 else "Likely original",
+        "ela_result": result,",
         "metadata": metadata,
         "findings": findings,
         "ela_image": f"{BASE_URL}/files/{ela_filename}"
