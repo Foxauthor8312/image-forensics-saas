@@ -13,7 +13,7 @@
     }
 
     .container {
-      max-width: 700px;
+      max-width: 900px;
       margin: 60px auto;
     }
 
@@ -43,6 +43,17 @@
       text-align: left;
     }
 
+    .comparison {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .comparison div {
+      flex: 1;
+      min-width: 250px;
+    }
+
     img {
       margin-top: 10px;
       border-radius: 8px;
@@ -53,6 +64,7 @@
       background: #020617;
       padding: 10px;
       overflow-x: auto;
+      font-size: 12px;
     }
   </style>
 </head>
@@ -100,15 +112,21 @@
         const data = await res.json();
 
         window.lastResult = data;
-
-        // Show PDF button
         pdfBtn.style.display = "inline-block";
+
+        const confidenceLabel =
+          data.confidence > 70 ? "High suspicion" :
+          data.confidence > 40 ? "Moderate" :
+          "Low";
+
+        const originalURL = URL.createObjectURL(file);
 
         resultDiv.innerHTML = `
           <div class="card">
             <h2>Analysis Result</h2>
 
             <p><strong>Score:</strong> ${data.score}</p>
+            <p><strong>Confidence:</strong> ${data.confidence || 0}% (${confidenceLabel})</p>
             <p><strong>Conclusion:</strong> ${data.ela_result}</p>
 
             <h3>Findings</h3>
@@ -116,18 +134,23 @@
               ${data.findings.map(f => `<li>${f}</li>`).join("")}
             </ul>
 
+            <h3>Image Comparison</h3>
+            <div class="comparison">
+              <div>
+                <p><strong>Original</strong></p>
+                <img src="${originalURL}" />
+              </div>
+              <div>
+                <p><strong>ELA</strong></p>
+                <img src="${data.ela_image}" />
+              </div>
+            </div>
+
             <h3>Metadata</h3>
             ${
               Object.keys(data.metadata || {}).length === 0
               ? "<p>No metadata found</p>"
               : `<pre>${JSON.stringify(data.metadata, null, 2)}</pre>`
-            }
-
-            <h3>ELA Visualization</h3>
-            ${
-              data.ela_image
-              ? `<img src="${data.ela_image}" />`
-              : "<p>No ELA image available</p>"
             }
           </div>
         `;
