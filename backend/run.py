@@ -27,13 +27,48 @@ def analyze():
     filepath = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(filepath)
 
-    # Fake result (for now, just to get live)
+    # --- EXIF METADATA ---
+    with open(filepath, 'rb') as f:
+        tags = exifread.process_file(f)
+
+    metadata = {}
+    for i, (k, v) in enumerate(tags.items()):
+        if i >= 10:
+            break
+        metadata[k] = str(v)
+
+    # --- ELA (Error Level Analysis) ---
+    original = Image.open(filepath).convert('RGB')
+
+    temp_path = filepath + "_compressed.jpg"
+    original.save(temp_path, 'JPEG', quality=90)
+
+    compressed = Image.open(temp_path)
+    diff = ImageChops.difference(original, compressed)
+
+    enhancer = ImageEnhance.Brightness(diff)
+    ela_image = enhancer.enhance(10)
+
+    ela_filename = os.path.basename(filepath) + "_ela.jpg"
+    ela_path = os.path.join(UPLOAD_FOLDER, ela_filename)
+    ela_image.save(ela_path)
+
+    # --- SCORE ---
+    ela_array = np.array(ela_image)
+    score = int(np.mean(ela_array))
+
+    findings = []
+    if score > 20:
+        findings.append("High compression differences detected")
+    else:
+        findings.append("No strong manipulation signals")
+
     return jsonify({
-        "original_image": f"/{filepath}",
-        "heatmap_image": f"/{filepath}",
-        "score": 42,
-        "ela_result": "Demo result",
-        "findings": ["Demo analysis"]
+        "score": score,
+        "ela_result": "Potential manipulation" if score > 20 else "Likely original",
+        "metadata": metadata,
+        "findings": findings,
+        "ela_image": f"/files/{ela_filename}"
     })
 
 if __name__ == "__main__":
