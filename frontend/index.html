@@ -21,10 +21,6 @@
       font-size: 36px;
     }
 
-    input {
-      margin-top: 20px;
-    }
-
     button {
       background: #3b82f6;
       color: white;
@@ -50,6 +46,7 @@
     img {
       margin-top: 10px;
       border-radius: 8px;
+      width: 100%;
     }
 
     pre {
@@ -69,16 +66,19 @@
 
     <div id="result"></div>
 
-<br>
-<button id="pdfBtn" onclick="downloadReport()" style="display:none;">
-  Download PDF Report
-</button>
+    <br>
+    <button id="pdfBtn" onclick="downloadReport()" style="display:none;">
+      Download PDF Report
+    </button>
   </div>
 
   <script>
+    const API_BASE = "https://pixelproof-backend-v2.onrender.com";
+
     async function upload() {
       const file = document.getElementById("fileInput").files[0];
       const resultDiv = document.getElementById("result");
+      const pdfBtn = document.getElementById("pdfBtn");
 
       if (!file) {
         alert("Please select a file");
@@ -86,20 +86,23 @@
       }
 
       resultDiv.innerHTML = "<p>Analyzing image...</p>";
+      pdfBtn.style.display = "none";
 
       const formData = new FormData();
       formData.append("image", file);
 
       try {
-        const res = await fetch("https://pixelproof-backend-v2.onrender.com", {
+        const res = await fetch(`${API_BASE}/api/analyze`, {
           method: "POST",
           body: formData
         });
 
         const data = await res.json();
 
-        // Save result for PDF
         window.lastResult = data;
+
+        // Show PDF button
+        pdfBtn.style.display = "inline-block";
 
         resultDiv.innerHTML = `
           <div class="card">
@@ -123,12 +126,9 @@
             <h3>ELA Visualization</h3>
             ${
               data.ela_image
-              ? `<img src="${data.ela_image}" width="100%"/>`
+              ? `<img src="${data.ela_image}" />`
               : "<p>No ELA image available</p>"
             }
-
-            <br>
-            <button onclick="downloadReport()">Download PDF Report</button>
           </div>
         `;
 
@@ -145,7 +145,7 @@
       }
 
       try {
-        const res = await fetch("https://YOUR-RENDER-URL.onrender.com/api/report", {
+        const res = await fetch(`${API_BASE}/api/report`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -155,7 +155,11 @@
 
         const data = await res.json();
 
-        window.open(data.report, "_blank");
+        if (data.report) {
+          window.open(data.report, "_blank");
+        } else {
+          alert("Report generation failed");
+        }
 
       } catch (err) {
         console.error(err);
