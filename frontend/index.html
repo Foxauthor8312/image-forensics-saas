@@ -86,7 +86,7 @@
       formData.append("image", file);
 
       try {
-        const res = await fetch("https://YOUR-RENDER-URL.onrender.com/api/analyze", {
+        const res = await fetch("https://pixelproof-backend-v2.onrender.com", {
           method: "POST",
           body: formData
         });
