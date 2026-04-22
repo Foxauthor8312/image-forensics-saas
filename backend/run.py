@@ -70,6 +70,8 @@ def analyze():
         "findings": findings,
         "ela_image": f"/files/{ela_filename}"
     })
-
+@app.route('/files/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
 if __name__ == "__main__":
     app.run()
