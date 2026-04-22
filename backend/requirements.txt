@@ -1,3 +1,6 @@
 flask
 flask-cors
 gunicorn
+Pillow
+exifread
+numpy
