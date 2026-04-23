@@ -31,14 +31,14 @@ def files(filename):
 
 
 # -----------------------------
-# WORKER FUNCTION
+# WORKER
 # -----------------------------
 def process_job(job_id, path):
     try:
         metadata = {}
 
         # -----------------------------
-        # EXIF (safe + trimmed)
+        # EXIF
         # -----------------------------
         try:
             with open(path, "rb") as f:
@@ -51,7 +51,7 @@ def process_job(job_id, path):
             pass
 
         # -----------------------------
-        # LOAD + RESIZE (CRITICAL FIX)
+        # LOAD + RESIZE
         # -----------------------------
         image = Image.open(path).convert("RGB")
         image.thumbnail((800, 800))
@@ -69,14 +69,13 @@ def process_job(job_id, path):
         ela = ImageEnhance.Brightness(diff).enhance(10)
 
         ela_file = f"{job_id}_ela.jpg"
-        ela_path = os.path.join(UPLOAD_FOLDER, ela_file)
-        ela.save(ela_path)
+        ela.save(os.path.join(UPLOAD_FOLDER, ela_file))
 
         arr = np.array(ela)
         score = int((np.mean(arr) / (np.max(arr) + 1e-5)) * 100)
 
         # -----------------------------
-        # FAST CV (noise + sharpness)
+        # NOISE + SHARPNESS
         # -----------------------------
         img_cv = cv2.imread(path, 0)
 
@@ -101,7 +100,7 @@ def process_job(job_id, path):
         confidence = int(min(100, ela_contrib + noise_contrib + sharp_contrib + meta_bonus))
 
         # -----------------------------
-        # HEATMAP (SAFE + FAST)
+        # HEATMAP + REGIONS
         # -----------------------------
         heatmap_file = None
         regions = []
@@ -134,38 +133,76 @@ def process_job(job_id, path):
             pass
 
         # -----------------------------
-        # EXPLANATION
+        # SUMMARY
+        # -----------------------------
+        if confidence > 70:
+            summary = "This image shows strong indicators of manipulation."
+        elif confidence > 40:
+            summary = "This image shows moderate signs of possible editing or recompression."
+        else:
+            summary = "This image appears mostly consistent with an original or uniformly processed image."
+
+        # -----------------------------
+        # DETAILED EXPLANATION
         # -----------------------------
         explanation = []
 
         if score < 10:
-            explanation.append("Very low compression differences detected.")
+            explanation.append(f"Low ELA score ({score}) indicates uniform compression.")
         elif score < 40:
-            explanation.append("Moderate compression differences detected.")
+            explanation.append(f"Moderate ELA score ({score}) suggests some compression variation.")
         else:
-            explanation.append("High compression inconsistencies detected.")
+            explanation.append(f"High ELA score ({score}) indicates strong inconsistencies.")
 
         if noise_n > 40:
-            explanation.append("Noise inconsistencies detected.")
+            explanation.append(f"Noise patterns are inconsistent (score: {int(noise_n)}).")
+        else:
+            explanation.append(f"Noise levels are consistent (score: {int(noise_n)}).")
 
         if sharp_n > 40:
-            explanation.append("Sharpness irregularities detected.")
+            explanation.append(f"Sharpness variation is high (score: {int(sharp_n)}).")
+        else:
+            explanation.append(f"Sharpness is consistent (score: {int(sharp_n)}).")
 
         if len(metadata) == 0:
-            explanation.append("Metadata missing or stripped.")
-
-        if not explanation:
-            explanation.append("No strong anomalies detected.")
-
-        # -----------------------------
-        # RESULT
-        # -----------------------------
-        if confidence > 70:
-            result = "Likely manipulated"
-        elif confidence > 40:
-            result = "Possibly manipulated"
+            explanation.append("Metadata is missing or stripped.")
         else:
-            result = "Likely original"
+            explanation.append(f"Metadata present ({len(metadata)} fields).")
+
+        # -----------------------------
+        # AI NARRATIVE REPORT
+        # -----------------------------
+        narrative = "This image was analyzed using compression, noise, and sharpness techniques. "
+
+        if confidence > 70:
+            narrative += "The results indicate strong signs of manipulation. "
+        elif confidence > 40:
+            narrative += "The results suggest possible editing or recompression. "
+        else:
+            narrative += "The analysis suggests the image is likely original or uniformly processed. "
+
+        narrative += f"ELA score ({score}) "
+        narrative += "indicates high inconsistency. " if score > 40 else "shows moderate variation. " if score > 10 else "shows uniform compression. "
+
+        narrative += f"Noise score ({int(noise_n)}) "
+        narrative += "is inconsistent. " if noise_n > 40 else "is consistent. "
+
+        narrative += f"Sharpness score ({int(sharp_n)}) "
+        narrative += "shows irregularities. " if sharp_n > 40 else "is consistent. "
+
+        narrative += "Metadata is missing. " if len(metadata) == 0 else f"Metadata is present ({len(metadata)} fields). "
+
+        narrative += "Overall, "
+        narrative += "the image is likely manipulated." if confidence > 70 else \
+                     "there are some signs of editing." if confidence > 40 else \
+                     "no strong evidence of manipulation was found."
+
+        # -----------------------------
+        # FINAL RESULT
+        # -----------------------------
+        result = "Likely manipulated" if confidence > 70 else \
+                 "Possibly manipulated" if confidence > 40 else \
+                 "Likely original"
 
         jobs[job_id] = {
             "status": "done",
@@ -177,7 +214,9 @@ def process_job(job_id, path):
                 "ela_image": f"{BASE_URL}/files/{ela_file}",
                 "heatmap": f"{BASE_URL}/files/{heatmap_file}" if heatmap_file else None,
                 "regions": regions,
+                "summary": summary,
                 "explanation": explanation,
+                "narrative": narrative,
                 "confidence_breakdown": {
                     "ela": int(ela_contrib),
                     "noise": int(noise_contrib),
@@ -197,7 +236,6 @@ def process_job(job_id, path):
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
     file = request.files.get("image")
-
     if not file:
         return jsonify({"error": "No file uploaded"}), 400
 
@@ -214,7 +252,7 @@ def analyze():
 
 
 # -----------------------------
-# CHECK STATUS
+# STATUS
 # -----------------------------
 @app.route("/api/status/<job_id>")
 def status(job_id):
