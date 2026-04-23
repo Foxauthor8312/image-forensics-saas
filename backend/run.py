@@ -7,6 +7,10 @@ import cv2
 from PIL import Image, ImageChops, ImageEnhance
 import exifread
 
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+
 app = Flask(__name__)
 CORS(app)
 
@@ -14,11 +18,10 @@ UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
-
 jobs = {}
 
 # -----------------------------
-# GPS extraction
+# GPS
 # -----------------------------
 def get_gps_coords(tags):
     try:
@@ -70,16 +73,15 @@ def process_job(job_id, path):
                     metadata[tag] = val
 
             gps = get_gps_coords(tags)
-
         except:
             pass
 
-        # Load + resize
+        # Resize
         image = Image.open(path).convert("RGB")
         image.thumbnail((800, 800))
         image.save(path)
 
-        # ---- ELA ----
+        # ELA
         temp = path + "_c.jpg"
         image.save(temp, "JPEG", quality=90)
 
@@ -87,12 +89,13 @@ def process_job(job_id, path):
         ela = ImageEnhance.Brightness(diff).enhance(10)
 
         ela_file = f"{job_id}_ela.jpg"
-        ela.save(os.path.join(UPLOAD_FOLDER, ela_file))
+        ela_path = os.path.join(UPLOAD_FOLDER, ela_file)
+        ela.save(ela_path)
 
         arr = np.array(ela)
         score = int((np.mean(arr)/(np.max(arr)+1e-5))*100)
 
-        # ---- CV ----
+        # CV
         img_cv = cv2.imread(path, 0)
         noise = float(np.mean(cv2.absdiff(img_cv, cv2.GaussianBlur(img_cv,(5,5),0)))) if img_cv is not None else 0
         sharp = float(cv2.Laplacian(img_cv, cv2.CV_64F).var()) if img_cv is not None else 0
@@ -100,7 +103,7 @@ def process_job(job_id, path):
         noise_n = min(100, noise/2)
         sharp_n = min(100, sharp/50)
 
-        # ---- Confidence ----
+        # Confidence
         ela_c = score*0.4
         noise_c = noise_n*0.3
         sharp_c = sharp_n*0.3
@@ -108,7 +111,7 @@ def process_job(job_id, path):
 
         confidence = int(min(100, ela_c+noise_c+sharp_c+meta_c))
 
-        # ---- Heatmap ----
+        # Heatmap
         heatmap_file = None
         regions = []
 
@@ -138,13 +141,12 @@ def process_job(job_id, path):
         except:
             pass
 
-        # ---- Narrative ----
+        # Narrative
         narrative = f"This image was analyzed using compression, noise, and sharpness techniques. "
         narrative += "Strong signs of manipulation. " if confidence>70 else \
                      "Moderate signs of editing. " if confidence>40 else \
                      "No strong anomalies detected. "
 
-        # ---- Result ----
         result = "Likely manipulated" if confidence>70 else \
                  "Possibly manipulated" if confidence>40 else \
                  "Likely original"
@@ -194,6 +196,58 @@ def analyze():
 @app.route("/api/status/<job_id>")
 def status(job_id):
     return jsonify(jobs.get(job_id,{"error":"invalid job"}))
+
+
+# -----------------------------
+# PDF REPORT
+# -----------------------------
+@app.route("/api/report/<job_id>")
+def report(job_id):
+    job = jobs.get(job_id)
+
+    if not job or job.get("status") != "done":
+        return jsonify({"error": "Invalid job"}), 400
+
+    data = job["result"]
+
+    file_name = f"{job_id}_report.pdf"
+    file_path = os.path.join(UPLOAD_FOLDER, file_name)
+
+    doc = SimpleDocTemplate(file_path)
+    styles = getSampleStyleSheet()
+
+    content = []
+
+    content.append(Paragraph("PixelProof Forensic Report", styles["Title"]))
+    content.append(Spacer(1,10))
+
+    content.append(Paragraph(f"Score: {data['score']}", styles["Normal"]))
+    content.append(Paragraph(f"Confidence: {data['confidence']}%", styles["Normal"]))
+    content.append(Paragraph(f"Result: {data['ela_result']}", styles["Normal"]))
+    content.append(Spacer(1,10))
+
+    content.append(Paragraph("AI Narrative", styles["Heading2"]))
+    content.append(Paragraph(data["narrative"], styles["Normal"]))
+    content.append(Spacer(1,10))
+
+    # Images
+    try:
+        ela_path = os.path.join(UPLOAD_FOLDER, f"{job_id}_ela.jpg")
+        heat_path = os.path.join(UPLOAD_FOLDER, f"{job_id}_heatmap.jpg")
+
+        if os.path.exists(ela_path):
+            content.append(Paragraph("ELA", styles["Normal"]))
+            content.append(RLImage(ela_path, width=4*inch, height=3*inch))
+
+        if os.path.exists(heat_path):
+            content.append(Paragraph("Heatmap", styles["Normal"]))
+            content.append(RLImage(heat_path, width=4*inch, height=3*inch))
+    except:
+        pass
+
+    doc.build(content)
+
+    return jsonify({"report": f"{BASE_URL}/files/{file_name}"})
 
 
 if __name__=="__main__":
