@@ -1,315 +1,137 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>PixelProof</title>
+<title>PixelProof</title>
 
-  <style>
-    body {
-      font-family: system-ui, Arial;
-      background: #0f172a;
-      color: white;
-      margin: 0;
-    }
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-    .container {
-      max-width: 1000px;
-      margin: 40px auto;
-      padding: 20px;
-    }
-
-    h1 {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-
-    .drop {
-      border: 2px dashed #334155;
-      padding: 40px;
-      text-align: center;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-
-    .drop:hover {
-      border-color: #3b82f6;
-      background: #020617;
-    }
-
-    button {
-      padding: 10px 20px;
-      background: #3b82f6;
-      border: none;
-      color: white;
-      border-radius: 6px;
-      margin-top: 15px;
-      cursor: pointer;
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 5px 10px;
-      margin: 5px;
-      background: #334155;
-      border-radius: 6px;
-    }
-
-    .tabs {
-      display: flex;
-      gap: 10px;
-      margin-top: 20px;
-      flex-wrap: wrap;
-    }
-
-    .tab {
-      padding: 10px;
-      background: #334155;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    .tab.active {
-      background: #3b82f6;
-    }
-
-    .tab-content {
-      display: none;
-      margin-top: 20px;
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
-    .row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .row div {
-      flex: 1 1 45%;
-      min-width: 250px;
-    }
-
-    img {
-      width: 100%;
-      max-height: 400px;
-      object-fit: contain;
-      border-radius: 6px;
-    }
-
-    pre {
-      background: #020617;
-      padding: 10px;
-      border-radius: 6px;
-      max-height: 300px;
-      overflow: auto;
-      font-size: 12px;
-    }
-
-    .loading {
-      text-align: center;
-      margin-top: 20px;
-      color: #94a3b8;
-    }
-
-    .bar {
-      background: #1e293b;
-      border-radius: 6px;
-      margin-bottom: 10px;
-    }
-
-    .bar-inner {
-      background: #3b82f6;
-      height: 10px;
-      border-radius: 6px;
-    }
-  </style>
+<style>
+body{font-family:Arial;background:#0f172a;color:white;margin:0}
+.container{max-width:1000px;margin:40px auto;padding:20px}
+.drop{border:2px dashed #334155;padding:40px;text-align:center;border-radius:10px;cursor:pointer}
+.tabs{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.tab{padding:10px;background:#334155;border-radius:6px;cursor:pointer}
+.tab.active{background:#3b82f6}
+.tab-content{display:none;margin-top:20px}
+.tab-content.active{display:block}
+img{width:100%;max-height:400px;object-fit:contain}
+.bar{background:#1e293b;border-radius:6px}
+.bar-inner{background:#3b82f6;height:10px;border-radius:6px}
+</style>
 </head>
 
 <body>
-
 <div class="container">
-  <h1>PixelProof 🔍</h1>
+<h1>PixelProof</h1>
 
-  <div class="drop" id="drop">
-    Drag & Drop Image or Click to Upload
-    <input type="file" id="file" hidden>
-  </div>
+<div class="drop" id="drop">Drop or Click<input type="file" id="file" hidden></div>
+<button onclick="upload()">Analyze</button>
 
-  <button onclick="upload()">Analyze Image</button>
-
-  <div id="result"></div>
+<div id="result"></div>
 </div>
 
 <script>
-const API = "https://pixelproof-backend-v2.onrender.com";
+const API="https://pixelproof-backend-v2.onrender.com";
+let file=null, map=null;
 
-let selectedFile = null;
+drop.onclick=()=>file.click();
+file.onchange=e=>file=e.target.files[0];
+drop.ondrop=e=>{e.preventDefault();file=e.dataTransfer.files[0]};
 
-const drop = document.getElementById("drop");
-const fileInput = document.getElementById("file");
+async function upload(){
+ const f=document.getElementById("file").files[0];
+ if(!f) return alert("select file");
 
-// Upload interactions
-drop.onclick = () => fileInput.click();
+ const form=new FormData();
+ form.append("image",f);
 
-fileInput.onchange = (e) => {
-  selectedFile = e.target.files[0];
-  drop.innerHTML = selectedFile.name;
-};
+ const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+ const {job_id}=await res.json();
+ poll(job_id,f);
+}
 
-drop.ondragover = (e) => {
-  e.preventDefault();
-  drop.style.borderColor = "#3b82f6";
-};
+async function poll(id,f){
+ const int=setInterval(async()=>{
+  const res=await fetch(API+"/api/status/"+id);
+  const d=await res.json();
 
-drop.ondragleave = () => {
-  drop.style.borderColor = "#334155";
-};
-
-drop.ondrop = (e) => {
-  e.preventDefault();
-  selectedFile = e.dataTransfer.files[0];
-  drop.innerHTML = selectedFile.name;
-};
-
-// Upload
-async function upload() {
-  if (!selectedFile) return alert("Select a file");
-
-  const result = document.getElementById("result");
-  result.innerHTML = "<div class='loading'>Analyzing image...</div>";
-
-  const form = new FormData();
-  form.append("image", selectedFile);
-
-  try {
-    const res = await fetch(API + "/api/analyze", {
-      method: "POST",
-      body: form
-    });
-
-    const data = await res.json();
-
-    if (!data.job_id) throw new Error("Failed to start job");
-
-    checkStatus(data.job_id);
-
-  } catch (err) {
-    result.innerHTML = "<div class='loading'>Error starting analysis</div>";
+  if(d.status==="done"){
+    clearInterval(int);
+    render(d.result,f);
   }
+ },1500);
 }
 
-// Polling
-async function checkStatus(id) {
-  const result = document.getElementById("result");
+function render(d,f){
+ const orig=URL.createObjectURL(f);
 
-  const interval = setInterval(async () => {
-    try {
-      const res = await fetch(API + "/api/status/" + id);
-      const data = await res.json();
+ document.getElementById("result").innerHTML=`
+ <div>
+  <div>${d.score} | ${d.confidence}% | ${d.ela_result}</div>
 
-      if (data.status === "done") {
-        clearInterval(interval);
-        render(data.result);
-      }
-
-      if (data.status === "error") {
-        clearInterval(interval);
-        result.innerHTML = "Error: " + data.error;
-      }
-
-    } catch {
-      clearInterval(interval);
-      result.innerHTML = "Connection error";
-    }
-  }, 1500);
-}
-
-// Render UI
-function render(data) {
-  const original = URL.createObjectURL(selectedFile);
-
-  document.getElementById("result").innerHTML = `
-  <div>
-
-    <div>
-      <span class="badge">Score: ${data.score}</span>
-      <span class="badge">Confidence: ${data.confidence}%</span>
-      <span class="badge">${data.ela_result}</span>
-    </div>
-
-    <div class="tabs">
-      <div class="tab active" onclick="openTab(event,'results')">Results</div>
-      <div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
-      <div class="tab" onclick="openTab(event,'metadata')">Metadata</div>
-      <div class="tab" onclick="openTab(event,'explanation')">Explanation</div>
-    </div>
-
-    <div id="results" class="tab-content active">
-      <div class="row">
-        <div>
-          <p>Original</p>
-          <img src="${original}">
-        </div>
-        <div>
-          <p>ELA</p>
-          <img src="${data.ela_image}">
-        </div>
-      </div>
-    </div>
-
-    <div id="heatmap" class="tab-content">
-      <img src="${data.heatmap}">
-    </div>
-
-    <div id="metadata" class="tab-content">
-      <pre>${JSON.stringify(data.metadata, null, 2)}</pre>
-    </div>
-
-    <div id="explanation" class="tab-content">
-
-      <h3>AI Narrative Report</h3>
-      <p style="line-height:1.6;">${data.narrative}</p>
-
-      <h3>Summary</h3>
-      <p>${data.summary}</p>
-
-      <h3>Detailed Analysis</h3>
-      ${data.explanation.map(e => `<p>• ${e}</p>`).join("")}
-
-      <h3>Confidence Breakdown</h3>
-      ${bar("ELA", data.confidence_breakdown.ela)}
-      ${bar("Noise", data.confidence_breakdown.noise)}
-      ${bar("Sharpness", data.confidence_breakdown.sharpness)}
-      ${bar("Metadata", data.confidence_breakdown.metadata_bonus)}
-
-    </div>
-
+  <div class="tabs">
+    <div class="tab active" onclick="tab(event,'r')">Results</div>
+    <div class="tab" onclick="tab(event,'h')">Heatmap</div>
+    <div class="tab" onclick="tab(event,'m')">Metadata</div>
+    <div class="tab" onclick="tab(event,'e')">Explanation</div>
+    <div class="tab" onclick="tab(event,'map')">Map</div>
   </div>
-  `;
+
+  <div id="r" class="tab-content active">
+    <img src="${orig}">
+    <img src="${d.ela_image}">
+  </div>
+
+  <div id="h" class="tab-content">
+    <img src="${d.heatmap}">
+  </div>
+
+  <div id="m" class="tab-content">
+    <pre>${JSON.stringify(d.metadata,null,2)}</pre>
+  </div>
+
+  <div id="e" class="tab-content">
+    <p>${d.narrative}</p>
+    ${bar("ELA",d.confidence_breakdown.ela)}
+    ${bar("Noise",d.confidence_breakdown.noise)}
+    ${bar("Sharp",d.confidence_breakdown.sharpness)}
+  </div>
+
+  <div id="map" class="tab-content">
+    <div id="mapBox" style="height:400px"></div>
+    <p id="mapMsg"></p>
+  </div>
+ </div>`;
+
+ renderMap(d.gps);
 }
 
-// Tabs
-function openTab(evt, name) {
-  document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-
-  document.getElementById(name).classList.add("active");
-  evt.target.classList.add("active");
+function tab(e,id){
+ document.querySelectorAll(".tab-content").forEach(x=>x.classList.remove("active"));
+ document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+ document.getElementById(id).classList.add("active");
+ e.target.classList.add("active");
 }
 
-// Bars
-function bar(label, value) {
-  return `
-    <div>${label}: ${value}</div>
-    <div class="bar">
-      <div class="bar-inner" style="width:${value}%"></div>
-    </div>
-  `;
+function bar(n,v){
+ return `<div>${n}:${v}<div class="bar"><div class="bar-inner" style="width:${v}%"></div></div></div>`;
+}
+
+function renderMap(gps){
+ const msg=document.getElementById("mapMsg");
+ if(!gps){msg.innerHTML="No GPS data";return;}
+
+ if(map){map.remove();}
+ map=L.map("mapBox").setView(gps,13);
+
+ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+ const icon=L.divIcon({html:`<div style="background:#3b82f6;width:16px;height:16px;border-radius:50%;border:3px solid white;"></div>`});
+
+ L.marker(gps,{icon}).addTo(map);
+ msg.innerHTML=`Lat:${gps[0]}, Lon:${gps[1]}`;
 }
 </script>
-
 </body>
 </html>
