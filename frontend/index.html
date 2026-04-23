@@ -1,277 +1,109 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>PixelProof</title>
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-  <style>
-    body { font-family: system-ui; background:#0f172a; color:white; margin:0; }
-    .container { max-width:1000px; margin:40px auto; padding:20px; }
-    h1 { text-align:center; }
-
-    .drop {
-      border:2px dashed #334155;
-      padding:40px;
-      text-align:center;
-      border-radius:10px;
-      cursor:pointer;
-      margin-top:20px;
-    }
-
-    button {
-      padding:10px 20px;
-      background:#3b82f6;
-      border:none;
-      color:white;
-      border-radius:6px;
-      margin-top:15px;
-      cursor:pointer;
-    }
-
-    .tabs { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
-    .tab { padding:10px; background:#334155; border-radius:6px; cursor:pointer; }
-    .tab.active { background:#3b82f6; }
-
-    .tab-content { display:none; margin-top:20px; }
-    .tab-content.active { display:block; }
-
-    .row { display:flex; gap:10px; flex-wrap:wrap; }
-    .row div { flex:1 1 45%; }
-
-    img { width:100%; border-radius:6px; }
-
-    .badge { background:#334155; padding:5px 10px; margin:5px; display:inline-block; }
-
-    .legal-box {
-      background:#020617;
-      padding:15px;
-      border-left:4px solid #3b82f6;
-      border-radius:6px;
-      margin-top:10px;
-    }
-
-    .info-box {
-      background:#020617;
-      padding:12px;
-      border-radius:6px;
-      margin-top:10px;
-    }
-
-    .loading { text-align:center; margin-top:20px; color:#94a3b8; }
-    .error { color:#f87171; text-align:center; margin-top:20px; }
-
-  </style>
+<title>PixelProof</title>
+<style>
+body { background:#0f172a; color:white; font-family:Arial; }
+.container { max-width:900px; margin:auto; padding:20px; }
+.drop { border:2px dashed #334155; padding:40px; text-align:center; cursor:pointer; }
+.loading { text-align:center; margin-top:20px; color:#94a3b8; }
+.error { color:#f87171; text-align:center; }
+.badge { background:#334155; padding:5px; margin:5px; display:inline-block; }
+</style>
 </head>
 
 <body>
 <div class="container">
-  <h1>PixelProof 🔍</h1>
+<h1>PixelProof 🔍</h1>
 
-  <div class="drop" id="drop">
-    Drag & Drop Image or Click to Upload
-    <input type="file" id="file" hidden>
-  </div>
+<div class="drop" id="drop">
+Click or Drop Image
+<input type="file" id="file" hidden>
+</div>
 
-  <button onclick="upload()">Analyze Image</button>
-  <button id="pdfBtn" style="display:none;" onclick="downloadPDF()">Download Report</button>
+<button onclick="upload()">Analyze</button>
+<div id="result"></div>
 
-  <div id="result"></div>
 </div>
 
 <script>
 const API = "https://pixelproof-backend-v2.onrender.com";
 
 let selectedFile = null;
-let mapInstance = null;
 
-// Upload UI
-const drop = document.getElementById("drop");
-const fileInput = document.getElementById("file");
+document.getElementById("drop").onclick = () => file.click();
 
-drop.onclick = () => fileInput.click();
-
-fileInput.onchange = (e) => {
+file.onchange = e => {
   selectedFile = e.target.files[0];
-  drop.innerHTML = selectedFile.name;
 };
 
-drop.ondrop = (e) => {
-  e.preventDefault();
-  selectedFile = e.dataTransfer.files[0];
-  drop.innerHTML = selectedFile.name;
-};
-
-drop.ondragover = (e) => e.preventDefault();
-
-// Upload
 async function upload() {
-  if (!selectedFile) return alert("Select a file");
+  if (!selectedFile) return alert("Select file");
 
-  const resultDiv = document.getElementById("result");
-  resultDiv.innerHTML = "<div class='loading'>Starting analysis...</div>";
+  const result = document.getElementById("result");
+  result.innerHTML = "<div class='loading'>Starting...</div>";
+
+  // wake backend first
+  try { await fetch(API + "/health"); } catch {}
 
   const form = new FormData();
   form.append("image", selectedFile);
 
-  for (let i=1; i<=3; i++) {
-    try {
-      const res = await fetch(API + "/api/analyze", {
-        method: "POST",
-        body: form
-      });
+  try {
+    const res = await fetch(API + "/api/analyze", {
+      method: "POST",
+      body: form
+    });
 
-      if (!res.ok) throw new Error();
+    const data = await res.json();
+    poll(data.job_id);
 
-      const data = await res.json();
-      poll(data.job_id);
-      return;
-
-    } catch {
-      if (i === 3) {
-        resultDiv.innerHTML =
-          "<div class='error'>Backend unavailable. Try again shortly.</div>";
-      }
-      await new Promise(r => setTimeout(r, 3000));
-    }
+  } catch {
+    result.innerHTML = "<div class='error'>Backend unavailable</div>";
   }
 }
 
-// Poll with step display
 function poll(id) {
-  const resultDiv = document.getElementById("result");
+  const result = document.getElementById("result");
 
   const interval = setInterval(async () => {
     const res = await fetch(API + "/api/status/" + id);
     const d = await res.json();
 
     if (d.status === "processing") {
-      resultDiv.innerHTML =
-        `<div class="loading">Processing: ${d.step || "working..."}</div>`;
+      result.innerHTML = `<div class='loading'>${d.step}</div>`;
     }
 
     if (d.status === "done") {
       clearInterval(interval);
-      window.currentJobId = id;
-      render(d.result);
+
+      result.innerHTML = `
+        <div>
+          <span class="badge">Score: ${d.result.score}</span>
+          <span class="badge">Confidence: ${d.result.confidence}%</span>
+          <span class="badge">${d.result.ela_result}</span>
+        </div>
+
+        <p>${d.result.score_explanation}</p>
+        <p>${d.result.confidence_explanation}</p>
+
+        <h3>Conclusion</h3>
+        <p>${d.result.legal_conclusion}</p>
+
+        <h3>Interpretation</h3>
+        ${d.result.interpretation.map(i => `<p>• ${i}</p>`).join("")}
+
+        <img src="${d.result.ela_image}">
+      `;
     }
 
     if (d.status === "error") {
       clearInterval(interval);
-      resultDiv.innerHTML = `<div class="error">${d.error}</div>`;
+      result.innerHTML = `<div class='error'>${d.error}</div>`;
     }
 
   }, 1500);
 }
-
-// Render results
-function render(data) {
-  const original = URL.createObjectURL(selectedFile);
-  document.getElementById("pdfBtn").style.display = "block";
-
-  document.getElementById("result").innerHTML = `
-    <div>
-
-      <div>
-        <span class="badge">Score: ${data.score}</span>
-        <span class="badge">Confidence: ${data.confidence}%</span>
-        <span class="badge">${data.ela_result}</span>
-      </div>
-
-      <div class="info-box">
-        <b>Score Meaning:</b> ${data.score_explanation}<br>
-        <b>Confidence Meaning:</b> ${data.confidence_explanation}
-      </div>
-
-      <div class="legal-box">
-        <h3>Legal Conclusion</h3>
-        <p>${data.legal_conclusion}</p>
-      </div>
-
-      <div class="info-box">
-        <h3>How to Read This Analysis</h3>
-        ${data.interpretation.map(i => `<p>• ${i}</p>`).join("")}
-      </div>
-
-      <div class="tabs">
-        <div class="tab active" onclick="openTab(event,'results')">Results</div>
-        <div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
-        <div class="tab" onclick="openTab(event,'metadata')">Metadata</div>
-        <div class="tab" onclick="openTab(event,'explanation')">Explanation</div>
-        <div class="tab" onclick="openTab(event,'map')">Map</div>
-      </div>
-
-      <div id="results" class="tab-content active">
-        <div class="row">
-          <div><img src="${original}"></div>
-          <div><img src="${data.ela_image}"></div>
-        </div>
-      </div>
-
-      <div id="heatmap" class="tab-content">
-        ${data.heatmap ? `<img src="${data.heatmap}">` : "No heatmap"}
-      </div>
-
-      <div id="metadata" class="tab-content">
-        <pre>${JSON.stringify(data.metadata, null, 2)}</pre>
-      </div>
-
-      <div id="explanation" class="tab-content">
-        <h3>Risk Level: ${data.risk_level}</h3>
-        <p>${data.narrative}</p>
-
-        <h4>Technical Findings</h4>
-        ${data.explanation.map(e => `<p>• ${e}</p>`).join("")}
-
-        <h4>Justification</h4>
-        <p>${data.justification}</p>
-      </div>
-
-      <div id="map" class="tab-content">
-        <div id="mapBox" style="height:400px;"></div>
-        <p id="mapMsg"></p>
-      </div>
-
-    </div>
-  `;
-
-  renderMap(data.gps);
-}
-
-// Tabs
-function openTab(evt, name) {
-  document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-
-  document.getElementById(name).classList.add("active");
-  evt.target.classList.add("active");
-
-  setTimeout(() => {
-    if (mapInstance) mapInstance.invalidateSize();
-  }, 200);
-}
-
-// Map
-function renderMap(gps) {
-  if (!gps) return;
-
-  if (mapInstance) mapInstance.remove();
-
-  mapInstance = L.map("mapBox").setView(gps, 13);
-
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(mapInstance);
-
-  L.marker(gps).addTo(mapInstance);
-}
-
-// PDF
-async function downloadPDF() {
-  const res = await fetch(API + "/api/report/" + window.currentJobId);
-  const data = await res.json();
-  if (data.report) window.open(data.report);
-}
 </script>
-
 </body>
 </html>
