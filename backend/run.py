@@ -158,6 +158,26 @@ def process_job(job_id, path):
             risk = "Low"
 
         # -----------------------------
+        # LEGAL CONCLUSION
+        # -----------------------------
+        if confidence > 70:
+            legal_conclusion = (
+                "Based on the forensic analysis performed, there is a high degree of confidence that this image "
+                "contains indicators consistent with digital manipulation or alteration. These findings are supported "
+                "by multiple analytical signals."
+            )
+        elif confidence > 40:
+            legal_conclusion = (
+                "Based on the forensic analysis performed, there are observable indicators that may be consistent with "
+                "image editing or recompression. However, these findings are not conclusive."
+            )
+        else:
+            legal_conclusion = (
+                "Based on the forensic analysis performed, there is no strong evidence to suggest that this image "
+                "has been manipulated."
+            )
+
+        # -----------------------------
         # HEATMAP
         # -----------------------------
         heatmap_file = None
@@ -226,6 +246,7 @@ def process_job(job_id, path):
                 "score_explanation": score_explanation,
                 "confidence_explanation": confidence_explanation,
                 "risk_level": risk,
+                "legal_conclusion": legal_conclusion,
                 "justification": justification,
                 "ela_result": result,
                 "metadata": metadata,
@@ -245,39 +266,3 @@ def process_job(job_id, path):
 
     except Exception as e:
         jobs[job_id] = {"status": "error", "error": str(e)}
-
-
-# -----------------------------
-# ROUTES
-# -----------------------------
-@app.route("/api/analyze", methods=["POST"])
-def analyze():
-    file = request.files.get("image")
-    if not file:
-        return jsonify({"error": "No file uploaded"}), 400
-
-    job_id = str(uuid.uuid4())
-    path = os.path.join(UPLOAD_FOLDER, f"{job_id}.jpg")
-    file.save(path)
-
-    jobs[job_id] = {"status": "processing"}
-    threading.Thread(target=process_job, args=(job_id, path)).start()
-
-    return jsonify({"job_id": job_id})
-
-
-@app.route("/api/status/<job_id>")
-def status(job_id):
-    return jsonify(jobs.get(job_id, {"error": "invalid job"}))
-
-
-@app.route("/files/<filename>")
-def files(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
-
-
-# -----------------------------
-# RUN
-# -----------------------------
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3000)
