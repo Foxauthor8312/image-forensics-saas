@@ -8,17 +8,16 @@ from PIL import Image, ImageChops, ImageEnhance, UnidentifiedImageError
 import exifread
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
-
 jobs = {}
 
 # -----------------------------
-# HEALTH CHECK (IMPORTANT)
+# HEALTH
 # -----------------------------
 @app.route("/")
 def home():
@@ -35,7 +34,7 @@ def files(filename):
 
 
 # -----------------------------
-# SAFE GPS EXTRACTION
+# GPS
 # -----------------------------
 def get_gps_coords(tags):
     try:
@@ -59,14 +58,14 @@ def get_gps_coords(tags):
 
 
 # -----------------------------
-# WORKER (FULLY SAFE)
+# WORKER
 # -----------------------------
 def process_job(job_id, path):
     try:
         metadata = {}
         gps = None
 
-        # -------- EXIF --------
+        # EXIF
         try:
             with open(path, "rb") as f:
                 tags = exifread.process_file(f)
@@ -80,7 +79,7 @@ def process_job(job_id, path):
         except:
             pass
 
-        # -------- LOAD IMAGE --------
+        # LOAD IMAGE
         try:
             image = Image.open(path).convert("RGB")
         except UnidentifiedImageError:
@@ -90,13 +89,13 @@ def process_job(job_id, path):
         image.thumbnail((800, 800))
         image.save(path)
 
-        # -------- ELA --------
+        # -----------------------------
+        # ELA
+        # -----------------------------
         temp = path + "_compressed.jpg"
         image.save(temp, "JPEG", quality=90)
 
-        compressed = Image.open(temp)
-        diff = ImageChops.difference(image, compressed)
-
+        diff = ImageChops.difference(image, Image.open(temp))
         ela = ImageEnhance.Brightness(diff).enhance(10)
 
         ela_file = f"{job_id}_ela.jpg"
@@ -106,7 +105,9 @@ def process_job(job_id, path):
         arr = np.array(ela)
         score = int((np.mean(arr)/(np.max(arr)+1e-5))*100)
 
-        # -------- CV --------
+        # -----------------------------
+        # CV ANALYSIS
+        # -----------------------------
         img_cv = cv2.imread(path, 0)
 
         if img_cv is None:
@@ -119,7 +120,9 @@ def process_job(job_id, path):
         noise_n = min(100, noise/2)
         sharp_n = min(100, sharp/50)
 
-        # -------- CONFIDENCE --------
+        # -----------------------------
+        # CONFIDENCE
+        # -----------------------------
         ela_c = score * 0.4
         noise_c = noise_n * 0.3
         sharp_c = sharp_n * 0.3
@@ -127,32 +130,91 @@ def process_job(job_id, path):
 
         confidence = int(min(100, ela_c + noise_c + sharp_c + meta_c))
 
-        # -------- SAFE EXPLANATIONS --------
-        score_explanation = f"Score {score} reflects compression variation."
-        confidence_explanation = f"Confidence {confidence}% reflects combined analysis strength."
-
+        # -----------------------------
+        # ADVANCED EXPLANATIONS
+        # -----------------------------
         risk = "High" if confidence > 70 else "Moderate" if confidence > 40 else "Low"
 
-        legal_conclusion = (
-            "Based on forensic analysis, results suggest possible manipulation."
-            if confidence > 40 else
-            "No strong evidence of manipulation detected."
+        # Score explanation
+        if score < 10:
+            score_explanation = f"Score {score} indicates uniform compression typical of original images."
+        elif score < 40:
+            score_explanation = f"Score {score} indicates moderate compression variation."
+        else:
+            score_explanation = f"Score {score} indicates high compression inconsistencies."
+
+        # Confidence explanation
+        if confidence < 30:
+            confidence_explanation = f"Confidence {confidence}% is low."
+        elif confidence < 70:
+            confidence_explanation = f"Confidence {confidence}% is moderate."
+        else:
+            confidence_explanation = f"Confidence {confidence}% is high."
+
+        # Technical findings
+        explanation = []
+
+        explanation.append(
+            "Compression analysis shows {}.".format(
+                "inconsistencies" if score > 40 else
+                "moderate variation" if score > 10 else
+                "uniformity"
+            )
         )
 
-        narrative = "Analysis performed using compression, noise, and sharpness signals."
+        explanation.append(
+            "Noise distribution is {}.".format(
+                "irregular" if noise_n > 40 else "consistent"
+            )
+        )
 
-        # -------- HEATMAP SAFE --------
+        explanation.append(
+            "Sharpness is {}.".format(
+                "variable" if sharp_n > 40 else "consistent"
+            )
+        )
+
+        explanation.append(
+            "Metadata {}.".format(
+                "is missing" if len(metadata) == 0 else "is present"
+            )
+        )
+
+        # Narrative
+        narrative = (
+            "This image was analyzed using compression, noise, and structural consistency techniques. "
+        )
+
+        if confidence > 70:
+            narrative += "Strong indicators of manipulation were detected."
+        elif confidence > 40:
+            narrative += "Moderate anomalies were detected."
+        else:
+            narrative += "No strong anomalies detected."
+
+        # Legal conclusion
+        if confidence > 70:
+            legal_conclusion = "There is strong evidence consistent with image manipulation."
+        elif confidence > 40:
+            legal_conclusion = "There are indicators that may suggest image alteration, but findings are not conclusive."
+        else:
+            legal_conclusion = "No strong evidence of manipulation was detected."
+
+        # Justification
+        justification = (
+            f"The confidence score ({confidence}%) is based on combined compression, noise, and sharpness signals."
+        )
+
+        # -----------------------------
+        # HEATMAP
+        # -----------------------------
         heatmap_file = None
-        regions = []
-
         try:
             img = cv2.imread(path)
             if img is not None:
                 img = cv2.resize(img,(600,600))
-
                 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                 diff = cv2.absdiff(gray, cv2.GaussianBlur(gray,(5,5),0))
-
                 norm = cv2.normalize(diff,None,0,255,cv2.NORM_MINMAX)
                 heat = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
                 overlay = cv2.addWeighted(img,0.6,heat,0.4,0)
@@ -166,7 +228,9 @@ def process_job(job_id, path):
                  "Possibly manipulated" if confidence > 40 else \
                  "Likely original"
 
-        # -------- SAVE RESULT --------
+        # -----------------------------
+        # SAVE RESULT
+        # -----------------------------
         jobs[job_id] = {
             "status": "done",
             "result": {
@@ -176,13 +240,14 @@ def process_job(job_id, path):
                 "confidence_explanation": confidence_explanation,
                 "risk_level": risk,
                 "legal_conclusion": legal_conclusion,
+                "justification": justification,
                 "ela_result": result,
                 "metadata": metadata,
                 "ela_image": f"{BASE_URL}/files/{ela_file}",
                 "heatmap": f"{BASE_URL}/files/{heatmap_file}" if heatmap_file else None,
-                "regions": regions,
                 "gps": gps,
                 "narrative": narrative,
+                "explanation": explanation,
                 "confidence_breakdown": {
                     "ela": int(ela_c),
                     "noise": int(noise_c),
@@ -194,20 +259,16 @@ def process_job(job_id, path):
 
     except Exception as e:
         print("🔥 JOB ERROR:", traceback.format_exc())
-        jobs[job_id] = {
-            "status": "error",
-            "error": str(e)
-        }
+        jobs[job_id] = {"status": "error", "error": str(e)}
 
 
 # -----------------------------
-# API ROUTES
+# API
 # -----------------------------
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
     try:
         file = request.files.get("image")
-
         if not file:
             return jsonify({"error": "No file uploaded"}), 400
 
