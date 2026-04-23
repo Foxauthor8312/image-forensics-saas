@@ -10,6 +10,7 @@
   <style>
     body { font-family: system-ui, Arial; background:#0f172a; color:white; margin:0; }
     .container { max-width:1000px; margin:40px auto; padding:20px; }
+
     h1 { text-align:center; }
 
     .drop {
@@ -19,6 +20,7 @@
       border-radius:10px;
       cursor:pointer;
       margin-top:20px;
+      transition:0.2s;
     }
 
     button {
@@ -72,6 +74,12 @@
       border-left:4px solid #3b82f6;
       margin-top:15px;
     }
+
+    .error {
+      color:#f87171;
+      text-align:center;
+      margin-top:20px;
+    }
   </style>
 </head>
 
@@ -96,7 +104,7 @@ const API = "https://pixelproof-backend-v2.onrender.com";
 let selectedFile = null;
 let mapInstance = null;
 
-// Upload handling
+// Upload UI
 const drop = document.getElementById("drop");
 const fileInput = document.getElementById("file");
 
@@ -122,32 +130,51 @@ drop.ondrop = (e) => {
   drop.innerHTML = selectedFile.name;
 };
 
-// Upload
+// Upload with retry (fixes Render sleep)
 async function upload() {
   if (!selectedFile) return alert("Select a file");
 
-  document.getElementById("result").innerHTML =
-    "<div class='loading'>Analyzing image...</div>";
+  const resultDiv = document.getElementById("result");
+  resultDiv.innerHTML = "<div class='loading'>Starting analysis...</div>";
 
   const form = new FormData();
   form.append("image", selectedFile);
 
-  try {
-    const res = await fetch(API + "/api/analyze", {
-      method: "POST",
-      body: form
-    });
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(API + "/api/analyze", {
+        method: "POST",
+        body: form
+      });
 
-    const data = await res.json();
-    poll(data.job_id);
+      if (!res.ok) throw new Error("Server error");
 
-  } catch {
-    document.getElementById("result").innerHTML =
-      "<div class='loading'>Error starting analysis</div>";
+      const data = await res.json();
+
+      if (!data.job_id) throw new Error("Invalid response");
+
+      poll(data.job_id);
+      return;
+
+    } catch (err) {
+      console.warn("Retry:", attempt);
+
+      if (attempt === 3) {
+        resultDiv.innerHTML = `
+          <div class="error">
+            Failed to start analysis.<br><br>
+            Backend may be waking up.<br>
+            Try again in a few seconds.
+          </div>
+        `;
+      }
+
+      await new Promise(r => setTimeout(r, 3000));
+    }
   }
 }
 
-// Polling
+// Poll job
 function poll(id) {
   const interval = setInterval(async () => {
     const res = await fetch(API + "/api/status/" + id);
@@ -161,7 +188,8 @@ function poll(id) {
 
     if (d.status === "error") {
       clearInterval(interval);
-      document.getElementById("result").innerHTML = "Error: " + d.error;
+      document.getElementById("result").innerHTML =
+        `<div class="error">${d.error}</div>`;
     }
   }, 1500);
 }
@@ -172,62 +200,69 @@ function render(data) {
   document.getElementById("pdfBtn").style.display = "block";
 
   document.getElementById("result").innerHTML = `
-  <div>
-
     <div>
-      <span class="badge">Score: ${data.score}</span>
-      <span class="badge">Confidence: ${data.confidence}%</span>
-      <span class="badge">${data.ela_result}</span>
-    </div>
 
-    <p><b>Score Meaning:</b> ${data.score_explanation}</p>
-    <p><b>Confidence Meaning:</b> ${data.confidence_explanation}</p>
-
-    <div class="legal-box">
-      <h3>Legal Conclusion</h3>
-      <p>${data.legal_conclusion}</p>
-    </div>
-
-    <div class="tabs">
-      <div class="tab active" onclick="openTab(event,'results')">Results</div>
-      <div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
-      <div class="tab" onclick="openTab(event,'metadata')">Metadata</div>
-      <div class="tab" onclick="openTab(event,'explanation')">Explanation</div>
-      <div class="tab" onclick="openTab(event,'map')">Map</div>
-    </div>
-
-    <div id="results" class="tab-content active">
-      <div class="row">
-        <div><img src="${original}"></div>
-        <div><img src="${data.ela_image}"></div>
+      <div>
+        <span class="badge">Score: ${data.score}</span>
+        <span class="badge">Confidence: ${data.confidence}%</span>
+        <span class="badge">${data.ela_result}</span>
       </div>
+
+      <p><b>Score Meaning:</b> ${data.score_explanation}</p>
+      <p><b>Confidence Meaning:</b> ${data.confidence_explanation}</p>
+
+      <div class="legal-box">
+        <h3>Legal Conclusion</h3>
+        <p>${data.legal_conclusion}</p>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" onclick="openTab(event,'results')">Results</div>
+        <div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
+        <div class="tab" onclick="openTab(event,'metadata')">Metadata</div>
+        <div class="tab" onclick="openTab(event,'explanation')">Explanation</div>
+        <div class="tab" onclick="openTab(event,'map')">Map</div>
+      </div>
+
+      <div id="results" class="tab-content active">
+        <div class="row">
+          <div><img src="${original}"></div>
+          <div><img src="${data.ela_image}"></div>
+        </div>
+      </div>
+
+      <div id="heatmap" class="tab-content">
+        ${data.heatmap ? `<img src="${data.heatmap}">` : "No heatmap available"}
+      </div>
+
+      <div id="metadata" class="tab-content">
+        <pre>${JSON.stringify(data.metadata, null, 2)}</pre>
+      </div>
+
+      <div id="explanation" class="tab-content">
+        <h3>Risk Level: ${data.risk_level}</h3>
+
+        <p>${data.narrative}</p>
+
+        <h4>Technical Findings</h4>
+        ${data.explanation.map(e => `<p>• ${e}</p>`).join("")}
+
+        <h4>Justification</h4>
+        <p>${data.justification}</p>
+
+        <h4>Confidence Breakdown</h4>
+        ${bar("ELA", data.confidence_breakdown.ela)}
+        ${bar("Noise", data.confidence_breakdown.noise)}
+        ${bar("Sharpness", data.confidence_breakdown.sharpness)}
+        ${bar("Metadata", data.confidence_breakdown.metadata_bonus)}
+      </div>
+
+      <div id="map" class="tab-content">
+        <div id="mapBox" style="height:400px;border-radius:8px;"></div>
+        <p id="mapMsg"></p>
+      </div>
+
     </div>
-
-    <div id="heatmap" class="tab-content">
-      <img src="${data.heatmap}">
-    </div>
-
-    <div id="metadata" class="tab-content">
-      <pre>${JSON.stringify(data.metadata, null, 2)}</pre>
-    </div>
-
-    <div id="explanation" class="tab-content">
-      <h3>Risk Level: ${data.risk_level}</h3>
-      <p>${data.narrative}</p>
-      <p><b>Justification:</b> ${data.justification}</p>
-
-      ${bar("ELA", data.confidence_breakdown.ela)}
-      ${bar("Noise", data.confidence_breakdown.noise)}
-      ${bar("Sharpness", data.confidence_breakdown.sharpness)}
-      ${bar("Metadata", data.confidence_breakdown.metadata_bonus)}
-    </div>
-
-    <div id="map" class="tab-content">
-      <div id="mapBox" style="height:400px;border-radius:8px;"></div>
-      <p id="mapMsg"></p>
-    </div>
-
-  </div>
   `;
 
   renderMap(data.gps);
@@ -285,11 +320,7 @@ async function downloadPDF() {
   const res = await fetch(API + "/api/report/" + window.currentJobId);
   const data = await res.json();
 
-  if (data.report) {
-    window.open(data.report);
-  } else {
-    alert("Failed to generate report");
-  }
+  if (data.report) window.open(data.report);
 }
 </script>
 
