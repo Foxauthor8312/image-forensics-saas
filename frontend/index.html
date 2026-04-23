@@ -17,7 +17,10 @@
       padding: 20px;
     }
 
-    h1 { text-align: center; }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
 
     .drop {
       border: 2px dashed #334155;
@@ -25,7 +28,12 @@
       text-align: center;
       border-radius: 10px;
       cursor: pointer;
-      margin-top: 20px;
+      transition: 0.2s;
+    }
+
+    .drop:hover {
+      border-color: #3b82f6;
+      background: #020617;
     }
 
     button {
@@ -38,10 +46,19 @@
       cursor: pointer;
     }
 
+    .badge {
+      display: inline-block;
+      padding: 5px 10px;
+      margin: 5px;
+      background: #334155;
+      border-radius: 6px;
+    }
+
     .tabs {
       display: flex;
       gap: 10px;
       margin-top: 20px;
+      flex-wrap: wrap;
     }
 
     .tab {
@@ -51,10 +68,18 @@
       cursor: pointer;
     }
 
-    .tab.active { background: #3b82f6; }
+    .tab.active {
+      background: #3b82f6;
+    }
 
-    .tab-content { display: none; margin-top: 20px; }
-    .tab-content.active { display: block; }
+    .tab-content {
+      display: none;
+      margin-top: 20px;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
 
     .row {
       display: flex;
@@ -81,14 +106,6 @@
       max-height: 300px;
       overflow: auto;
       font-size: 12px;
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 5px 10px;
-      margin: 5px;
-      background: #334155;
-      border-radius: 6px;
     }
 
     .loading {
@@ -131,10 +148,10 @@ const API = "https://pixelproof-backend-v2.onrender.com";
 
 let selectedFile = null;
 
-// FIXED FILE INPUT HANDLING
 const drop = document.getElementById("drop");
 const fileInput = document.getElementById("file");
 
+// Upload interactions
 drop.onclick = () => fileInput.click();
 
 fileInput.onchange = (e) => {
@@ -157,7 +174,7 @@ drop.ondrop = (e) => {
   drop.innerHTML = selectedFile.name;
 };
 
-// UPLOAD (ASYNC)
+// Upload
 async function upload() {
   if (!selectedFile) return alert("Select a file");
 
@@ -173,16 +190,18 @@ async function upload() {
       body: form
     });
 
-    const { job_id } = await res.json();
+    const data = await res.json();
 
-    checkStatus(job_id);
+    if (!data.job_id) throw new Error("Failed to start job");
+
+    checkStatus(data.job_id);
 
   } catch (err) {
     result.innerHTML = "<div class='loading'>Error starting analysis</div>";
   }
 }
 
-// POLLING
+// Polling
 async function checkStatus(id) {
   const result = document.getElementById("result");
 
@@ -208,7 +227,7 @@ async function checkStatus(id) {
   }, 1500);
 }
 
-// RENDER
+// Render UI
 function render(data) {
   const original = URL.createObjectURL(selectedFile);
 
@@ -230,8 +249,14 @@ function render(data) {
 
     <div id="results" class="tab-content active">
       <div class="row">
-        <div><img src="${original}"></div>
-        <div><img src="${data.ela_image}"></div>
+        <div>
+          <p>Original</p>
+          <img src="${original}">
+        </div>
+        <div>
+          <p>ELA</p>
+          <img src="${data.ela_image}">
+        </div>
       </div>
     </div>
 
@@ -244,6 +269,14 @@ function render(data) {
     </div>
 
     <div id="explanation" class="tab-content">
+
+      <h3>AI Narrative Report</h3>
+      <p style="line-height:1.6;">${data.narrative}</p>
+
+      <h3>Summary</h3>
+      <p>${data.summary}</p>
+
+      <h3>Detailed Analysis</h3>
       ${data.explanation.map(e => `<p>• ${e}</p>`).join("")}
 
       <h3>Confidence Breakdown</h3>
@@ -251,13 +284,14 @@ function render(data) {
       ${bar("Noise", data.confidence_breakdown.noise)}
       ${bar("Sharpness", data.confidence_breakdown.sharpness)}
       ${bar("Metadata", data.confidence_breakdown.metadata_bonus)}
+
     </div>
 
   </div>
   `;
 }
 
-// TABS
+// Tabs
 function openTab(evt, name) {
   document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -266,7 +300,7 @@ function openTab(evt, name) {
   evt.target.classList.add("active");
 }
 
-// BAR RENDER
+// Bars
 function bar(label, value) {
   return `
     <div>${label}: ${value}</div>
