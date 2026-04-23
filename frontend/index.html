@@ -64,6 +64,14 @@
     .bar-inner { background:#3b82f6; height:10px; border-radius:6px; }
 
     .loading { text-align:center; margin-top:20px; color:#94a3b8; }
+
+    .legal-box {
+      background:#020617;
+      padding:15px;
+      border-radius:8px;
+      border-left:4px solid #3b82f6;
+      margin-top:15px;
+    }
   </style>
 </head>
 
@@ -131,8 +139,6 @@ async function upload() {
     });
 
     const data = await res.json();
-    if (!data.job_id) throw new Error();
-
     poll(data.job_id);
 
   } catch {
@@ -177,6 +183,11 @@ function render(data) {
     <p><b>Score Meaning:</b> ${data.score_explanation}</p>
     <p><b>Confidence Meaning:</b> ${data.confidence_explanation}</p>
 
+    <div class="legal-box">
+      <h3>Legal Conclusion</h3>
+      <p>${data.legal_conclusion}</p>
+    </div>
+
     <div class="tabs">
       <div class="tab active" onclick="openTab(event,'results')">Results</div>
       <div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
@@ -203,7 +214,6 @@ function render(data) {
     <div id="explanation" class="tab-content">
       <h3>Risk Level: ${data.risk_level}</h3>
       <p>${data.narrative}</p>
-      ${data.explanation ? data.explanation.map(e => `<p>• ${e}</p>`).join("") : ""}
       <p><b>Justification:</b> ${data.justification}</p>
 
       ${bar("ELA", data.confidence_breakdown.ela)}
