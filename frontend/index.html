@@ -1,28 +1,101 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>PixelProof</title>
-<style>
-body { background:#0f172a; color:white; font-family:Arial; }
-.container { max-width:900px; margin:auto; padding:20px; }
-.drop { border:2px dashed #334155; padding:40px; text-align:center; cursor:pointer; }
-.loading { text-align:center; margin-top:20px; color:#94a3b8; }
-.error { color:#f87171; text-align:center; }
-.badge { background:#334155; padding:5px; margin:5px; display:inline-block; }
-</style>
+  <title>PixelProof</title>
+
+  <style>
+    body { background:#0f172a; color:white; font-family:Arial; margin:0; }
+    .container { max-width:1000px; margin:auto; padding:20px; }
+
+    h1 { text-align:center; }
+
+    .drop {
+      border:2px dashed #334155;
+      padding:40px;
+      text-align:center;
+      border-radius:10px;
+      cursor:pointer;
+      margin-top:20px;
+    }
+
+    button {
+      padding:10px 20px;
+      background:#3b82f6;
+      border:none;
+      color:white;
+      border-radius:6px;
+      margin-top:15px;
+      cursor:pointer;
+    }
+
+    .loading { text-align:center; margin-top:20px; color:#94a3b8; }
+    .error { color:#f87171; text-align:center; margin-top:20px; }
+
+    .badge {
+      display:inline-block;
+      background:#334155;
+      padding:6px 10px;
+      margin:5px;
+      border-radius:6px;
+    }
+
+    .section {
+      background:#020617;
+      padding:15px;
+      border-radius:8px;
+      margin-top:15px;
+    }
+
+    .legal {
+      border-left:4px solid #3b82f6;
+    }
+
+    .row {
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .row div {
+      flex:1 1 45%;
+    }
+
+    img {
+      width:100%;
+      border-radius:6px;
+      max-height:400px;
+      object-fit:contain;
+    }
+
+    .bar {
+      background:#1e293b;
+      border-radius:6px;
+      margin-bottom:10px;
+    }
+
+    .bar-inner {
+      background:#3b82f6;
+      height:10px;
+      border-radius:6px;
+    }
+
+  </style>
 </head>
 
 <body>
+
 <div class="container">
-<h1>PixelProof 🔍</h1>
 
-<div class="drop" id="drop">
-Click or Drop Image
-<input type="file" id="file" hidden>
-</div>
+  <h1>PixelProof 🔍</h1>
 
-<button onclick="upload()">Analyze</button>
-<div id="result"></div>
+  <div class="drop" id="drop">
+    Click or Drag Image
+    <input type="file" id="file" hidden>
+  </div>
+
+  <button onclick="upload()">Analyze</button>
+
+  <div id="result"></div>
 
 </div>
 
@@ -31,20 +104,54 @@ const API = "https://pixelproof-backend-v2.onrender.com";
 
 let selectedFile = null;
 
-document.getElementById("drop").onclick = () => file.click();
+// Upload UI
+drop.onclick = () => file.click();
 
-file.onchange = e => {
+file.onchange = (e) => {
   selectedFile = e.target.files[0];
+  drop.innerHTML = selectedFile.name;
 };
 
+drop.ondrop = (e) => {
+  e.preventDefault();
+  selectedFile = e.dataTransfer.files[0];
+  drop.innerHTML = selectedFile.name;
+};
+
+drop.ondragover = (e) => e.preventDefault();
+
+
+// -----------------------------
+// SMART UPLOAD (handles Render sleep)
+// -----------------------------
 async function upload() {
-  if (!selectedFile) return alert("Select file");
+  if (!selectedFile) return alert("Select a file");
 
-  const result = document.getElementById("result");
-  result.innerHTML = "<div class='loading'>Starting...</div>";
+  const resultDiv = document.getElementById("result");
+  resultDiv.innerHTML = "<div class='loading'>Waking backend...</div>";
 
-  // wake backend first
-  try { await fetch(API + "/health"); } catch {}
+  // Wake backend loop
+  let awake = false;
+
+  for (let i = 0; i < 10; i++) {
+    try {
+      const res = await fetch(API + "/health", { cache: "no-store" });
+      if (res.ok) {
+        awake = true;
+        break;
+      }
+    } catch {}
+
+    resultDiv.innerHTML = `<div class='loading'>Waking backend (${i+1}/10)...</div>`;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+
+  if (!awake) {
+    resultDiv.innerHTML = "<div class='error'>Backend still starting. Try again shortly.</div>";
+    return;
+  }
+
+  resultDiv.innerHTML = "<div class='loading'>Uploading...</div>";
 
   const form = new FormData();
   form.append("image", selectedFile);
@@ -56,54 +163,125 @@ async function upload() {
     });
 
     const data = await res.json();
+
+    if (!data.job_id) throw new Error();
+
     poll(data.job_id);
 
   } catch {
-    result.innerHTML = "<div class='error'>Backend unavailable</div>";
+    resultDiv.innerHTML = "<div class='error'>Failed to start analysis</div>";
   }
 }
 
+
+// -----------------------------
+// POLLING
+// -----------------------------
 function poll(id) {
-  const result = document.getElementById("result");
+  const resultDiv = document.getElementById("result");
 
   const interval = setInterval(async () => {
     const res = await fetch(API + "/api/status/" + id);
     const d = await res.json();
 
     if (d.status === "processing") {
-      result.innerHTML = `<div class='loading'>${d.step}</div>`;
+      resultDiv.innerHTML =
+        `<div class='loading'>Processing: ${d.step || "working..."}</div>`;
     }
 
     if (d.status === "done") {
       clearInterval(interval);
-
-      result.innerHTML = `
-        <div>
-          <span class="badge">Score: ${d.result.score}</span>
-          <span class="badge">Confidence: ${d.result.confidence}%</span>
-          <span class="badge">${d.result.ela_result}</span>
-        </div>
-
-        <p>${d.result.score_explanation}</p>
-        <p>${d.result.confidence_explanation}</p>
-
-        <h3>Conclusion</h3>
-        <p>${d.result.legal_conclusion}</p>
-
-        <h3>Interpretation</h3>
-        ${d.result.interpretation.map(i => `<p>• ${i}</p>`).join("")}
-
-        <img src="${d.result.ela_image}">
-      `;
+      render(d.result);
     }
 
     if (d.status === "error") {
       clearInterval(interval);
-      result.innerHTML = `<div class='error'>${d.error}</div>`;
+      resultDiv.innerHTML = `<div class='error'>${d.error}</div>`;
     }
 
   }, 1500);
 }
+
+
+// -----------------------------
+// RENDER RESULTS
+// -----------------------------
+function render(data) {
+  const original = URL.createObjectURL(selectedFile);
+
+  document.getElementById("result").innerHTML = `
+    <div>
+
+      <div>
+        <span class="badge">Score: ${data.score}</span>
+        <span class="badge">Confidence: ${data.confidence}%</span>
+        <span class="badge">${data.ela_result}</span>
+      </div>
+
+      <div class="section">
+        <b>Score Meaning:</b> ${data.score_explanation}<br>
+        <b>Confidence Meaning:</b> ${data.confidence_explanation}
+      </div>
+
+      <div class="section legal">
+        <h3>Legal Conclusion</h3>
+        <p>${data.legal_conclusion}</p>
+      </div>
+
+      <div class="section">
+        <h3>How to Read This Analysis</h3>
+        ${data.interpretation.map(i => `<p>• ${i}</p>`).join("")}
+      </div>
+
+      <div class="section">
+        <h3>Images</h3>
+        <div class="row">
+          <div><img src="${original}"></div>
+          <div><img src="${data.ela_image}"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Technical Findings</h3>
+        ${data.explanation.map(e => `<p>• ${e}</p>`).join("")}
+      </div>
+
+      <div class="section">
+        <h3>Narrative</h3>
+        <p>${data.narrative}</p>
+      </div>
+
+      <div class="section">
+        <h3>Justification</h3>
+        <p>${data.justification}</p>
+      </div>
+
+      <div class="section">
+        <h3>Confidence Breakdown</h3>
+        ${bar("ELA", data.confidence_breakdown.ela)}
+        ${bar("Noise", data.confidence_breakdown.noise)}
+        ${bar("Sharpness", data.confidence_breakdown.sharpness)}
+        ${bar("Metadata", data.confidence_breakdown.metadata_bonus)}
+      </div>
+
+    </div>
+  `;
+}
+
+
+// -----------------------------
+// BAR UI
+// -----------------------------
+function bar(label, value) {
+  return `
+    <div>${label}: ${value}</div>
+    <div class="bar">
+      <div class="bar-inner" style="width:${value}%"></div>
+    </div>
+  `;
+}
+
 </script>
+
 </body>
 </html>
