@@ -88,11 +88,10 @@ const API = "https://pixelproof-backend-v2.onrender.com";
 let selectedFile = null;
 let mapInstance = null;
 
-// Elements
+// Upload handling
 const drop = document.getElementById("drop");
 const fileInput = document.getElementById("file");
 
-// Upload handling
 drop.onclick = () => fileInput.click();
 
 fileInput.onchange = (e) => {
@@ -161,10 +160,9 @@ function poll(id) {
   }, 1500);
 }
 
-// Render UI
+// Render
 function render(data) {
   const original = URL.createObjectURL(selectedFile);
-
   document.getElementById("pdfBtn").style.display = "block";
 
   document.getElementById("result").innerHTML = `
@@ -176,6 +174,9 @@ function render(data) {
       <span class="badge">${data.ela_result}</span>
     </div>
 
+    <p><b>Score Meaning:</b> ${data.score_explanation}</p>
+    <p><b>Confidence Meaning:</b> ${data.confidence_explanation}</p>
+
     <div class="tabs">
       <div class="tab active" onclick="openTab(event,'results')">Results</div>
       <div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
@@ -186,14 +187,8 @@ function render(data) {
 
     <div id="results" class="tab-content active">
       <div class="row">
-        <div>
-          <p>Original</p>
-          <img src="${original}">
-        </div>
-        <div>
-          <p>ELA</p>
-          <img src="${data.ela_image}">
-        </div>
+        <div><img src="${original}"></div>
+        <div><img src="${data.ela_image}"></div>
       </div>
     </div>
 
@@ -206,25 +201,15 @@ function render(data) {
     </div>
 
     <div id="explanation" class="tab-content">
+      <h3>Risk Level: ${data.risk_level}</h3>
+      <p>${data.narrative}</p>
+      ${data.explanation ? data.explanation.map(e => `<p>• ${e}</p>`).join("") : ""}
+      <p><b>Justification:</b> ${data.justification}</p>
 
-      <h3>Forensic Assessment</h3>
-      <p><b>Risk Level:</b> ${data.risk_level}</p>
-
-      <h3>AI Narrative Report</h3>
-      <p style="line-height:1.6;">${data.narrative}</p>
-
-      <h3>Technical Findings</h3>
-      ${data.explanation.map(e => `<p>• ${e}</p>`).join("")}
-
-      <h3>Confidence Justification</h3>
-      <p>${data.justification}</p>
-
-      <h3>Confidence Breakdown</h3>
       ${bar("ELA", data.confidence_breakdown.ela)}
       ${bar("Noise", data.confidence_breakdown.noise)}
       ${bar("Sharpness", data.confidence_breakdown.sharpness)}
       ${bar("Metadata", data.confidence_breakdown.metadata_bonus)}
-
     </div>
 
     <div id="map" class="tab-content">
