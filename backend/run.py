@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import os, uuid, threading, traceback, time
+import os, uuid, threading, traceback, time, requests
 
 import numpy as np
 import cv2
@@ -17,7 +17,16 @@ BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 jobs = {}
 
 # -----------------------------
-# HEALTH
+# GLOBAL ERROR HANDLER (IMPORTANT)
+# -----------------------------
+@app.errorhandler(Exception)
+def handle_exception(e):
+    print("🔥 GLOBAL ERROR:", traceback.format_exc())
+    return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------
+# HEALTH + WAKE
 # -----------------------------
 @app.route("/")
 def home():
@@ -26,6 +35,21 @@ def home():
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+# -----------------------------
+# SELF-WARM (prevents cold start failures)
+# -----------------------------
+def warm_self():
+    try:
+        time.sleep(2)
+        requests.get(BASE_URL + "/health", timeout=5)
+        print("🔥 Warmed backend")
+    except:
+        print("⚠️ Warm failed")
+
+threading.Thread(target=warm_self).start()
+
 
 @app.route("/files/<filename>")
 def files(filename):
@@ -61,32 +85,13 @@ def get_gps_coords(tags):
 # -----------------------------
 def process_job(job_id, path):
     try:
-        jobs[job_id] = {"status": "processing", "step": "reading metadata"}
+        jobs[job_id] = {"status": "processing", "step": "loading image"}
 
-        metadata = {}
-        gps = None
-
-        # EXIF
-        try:
-            with open(path, "rb") as f:
-                tags = exifread.process_file(f)
-
-            for tag in tags:
-                val = str(tags[tag])
-                if len(val) < 200:
-                    metadata[tag] = val
-
-            gps = get_gps_coords(tags)
-        except:
-            pass
-
-        # LOAD IMAGE
-        jobs[job_id]["step"] = "loading image"
-
+        # Load image safely
         try:
             image = Image.open(path).convert("RGB")
         except UnidentifiedImageError:
-            jobs[job_id] = {"status": "error", "error": "Invalid image file"}
+            jobs[job_id] = {"status": "error", "error": "Invalid image"}
             return
 
         image.thumbnail((800, 800))
@@ -97,7 +102,7 @@ def process_job(job_id, path):
         # -----------------------------
         jobs[job_id]["step"] = "running ELA"
 
-        temp = path + "_compressed.jpg"
+        temp = path + "_c.jpg"
         image.save(temp, "JPEG", quality=90)
 
         diff = ImageChops.difference(image, Image.open(temp))
@@ -110,114 +115,43 @@ def process_job(job_id, path):
         score = int((np.mean(arr)/(np.max(arr)+1e-5))*100)
 
         # -----------------------------
-        # CV ANALYSIS
+        # QUICK CV (lightweight)
         # -----------------------------
-        jobs[job_id]["step"] = "analyzing structure"
+        jobs[job_id]["step"] = "analyzing"
 
         img_cv = cv2.imread(path, 0)
         if img_cv is None:
-            raise Exception("OpenCV failed to read image")
+            raise Exception("Image read failed")
 
         noise = float(np.mean(cv2.absdiff(img_cv, cv2.GaussianBlur(img_cv,(5,5),0))))
         sharp = float(cv2.Laplacian(img_cv, cv2.CV_64F).var())
 
-        noise_n = min(100, noise * 1.5)
-        sharp_n = min(100, sharp / 10)
-
-        # -----------------------------
-        # CONFIDENCE
-        # -----------------------------
-        ela_c = score * 0.5
-        noise_c = noise_n * 0.25
-        sharp_c = sharp_n * 0.25
-        meta_c = 10 if len(metadata) == 0 else 0
-
-        confidence = int(min(100, ela_c + noise_c + sharp_c + meta_c))
+        confidence = int(min(100, (score*0.5 + noise*0.2 + sharp*0.1)))
 
         risk = "High" if confidence > 70 else "Moderate" if confidence > 40 else "Low"
 
         # -----------------------------
-        # EXPLANATIONS
-        # -----------------------------
-        score_explanation = "Compression consistency analysis (ELA)."
-        confidence_explanation = "Strength of detected forensic signals."
-
-        explanation = [
-            f"Compression {'inconsistencies' if score > 40 else 'variation' if score > 10 else 'uniform'} detected.",
-            f"Noise is {'irregular' if noise_n > 40 else 'consistent'}.",
-            f"Sharpness is {'variable' if sharp_n > 40 else 'consistent'}.",
-            f"Metadata {'missing' if len(metadata)==0 else 'present'}."
-        ]
-
-        narrative = "Image analyzed using compression, noise, and structural consistency."
-
-        legal_conclusion = (
-            "Strong evidence of manipulation." if confidence > 70 else
-            "Possible indicators of editing." if confidence > 40 else
-            "No strong evidence of manipulation."
-        )
-
-        interpretation = [
-            "Score = compression consistency (ELA).",
-            "Confidence = strength of forensic signals.",
-            "Low confidence = weak evidence, not proof of authenticity.",
-            "Normal processing can affect results."
-        ]
-
-        justification = f"Confidence ({confidence}%) based on combined signals."
-
-        # -----------------------------
-        # HEATMAP
-        # -----------------------------
-        jobs[job_id]["step"] = "generating heatmap"
-
-        heatmap_file = None
-        try:
-            img = cv2.imread(path)
-            img = cv2.resize(img,(600,600))
-
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            diff = cv2.absdiff(gray, cv2.GaussianBlur(gray,(5,5),0))
-            norm = cv2.normalize(diff,None,0,255,cv2.NORM_MINMAX)
-            heat = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
-            overlay = cv2.addWeighted(img,0.6,heat,0.4,0)
-
-            heatmap_file = f"{job_id}_heatmap.jpg"
-            cv2.imwrite(os.path.join(UPLOAD_FOLDER, heatmap_file), overlay)
-        except:
-            pass
-
-        result = "Likely manipulated" if confidence > 70 else \
-                 "Possibly manipulated" if confidence > 40 else \
-                 "Likely original"
-
-        # -----------------------------
-        # DONE
+        # RESULT
         # -----------------------------
         jobs[job_id] = {
             "status": "done",
             "result": {
                 "score": score,
                 "confidence": confidence,
-                "score_explanation": score_explanation,
-                "confidence_explanation": confidence_explanation,
                 "risk_level": risk,
-                "legal_conclusion": legal_conclusion,
-                "justification": justification,
-                "interpretation": interpretation,
-                "ela_result": result,
-                "metadata": metadata,
-                "ela_image": f"{BASE_URL}/files/{ela_file}",
-                "heatmap": f"{BASE_URL}/files/{heatmap_file}" if heatmap_file else None,
-                "gps": gps,
-                "narrative": narrative,
-                "explanation": explanation,
-                "confidence_breakdown": {
-                    "ela": int(ela_c),
-                    "noise": int(noise_c),
-                    "sharpness": int(sharp_c),
-                    "metadata_bonus": meta_c
-                }
+                "ela_result": "Likely manipulated" if confidence > 70 else
+                              "Possibly manipulated" if confidence > 40 else
+                              "Likely original",
+                "score_explanation": "Compression consistency (ELA).",
+                "confidence_explanation": "Strength of detected anomalies.",
+                "legal_conclusion": "Forensic indicators detected." if confidence > 40 else
+                                    "No strong manipulation evidence.",
+                "interpretation": [
+                    "Score measures compression variation.",
+                    "Confidence reflects anomaly strength.",
+                    "Low confidence = weak evidence, not proof of authenticity."
+                ],
+                "ela_image": f"{BASE_URL}/files/{ela_file}"
             }
         }
 
@@ -229,16 +163,13 @@ def process_job(job_id, path):
 # -----------------------------
 # TIMEOUT WRAPPER
 # -----------------------------
-def run_with_timeout(job_id, path, timeout=25):
+def run_with_timeout(job_id, path, timeout=20):
     thread = threading.Thread(target=process_job, args=(job_id, path))
     thread.start()
     thread.join(timeout)
 
     if thread.is_alive():
-        jobs[job_id] = {
-            "status": "error",
-            "error": "Processing timed out"
-        }
+        jobs[job_id] = {"status": "error", "error": "Processing timeout"}
 
 
 # -----------------------------
@@ -255,11 +186,11 @@ def analyze():
         path = os.path.join(UPLOAD_FOLDER, f"{job_id}.jpg")
         file.save(path)
 
-        # File size limit (5MB)
+        # size limit
         if os.path.getsize(path) > 5 * 1024 * 1024:
-            return jsonify({"error": "Image too large (max 5MB)"}), 400
+            return jsonify({"error": "File too large"}), 400
 
-        jobs[job_id] = {"status": "processing", "step": "starting"}
+        jobs[job_id] = {"status": "processing"}
 
         threading.Thread(target=run_with_timeout, args=(job_id, path)).start()
 
