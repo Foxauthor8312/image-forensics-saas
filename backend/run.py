@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import os, uuid, threading, traceback
+import os, uuid, threading, traceback, time
 
 import numpy as np
 import cv2
@@ -26,7 +26,6 @@ def home():
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
-
 
 @app.route("/files/<filename>")
 def files(filename):
@@ -58,10 +57,12 @@ def get_gps_coords(tags):
 
 
 # -----------------------------
-# WORKER
+# SAFE WORKER
 # -----------------------------
 def process_job(job_id, path):
     try:
+        jobs[job_id] = {"status": "processing", "step": "reading metadata"}
+
         metadata = {}
         gps = None
 
@@ -80,6 +81,8 @@ def process_job(job_id, path):
             pass
 
         # LOAD IMAGE
+        jobs[job_id]["step"] = "loading image"
+
         try:
             image = Image.open(path).convert("RGB")
         except UnidentifiedImageError:
@@ -92,6 +95,8 @@ def process_job(job_id, path):
         # -----------------------------
         # ELA
         # -----------------------------
+        jobs[job_id]["step"] = "running ELA"
+
         temp = path + "_compressed.jpg"
         image.save(temp, "JPEG", quality=90)
 
@@ -99,8 +104,7 @@ def process_job(job_id, path):
         ela = ImageEnhance.Brightness(diff).enhance(10)
 
         ela_file = f"{job_id}_ela.jpg"
-        ela_path = os.path.join(UPLOAD_FOLDER, ela_file)
-        ela.save(ela_path)
+        ela.save(os.path.join(UPLOAD_FOLDER, ela_file))
 
         arr = np.array(ela)
         score = int((np.mean(arr)/(np.max(arr)+1e-5))*100)
@@ -108,119 +112,78 @@ def process_job(job_id, path):
         # -----------------------------
         # CV ANALYSIS
         # -----------------------------
+        jobs[job_id]["step"] = "analyzing structure"
+
         img_cv = cv2.imread(path, 0)
-
         if img_cv is None:
-            noise = 0
-            sharp = 0
-        else:
-            noise = float(np.mean(cv2.absdiff(img_cv, cv2.GaussianBlur(img_cv,(5,5),0))))
-            sharp = float(cv2.Laplacian(img_cv, cv2.CV_64F).var())
+            raise Exception("OpenCV failed to read image")
 
-        noise_n = min(100, noise/2)
-        sharp_n = min(100, sharp/50)
+        noise = float(np.mean(cv2.absdiff(img_cv, cv2.GaussianBlur(img_cv,(5,5),0))))
+        sharp = float(cv2.Laplacian(img_cv, cv2.CV_64F).var())
+
+        noise_n = min(100, noise * 1.5)
+        sharp_n = min(100, sharp / 10)
 
         # -----------------------------
         # CONFIDENCE
         # -----------------------------
-        ela_c = score * 0.4
-        noise_c = noise_n * 0.3
-        sharp_c = sharp_n * 0.3
+        ela_c = score * 0.5
+        noise_c = noise_n * 0.25
+        sharp_c = sharp_n * 0.25
         meta_c = 10 if len(metadata) == 0 else 0
 
         confidence = int(min(100, ela_c + noise_c + sharp_c + meta_c))
 
-        # -----------------------------
-        # ADVANCED EXPLANATIONS
-        # -----------------------------
         risk = "High" if confidence > 70 else "Moderate" if confidence > 40 else "Low"
 
-        # Score explanation
-        if score < 10:
-            score_explanation = f"Score {score} indicates uniform compression typical of original images."
-        elif score < 40:
-            score_explanation = f"Score {score} indicates moderate compression variation."
-        else:
-            score_explanation = f"Score {score} indicates high compression inconsistencies."
+        # -----------------------------
+        # EXPLANATIONS
+        # -----------------------------
+        score_explanation = "Compression consistency analysis (ELA)."
+        confidence_explanation = "Strength of detected forensic signals."
 
-        # Confidence explanation
-        if confidence < 30:
-            confidence_explanation = f"Confidence {confidence}% is low."
-        elif confidence < 70:
-            confidence_explanation = f"Confidence {confidence}% is moderate."
-        else:
-            confidence_explanation = f"Confidence {confidence}% is high."
+        explanation = [
+            f"Compression {'inconsistencies' if score > 40 else 'variation' if score > 10 else 'uniform'} detected.",
+            f"Noise is {'irregular' if noise_n > 40 else 'consistent'}.",
+            f"Sharpness is {'variable' if sharp_n > 40 else 'consistent'}.",
+            f"Metadata {'missing' if len(metadata)==0 else 'present'}."
+        ]
 
-        # Technical findings
-        explanation = []
+        narrative = "Image analyzed using compression, noise, and structural consistency."
 
-        explanation.append(
-            "Compression analysis shows {}.".format(
-                "inconsistencies" if score > 40 else
-                "moderate variation" if score > 10 else
-                "uniformity"
-            )
+        legal_conclusion = (
+            "Strong evidence of manipulation." if confidence > 70 else
+            "Possible indicators of editing." if confidence > 40 else
+            "No strong evidence of manipulation."
         )
 
-        explanation.append(
-            "Noise distribution is {}.".format(
-                "irregular" if noise_n > 40 else "consistent"
-            )
-        )
+        interpretation = [
+            "Score = compression consistency (ELA).",
+            "Confidence = strength of forensic signals.",
+            "Low confidence = weak evidence, not proof of authenticity.",
+            "Normal processing can affect results."
+        ]
 
-        explanation.append(
-            "Sharpness is {}.".format(
-                "variable" if sharp_n > 40 else "consistent"
-            )
-        )
-
-        explanation.append(
-            "Metadata {}.".format(
-                "is missing" if len(metadata) == 0 else "is present"
-            )
-        )
-
-        # Narrative
-        narrative = (
-            "This image was analyzed using compression, noise, and structural consistency techniques. "
-        )
-
-        if confidence > 70:
-            narrative += "Strong indicators of manipulation were detected."
-        elif confidence > 40:
-            narrative += "Moderate anomalies were detected."
-        else:
-            narrative += "No strong anomalies detected."
-
-        # Legal conclusion
-        if confidence > 70:
-            legal_conclusion = "There is strong evidence consistent with image manipulation."
-        elif confidence > 40:
-            legal_conclusion = "There are indicators that may suggest image alteration, but findings are not conclusive."
-        else:
-            legal_conclusion = "No strong evidence of manipulation was detected."
-
-        # Justification
-        justification = (
-            f"The confidence score ({confidence}%) is based on combined compression, noise, and sharpness signals."
-        )
+        justification = f"Confidence ({confidence}%) based on combined signals."
 
         # -----------------------------
         # HEATMAP
         # -----------------------------
+        jobs[job_id]["step"] = "generating heatmap"
+
         heatmap_file = None
         try:
             img = cv2.imread(path)
-            if img is not None:
-                img = cv2.resize(img,(600,600))
-                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                diff = cv2.absdiff(gray, cv2.GaussianBlur(gray,(5,5),0))
-                norm = cv2.normalize(diff,None,0,255,cv2.NORM_MINMAX)
-                heat = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
-                overlay = cv2.addWeighted(img,0.6,heat,0.4,0)
+            img = cv2.resize(img,(600,600))
 
-                heatmap_file = f"{job_id}_heatmap.jpg"
-                cv2.imwrite(os.path.join(UPLOAD_FOLDER, heatmap_file), overlay)
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            diff = cv2.absdiff(gray, cv2.GaussianBlur(gray,(5,5),0))
+            norm = cv2.normalize(diff,None,0,255,cv2.NORM_MINMAX)
+            heat = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
+            overlay = cv2.addWeighted(img,0.6,heat,0.4,0)
+
+            heatmap_file = f"{job_id}_heatmap.jpg"
+            cv2.imwrite(os.path.join(UPLOAD_FOLDER, heatmap_file), overlay)
         except:
             pass
 
@@ -229,7 +192,7 @@ def process_job(job_id, path):
                  "Likely original"
 
         # -----------------------------
-        # SAVE RESULT
+        # DONE
         # -----------------------------
         jobs[job_id] = {
             "status": "done",
@@ -241,6 +204,7 @@ def process_job(job_id, path):
                 "risk_level": risk,
                 "legal_conclusion": legal_conclusion,
                 "justification": justification,
+                "interpretation": interpretation,
                 "ela_result": result,
                 "metadata": metadata,
                 "ela_image": f"{BASE_URL}/files/{ela_file}",
@@ -263,6 +227,21 @@ def process_job(job_id, path):
 
 
 # -----------------------------
+# TIMEOUT WRAPPER
+# -----------------------------
+def run_with_timeout(job_id, path, timeout=25):
+    thread = threading.Thread(target=process_job, args=(job_id, path))
+    thread.start()
+    thread.join(timeout)
+
+    if thread.is_alive():
+        jobs[job_id] = {
+            "status": "error",
+            "error": "Processing timed out"
+        }
+
+
+# -----------------------------
 # API
 # -----------------------------
 @app.route("/api/analyze", methods=["POST"])
@@ -274,12 +253,15 @@ def analyze():
 
         job_id = str(uuid.uuid4())
         path = os.path.join(UPLOAD_FOLDER, f"{job_id}.jpg")
-
         file.save(path)
 
-        jobs[job_id] = {"status": "processing"}
+        # File size limit (5MB)
+        if os.path.getsize(path) > 5 * 1024 * 1024:
+            return jsonify({"error": "Image too large (max 5MB)"}), 400
 
-        threading.Thread(target=process_job, args=(job_id, path)).start()
+        jobs[job_id] = {"status": "processing", "step": "starting"}
+
+        threading.Thread(target=run_with_timeout, args=(job_id, path)).start()
 
         return jsonify({"job_id": job_id})
 
