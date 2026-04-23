@@ -24,6 +24,13 @@ def handle_exception(e):
     return jsonify({"error": str(e)}), 500
 
 # -----------------------------
+# REQUEST LOGGING (DEBUG)
+# -----------------------------
+@app.before_request
+def log_request():
+    print(f"➡️ {request.method} {request.path}")
+
+# -----------------------------
 # HEALTH
 # -----------------------------
 @app.route("/")
@@ -73,7 +80,7 @@ def process_job(job_id, path):
         score = int((np.mean(arr)/(np.max(arr)+1e-5))*100)
 
         # -----------------------------
-        # LIGHT CV ANALYSIS
+        # CV ANALYSIS (SAFE)
         # -----------------------------
         jobs[job_id]["step"] = "analyzing structure"
 
@@ -88,20 +95,20 @@ def process_job(job_id, path):
         sharp_n = min(100, sharp / 10)
 
         # -----------------------------
-        # CONFIDENCE (IMPROVED)
+        # CONFIDENCE
         # -----------------------------
         ela_c = score * 0.5
         noise_c = noise_n * 0.25
         sharp_c = sharp_n * 0.25
-        meta_c = 10  # assume missing metadata bonus
+        meta_c = 10  # placeholder
 
         confidence = int(min(100, ela_c + noise_c + sharp_c + meta_c))
 
-        # -----------------------------
-        # INTERPRETATION LOGIC
-        # -----------------------------
         risk = "High" if confidence > 70 else "Moderate" if confidence > 40 else "Low"
 
+        # -----------------------------
+        # EXPLANATIONS
+        # -----------------------------
         if score < 10:
             score_explanation = "Low compression variation (uniform encoding)."
         elif score < 40:
@@ -117,29 +124,27 @@ def process_job(job_id, path):
             confidence_explanation = "High confidence: strong evidence of manipulation."
 
         explanation = [
-            f"Compression {'inconsistent' if score > 40 else 'moderately varied' if score > 10 else 'uniform'}.",
+            f"Compression {'inconsistent' if score > 40 else 'moderate' if score > 10 else 'uniform'}.",
             f"Noise {'irregular' if noise_n > 40 else 'consistent'}.",
             f"Sharpness {'variable' if sharp_n > 40 else 'consistent'}."
         ]
 
-        narrative = (
-            "Image analyzed using compression consistency (ELA), noise distribution, and sharpness variation."
-        )
+        narrative = "Image analyzed using compression (ELA), noise, and sharpness."
 
         legal_conclusion = (
-            "Strong indicators consistent with manipulation." if confidence > 70 else
-            "Possible indicators of editing, not conclusive." if confidence > 40 else
-            "No strong evidence of manipulation detected."
+            "Strong indicators of manipulation." if confidence > 70 else
+            "Possible indicators of editing." if confidence > 40 else
+            "No strong evidence of manipulation."
         )
 
         interpretation = [
-            "Score reflects compression consistency (ELA).",
-            "Confidence represents strength of forensic signals.",
-            "Low confidence does not guarantee authenticity.",
-            "Standard image processing can affect results."
+            "Score reflects compression consistency.",
+            "Confidence reflects strength of forensic signals.",
+            "Low confidence = weak evidence, not proof of authenticity.",
+            "Standard compression may affect results."
         ]
 
-        justification = f"Confidence ({confidence}%) derived from combined compression, noise, and sharpness signals."
+        justification = f"Confidence ({confidence}%) derived from combined signals."
 
         result = (
             "Likely manipulated" if confidence > 70 else
@@ -148,7 +153,7 @@ def process_job(job_id, path):
         )
 
         # -----------------------------
-        # FINAL RESULT
+        # SAVE RESULT
         # -----------------------------
         jobs[job_id] = {
             "status": "done",
@@ -190,22 +195,36 @@ def run_with_timeout(job_id, path, timeout=25):
         jobs[job_id] = {"status": "error", "error": "Processing timed out"}
 
 # -----------------------------
-# API
+# ANALYZE (UPDATED VALIDATION)
 # -----------------------------
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
     try:
+        print("📥 Analyze request received")
+
+        if "image" not in request.files:
+            return jsonify({"error": "No file field 'image' in request"}), 400
+
         file = request.files.get("image")
-        if not file:
-            return jsonify({"error": "No file uploaded"}), 400
+
+        if file is None or file.filename == "":
+            return jsonify({"error": "No file selected"}), 400
+
+        if not file.filename.lower().endswith((".jpg", ".jpeg", ".png")):
+            return jsonify({"error": "Only JPG and PNG allowed"}), 400
 
         job_id = str(uuid.uuid4())
         path = os.path.join(UPLOAD_FOLDER, f"{job_id}.jpg")
+
         file.save(path)
 
-        # size limit
-        if os.path.getsize(path) > 5 * 1024 * 1024:
-            return jsonify({"error": "Image too large (max 5MB)"}), 400
+        size = os.path.getsize(path)
+
+        if size == 0:
+            return jsonify({"error": "Empty file"}), 400
+
+        if size > 5 * 1024 * 1024:
+            return jsonify({"error": "File too large (max 5MB)"}), 400
 
         jobs[job_id] = {"status": "processing", "step": "starting"}
 
@@ -214,11 +233,26 @@ def analyze():
         return jsonify({"job_id": job_id})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print("🔥 ANALYZE ERROR:", traceback.format_exc())
+        return jsonify({
+            "error": "Server failed to process request",
+            "details": str(e)
+        }), 500
 
+# -----------------------------
+# STATUS
+# -----------------------------
 @app.route("/api/status/<job_id>")
 def status(job_id):
-    return jsonify(jobs.get(job_id, {"error": "invalid job"}))
+    job = jobs.get(job_id)
+
+    if not job:
+        return jsonify({
+            "status": "error",
+            "error": "Invalid job ID"
+        }), 404
+
+    return jsonify(job)
 
 # -----------------------------
 # RUN
