@@ -18,6 +18,7 @@ UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
+
 jobs = {}
 
 # -----------------------------
@@ -42,17 +43,6 @@ def get_gps_coords(tags):
         return [lat, lon]
     except:
         return None
-
-
-@app.route("/")
-def home():
-    return "Backend is running"
-
-
-@app.route("/files/<filename>")
-def files(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
-
 
 # -----------------------------
 # WORKER
@@ -111,6 +101,14 @@ def process_job(job_id, path):
 
         confidence = int(min(100, ela_c+noise_c+sharp_c+meta_c))
 
+        # Risk level
+        if confidence > 70:
+            risk = "High"
+        elif confidence > 40:
+            risk = "Moderate"
+        else:
+            risk = "Low"
+
         # Heatmap
         heatmap_file = None
         regions = []
@@ -142,10 +140,35 @@ def process_job(job_id, path):
             pass
 
         # Narrative
-        narrative = f"This image was analyzed using compression, noise, and sharpness techniques. "
-        narrative += "Strong signs of manipulation. " if confidence>70 else \
-                     "Moderate signs of editing. " if confidence>40 else \
-                     "No strong anomalies detected. "
+        narrative = (
+            "This image was examined using multiple forensic techniques including "
+            "Error Level Analysis (ELA), noise consistency evaluation, and sharpness variation analysis. "
+        )
+
+        if confidence > 70:
+            narrative += "The results indicate a strong likelihood of manipulation. "
+        elif confidence > 40:
+            narrative += "The analysis reveals moderate anomalies consistent with editing or recompression. "
+        else:
+            narrative += "No strong anomalies were detected, suggesting the image is likely original. "
+
+        # Detailed explanation
+        explanation = []
+
+        explanation.append(f"ELA score ({score}) reflects compression consistency.")
+        explanation.append(f"Noise score ({int(noise_n)}) evaluates pixel-level randomness.")
+        explanation.append(f"Sharpness score ({int(sharp_n)}) measures structural consistency.")
+
+        if len(metadata) == 0:
+            explanation.append("Metadata is missing or stripped.")
+        else:
+            explanation.append(f"Metadata present ({len(metadata)} fields).")
+
+        # Justification
+        justification = (
+            f"The confidence score ({confidence}%) combines compression, noise, and sharpness signals, "
+            f"placing this image in the {risk.lower()} risk category."
+        )
 
         result = "Likely manipulated" if confidence>70 else \
                  "Possibly manipulated" if confidence>40 else \
@@ -156,6 +179,8 @@ def process_job(job_id, path):
             "result":{
                 "score":score,
                 "confidence":confidence,
+                "risk_level":risk,
+                "justification":justification,
                 "ela_result":result,
                 "metadata":metadata,
                 "ela_image":f"{BASE_URL}/files/{ela_file}",
@@ -163,6 +188,7 @@ def process_job(job_id, path):
                 "regions":regions,
                 "gps":gps,
                 "narrative":narrative,
+                "explanation":explanation,
                 "confidence_breakdown":{
                     "ela":int(ela_c),
                     "noise":int(noise_c),
@@ -175,7 +201,6 @@ def process_job(job_id, path):
     except Exception as e:
         jobs[job_id]={"status":"error","error":str(e)}
 
-
 @app.route("/api/analyze",methods=["POST"])
 def analyze():
     file=request.files.get("image")
@@ -187,68 +212,10 @@ def analyze():
     file.save(path)
 
     jobs[job_id]={"status":"processing"}
-
     threading.Thread(target=process_job,args=(job_id,path)).start()
 
     return jsonify({"job_id":job_id})
 
-
 @app.route("/api/status/<job_id>")
 def status(job_id):
     return jsonify(jobs.get(job_id,{"error":"invalid job"}))
-
-
-# -----------------------------
-# PDF REPORT
-# -----------------------------
-@app.route("/api/report/<job_id>")
-def report(job_id):
-    job = jobs.get(job_id)
-
-    if not job or job.get("status") != "done":
-        return jsonify({"error": "Invalid job"}), 400
-
-    data = job["result"]
-
-    file_name = f"{job_id}_report.pdf"
-    file_path = os.path.join(UPLOAD_FOLDER, file_name)
-
-    doc = SimpleDocTemplate(file_path)
-    styles = getSampleStyleSheet()
-
-    content = []
-
-    content.append(Paragraph("PixelProof Forensic Report", styles["Title"]))
-    content.append(Spacer(1,10))
-
-    content.append(Paragraph(f"Score: {data['score']}", styles["Normal"]))
-    content.append(Paragraph(f"Confidence: {data['confidence']}%", styles["Normal"]))
-    content.append(Paragraph(f"Result: {data['ela_result']}", styles["Normal"]))
-    content.append(Spacer(1,10))
-
-    content.append(Paragraph("AI Narrative", styles["Heading2"]))
-    content.append(Paragraph(data["narrative"], styles["Normal"]))
-    content.append(Spacer(1,10))
-
-    # Images
-    try:
-        ela_path = os.path.join(UPLOAD_FOLDER, f"{job_id}_ela.jpg")
-        heat_path = os.path.join(UPLOAD_FOLDER, f"{job_id}_heatmap.jpg")
-
-        if os.path.exists(ela_path):
-            content.append(Paragraph("ELA", styles["Normal"]))
-            content.append(RLImage(ela_path, width=4*inch, height=3*inch))
-
-        if os.path.exists(heat_path):
-            content.append(Paragraph("Heatmap", styles["Normal"]))
-            content.append(RLImage(heat_path, width=4*inch, height=3*inch))
-    except:
-        pass
-
-    doc.build(content)
-
-    return jsonify({"report": f"{BASE_URL}/files/{file_name}"})
-
-
-if __name__=="__main__":
-    app.run(host="0.0.0.0",port=3000)
