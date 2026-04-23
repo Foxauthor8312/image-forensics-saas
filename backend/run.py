@@ -18,8 +18,29 @@ BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 jobs = {}
 
 # -----------------------------
-# HOME
+# GPS extraction
 # -----------------------------
+def get_gps_coords(tags):
+    try:
+        def convert(v):
+            d = float(v.values[0].num) / float(v.values[0].den)
+            m = float(v.values[1].num) / float(v.values[1].den)
+            s = float(v.values[2].num) / float(v.values[2].den)
+            return d + m/60 + s/3600
+
+        lat = convert(tags["GPS GPSLatitude"])
+        if tags["GPS GPSLatitudeRef"].values != "N":
+            lat = -lat
+
+        lon = convert(tags["GPS GPSLongitude"])
+        if tags["GPS GPSLongitudeRef"].values != "E":
+            lon = -lon
+
+        return [lat, lon]
+    except:
+        return None
+
+
 @app.route("/")
 def home():
     return "Backend is running"
@@ -36,234 +57,144 @@ def files(filename):
 def process_job(job_id, path):
     try:
         metadata = {}
+        gps = None
 
-        # -----------------------------
         # EXIF
-        # -----------------------------
         try:
             with open(path, "rb") as f:
                 tags = exifread.process_file(f)
+
             for tag in tags:
                 val = str(tags[tag])
                 if len(val) < 200:
                     metadata[tag] = val
+
+            gps = get_gps_coords(tags)
+
         except:
             pass
 
-        # -----------------------------
-        # LOAD + RESIZE
-        # -----------------------------
+        # Load + resize
         image = Image.open(path).convert("RGB")
         image.thumbnail((800, 800))
         image.save(path)
 
-        # -----------------------------
-        # ELA
-        # -----------------------------
-        temp = path + "_compressed.jpg"
+        # ---- ELA ----
+        temp = path + "_c.jpg"
         image.save(temp, "JPEG", quality=90)
 
-        compressed = Image.open(temp)
-        diff = ImageChops.difference(image, compressed)
-
+        diff = ImageChops.difference(image, Image.open(temp))
         ela = ImageEnhance.Brightness(diff).enhance(10)
 
         ela_file = f"{job_id}_ela.jpg"
         ela.save(os.path.join(UPLOAD_FOLDER, ela_file))
 
         arr = np.array(ela)
-        score = int((np.mean(arr) / (np.max(arr) + 1e-5)) * 100)
+        score = int((np.mean(arr)/(np.max(arr)+1e-5))*100)
 
-        # -----------------------------
-        # NOISE + SHARPNESS
-        # -----------------------------
+        # ---- CV ----
         img_cv = cv2.imread(path, 0)
+        noise = float(np.mean(cv2.absdiff(img_cv, cv2.GaussianBlur(img_cv,(5,5),0)))) if img_cv is not None else 0
+        sharp = float(cv2.Laplacian(img_cv, cv2.CV_64F).var()) if img_cv is not None else 0
 
-        if img_cv is not None:
-            noise = float(np.mean(cv2.absdiff(img_cv, cv2.GaussianBlur(img_cv,(5,5),0))))
-            sharp = float(cv2.Laplacian(img_cv, cv2.CV_64F).var())
-        else:
-            noise = 0
-            sharp = 0
+        noise_n = min(100, noise/2)
+        sharp_n = min(100, sharp/50)
 
-        noise_n = min(100, noise / 2)
-        sharp_n = min(100, sharp / 50)
+        # ---- Confidence ----
+        ela_c = score*0.4
+        noise_c = noise_n*0.3
+        sharp_c = sharp_n*0.3
+        meta_c = 10 if len(metadata)==0 else 0
 
-        # -----------------------------
-        # CONFIDENCE BREAKDOWN
-        # -----------------------------
-        ela_contrib = score * 0.4
-        noise_contrib = noise_n * 0.3
-        sharp_contrib = sharp_n * 0.3
-        meta_bonus = 10 if len(metadata) == 0 else 0
+        confidence = int(min(100, ela_c+noise_c+sharp_c+meta_c))
 
-        confidence = int(min(100, ela_contrib + noise_contrib + sharp_contrib + meta_bonus))
-
-        # -----------------------------
-        # HEATMAP + REGIONS
-        # -----------------------------
+        # ---- Heatmap ----
         heatmap_file = None
         regions = []
 
         try:
             img = cv2.imread(path)
-            if img is not None:
-                img = cv2.resize(img, (600, 600))
+            img = cv2.resize(img,(600,600))
 
-                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                diff = cv2.absdiff(gray, cv2.GaussianBlur(gray,(5,5),0))
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            diff = cv2.absdiff(gray, cv2.GaussianBlur(gray,(5,5),0))
 
-                norm = cv2.normalize(diff, None, 0,255,cv2.NORM_MINMAX)
-                heat = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
-                overlay = cv2.addWeighted(img,0.6,heat,0.4,0)
+            norm = cv2.normalize(diff,None,0,255,cv2.NORM_MINMAX)
+            heat = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
+            overlay = cv2.addWeighted(img,0.6,heat,0.4,0)
 
-                _, thresh = cv2.threshold(norm,50,255,cv2.THRESH_BINARY)
-                contours,_ = cv2.findContours(thresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+            _,th = cv2.threshold(norm,50,255,cv2.THRESH_BINARY)
+            cnts,_ = cv2.findContours(th,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
 
-                for c in contours:
-                    if cv2.contourArea(c) > 500:
-                        x,y,w,h = cv2.boundingRect(c)
-                        regions.append([int(x),int(y),int(w),int(h)])
-                        cv2.rectangle(overlay,(x,y),(x+w,y+h),(0,255,0),2)
+            for c in cnts:
+                if cv2.contourArea(c)>500:
+                    x,y,w,h = cv2.boundingRect(c)
+                    regions.append([int(x),int(y),int(w),int(h)])
+                    cv2.rectangle(overlay,(x,y),(x+w,y+h),(0,255,0),2)
 
-                heatmap_file = f"{job_id}_heatmap.jpg"
-                cv2.imwrite(os.path.join(UPLOAD_FOLDER, heatmap_file), overlay)
+            heatmap_file = f"{job_id}_heatmap.jpg"
+            cv2.imwrite(os.path.join(UPLOAD_FOLDER, heatmap_file), overlay)
 
         except:
             pass
 
-        # -----------------------------
-        # SUMMARY
-        # -----------------------------
-        if confidence > 70:
-            summary = "This image shows strong indicators of manipulation."
-        elif confidence > 40:
-            summary = "This image shows moderate signs of possible editing or recompression."
-        else:
-            summary = "This image appears mostly consistent with an original or uniformly processed image."
+        # ---- Narrative ----
+        narrative = f"This image was analyzed using compression, noise, and sharpness techniques. "
+        narrative += "Strong signs of manipulation. " if confidence>70 else \
+                     "Moderate signs of editing. " if confidence>40 else \
+                     "No strong anomalies detected. "
 
-        # -----------------------------
-        # DETAILED EXPLANATION
-        # -----------------------------
-        explanation = []
-
-        if score < 10:
-            explanation.append(f"Low ELA score ({score}) indicates uniform compression.")
-        elif score < 40:
-            explanation.append(f"Moderate ELA score ({score}) suggests some compression variation.")
-        else:
-            explanation.append(f"High ELA score ({score}) indicates strong inconsistencies.")
-
-        if noise_n > 40:
-            explanation.append(f"Noise patterns are inconsistent (score: {int(noise_n)}).")
-        else:
-            explanation.append(f"Noise levels are consistent (score: {int(noise_n)}).")
-
-        if sharp_n > 40:
-            explanation.append(f"Sharpness variation is high (score: {int(sharp_n)}).")
-        else:
-            explanation.append(f"Sharpness is consistent (score: {int(sharp_n)}).")
-
-        if len(metadata) == 0:
-            explanation.append("Metadata is missing or stripped.")
-        else:
-            explanation.append(f"Metadata present ({len(metadata)} fields).")
-
-        # -----------------------------
-        # AI NARRATIVE REPORT
-        # -----------------------------
-        narrative = "This image was analyzed using compression, noise, and sharpness techniques. "
-
-        if confidence > 70:
-            narrative += "The results indicate strong signs of manipulation. "
-        elif confidence > 40:
-            narrative += "The results suggest possible editing or recompression. "
-        else:
-            narrative += "The analysis suggests the image is likely original or uniformly processed. "
-
-        narrative += f"ELA score ({score}) "
-        narrative += "indicates high inconsistency. " if score > 40 else "shows moderate variation. " if score > 10 else "shows uniform compression. "
-
-        narrative += f"Noise score ({int(noise_n)}) "
-        narrative += "is inconsistent. " if noise_n > 40 else "is consistent. "
-
-        narrative += f"Sharpness score ({int(sharp_n)}) "
-        narrative += "shows irregularities. " if sharp_n > 40 else "is consistent. "
-
-        narrative += "Metadata is missing. " if len(metadata) == 0 else f"Metadata is present ({len(metadata)} fields). "
-
-        narrative += "Overall, "
-        narrative += "the image is likely manipulated." if confidence > 70 else \
-                     "there are some signs of editing." if confidence > 40 else \
-                     "no strong evidence of manipulation was found."
-
-        # -----------------------------
-        # FINAL RESULT
-        # -----------------------------
-        result = "Likely manipulated" if confidence > 70 else \
-                 "Possibly manipulated" if confidence > 40 else \
+        # ---- Result ----
+        result = "Likely manipulated" if confidence>70 else \
+                 "Possibly manipulated" if confidence>40 else \
                  "Likely original"
 
         jobs[job_id] = {
-            "status": "done",
-            "result": {
-                "score": score,
-                "confidence": confidence,
-                "ela_result": result,
-                "metadata": metadata,
-                "ela_image": f"{BASE_URL}/files/{ela_file}",
-                "heatmap": f"{BASE_URL}/files/{heatmap_file}" if heatmap_file else None,
-                "regions": regions,
-                "summary": summary,
-                "explanation": explanation,
-                "narrative": narrative,
-                "confidence_breakdown": {
-                    "ela": int(ela_contrib),
-                    "noise": int(noise_contrib),
-                    "sharpness": int(sharp_contrib),
-                    "metadata_bonus": meta_bonus
+            "status":"done",
+            "result":{
+                "score":score,
+                "confidence":confidence,
+                "ela_result":result,
+                "metadata":metadata,
+                "ela_image":f"{BASE_URL}/files/{ela_file}",
+                "heatmap":f"{BASE_URL}/files/{heatmap_file}" if heatmap_file else None,
+                "regions":regions,
+                "gps":gps,
+                "narrative":narrative,
+                "confidence_breakdown":{
+                    "ela":int(ela_c),
+                    "noise":int(noise_c),
+                    "sharpness":int(sharp_c),
+                    "metadata_bonus":meta_c
                 }
             }
         }
 
     except Exception as e:
-        jobs[job_id] = {"status": "error", "error": str(e)}
+        jobs[job_id]={"status":"error","error":str(e)}
 
 
-# -----------------------------
-# START JOB
-# -----------------------------
-@app.route("/api/analyze", methods=["POST"])
+@app.route("/api/analyze",methods=["POST"])
 def analyze():
-    file = request.files.get("image")
+    file=request.files.get("image")
     if not file:
-        return jsonify({"error": "No file uploaded"}), 400
+        return jsonify({"error":"No file"}),400
 
-    job_id = str(uuid.uuid4())
-    path = os.path.join(UPLOAD_FOLDER, f"{job_id}.jpg")
-
+    job_id=str(uuid.uuid4())
+    path=os.path.join(UPLOAD_FOLDER,f"{job_id}.jpg")
     file.save(path)
 
-    jobs[job_id] = {"status": "processing"}
+    jobs[job_id]={"status":"processing"}
 
-    threading.Thread(target=process_job, args=(job_id, path)).start()
+    threading.Thread(target=process_job,args=(job_id,path)).start()
 
-    return jsonify({"job_id": job_id})
+    return jsonify({"job_id":job_id})
 
 
-# -----------------------------
-# STATUS
-# -----------------------------
 @app.route("/api/status/<job_id>")
 def status(job_id):
-    job = jobs.get(job_id)
-    if not job:
-        return jsonify({"error": "Invalid job ID"}), 404
-    return jsonify(job)
+    return jsonify(jobs.get(job_id,{"error":"invalid job"}))
 
 
-# -----------------------------
-# RUN
-# -----------------------------
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3000)
+if __name__=="__main__":
+    app.run(host="0.0.0.0",port=3000)
