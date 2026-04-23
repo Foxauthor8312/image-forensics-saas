@@ -206,14 +206,25 @@ function render(data) {
     </div>
 
     <div id="explanation" class="tab-content">
-      <h3>AI Narrative</h3>
-      <p>${data.narrative}</p>
+
+      <h3>Forensic Assessment</h3>
+      <p><b>Risk Level:</b> ${data.risk_level}</p>
+
+      <h3>AI Narrative Report</h3>
+      <p style="line-height:1.6;">${data.narrative}</p>
+
+      <h3>Technical Findings</h3>
+      ${data.explanation.map(e => `<p>• ${e}</p>`).join("")}
+
+      <h3>Confidence Justification</h3>
+      <p>${data.justification}</p>
 
       <h3>Confidence Breakdown</h3>
       ${bar("ELA", data.confidence_breakdown.ela)}
       ${bar("Noise", data.confidence_breakdown.noise)}
       ${bar("Sharpness", data.confidence_breakdown.sharpness)}
       ${bar("Metadata", data.confidence_breakdown.metadata_bonus)}
+
     </div>
 
     <div id="map" class="tab-content">
@@ -235,7 +246,6 @@ function openTab(evt, name) {
   document.getElementById(name).classList.add("active");
   evt.target.classList.add("active");
 
-  // Fix Leaflet rendering inside hidden tab
   setTimeout(() => {
     if (mapInstance) mapInstance.invalidateSize();
   }, 200);
