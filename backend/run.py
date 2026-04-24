@@ -1,9 +1,9 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import os
-import uuid
+import os, uuid
 
 import numpy as np
+import cv2
 from PIL import Image, ImageChops, ImageEnhance
 from PIL.ExifTags import TAGS, GPSTAGS
 
@@ -13,6 +13,11 @@ CORS(app)
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+BASE_URL = os.environ.get("BASE_URL", "http://localhost:3000")
+
+# -----------------------------
+# METADATA
+# -----------------------------
 def extract_metadata(path):
     try:
         img = Image.open(path)
@@ -38,6 +43,9 @@ def extract_metadata(path):
         print("METADATA ERROR:", e)
         return {"available": False}
 
+# -----------------------------
+# GPS
+# -----------------------------
 def extract_gps(path):
     try:
         img = Image.open(path)
@@ -89,7 +97,11 @@ def extract_gps(path):
         print("GPS ERROR:", e)
         return None
 
-def analyze_image(path):
+# -----------------------------
+# ANALYSIS + HEATMAP
+# -----------------------------
+def analyze_image(path, job_id):
+
     image = Image.open(path).convert("RGB")
 
     temp = path + "_temp.jpg"
@@ -108,8 +120,36 @@ def analyze_image(path):
     else:
         result = "Likely original"
 
-    return score, result
+    # -----------------------------
+    # HEATMAP
+    # -----------------------------
+    try:
+        img = cv2.imread(path)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
+        blur = cv2.GaussianBlur(gray, (5,5), 0)
+        diff = cv2.absdiff(gray, blur)
+
+        norm = cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX)
+        norm = cv2.equalizeHist(norm)
+
+        heat = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
+        overlay = cv2.addWeighted(img, 0.6, heat, 0.4, 0)
+
+        heatmap_file = f"{job_id}_heatmap.jpg"
+        heatmap_path = os.path.join(UPLOAD_FOLDER, heatmap_file)
+
+        cv2.imwrite(heatmap_path, overlay)
+
+    except Exception as e:
+        print("HEATMAP ERROR:", e)
+        heatmap_file = None
+
+    return score, result, heatmap_file
+
+# -----------------------------
+# API
+# -----------------------------
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
     file = request.files.get("image")
@@ -124,7 +164,8 @@ def analyze():
         img = Image.open(path)
         width, height = img.size
 
-        score, result_text = analyze_image(path)
+        score, result_text, heatmap_file = analyze_image(path, job_id)
+
         metadata = extract_metadata(path)
         gps = extract_gps(path)
 
@@ -136,12 +177,17 @@ def analyze():
                 "confidence": score,
                 "analysis": result_text,
                 "metadata": metadata,
-                "gps": gps
+                "gps": gps,
+                "heatmap": f"{BASE_URL}/files/{heatmap_file}" if heatmap_file else None
             }
         })
 
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)})
+
+@app.route("/files/<filename>")
+def files(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 @app.route("/health")
 def health():
