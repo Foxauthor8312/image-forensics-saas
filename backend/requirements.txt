@@ -2,5 +2,4 @@ flask
 flask-cors
 pillow
 gunicorn
-exifread
 piexif
