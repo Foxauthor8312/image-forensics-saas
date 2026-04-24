@@ -29,6 +29,7 @@ button {
   margin:5px;
 }
 
+/* Tabs */
 .tabs {
   display:flex;
   gap:10px;
@@ -56,6 +57,7 @@ button {
   display:block;
 }
 
+/* Layout */
 .row {
   display:flex;
   gap:10px;
@@ -73,11 +75,27 @@ img {
   border-radius:6px;
 }
 
+/* Cards */
 .card {
   background:#020617;
   padding:15px;
   border-radius:8px;
   margin-top:10px;
+}
+
+/* Overlay */
+.overlay {
+  position:absolute;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+}
+
+.overlay div {
+  position:absolute;
+  border:2px solid red;
+  cursor:pointer;
 }
 </style>
 </head>
@@ -107,8 +125,6 @@ let currentData = null;
 file.onchange = e => selectedFile = e.target.files[0];
 
 // -----------------------------
-// UPLOAD
-// -----------------------------
 async function upload(){
   if(!selectedFile) return alert("Select an image");
 
@@ -127,8 +143,6 @@ async function upload(){
 }
 
 // -----------------------------
-// POLL
-// -----------------------------
 function poll(id){
   let attempts = 0;
 
@@ -140,7 +154,7 @@ function poll(id){
 
     if(d.status==="processing"){
       document.getElementById("result").innerHTML =
-        "Processing...";
+        "Processing: " + (d.step || "analyzing...");
     }
 
     if(d.status==="done"){
@@ -165,8 +179,6 @@ function poll(id){
 }
 
 // -----------------------------
-// RENDER
-// -----------------------------
 function render(data){
 
   const original = URL.createObjectURL(selectedFile);
@@ -182,6 +194,7 @@ function render(data){
     <div class="tabs">
       <div class="tab active" onclick="openTab(event,'results')">Results</div>
       <div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
+      <div class="tab" onclick="openTab(event,'regions')">Regions</div>
       <div class="tab" onclick="openTab(event,'simple')">Explanation</div>
       <div class="tab" onclick="openTab(event,'legal')">Legal</div>
       <div class="tab" onclick="openTab(event,'map')">Map</div>
@@ -203,10 +216,23 @@ function render(data){
         : "<p>No heatmap available</p>"}
     </div>
 
+    <!-- REGIONS -->
+    <div id="regions" class="tab-content">
+      <div class="card">
+        ${
+          data.regions && data.regions.length
+          ? data.regions.map((r,i)=>`
+              <p><b>Region ${i+1}:</b> ${r.reason}</p>
+            `).join("")
+          : "<p>No significant anomaly regions detected.</p>"
+        }
+      </div>
+    </div>
+
     <!-- SIMPLE -->
     <div id="simple" class="tab-content">
       <div class="card">
-        <h2>${data.simple_explanation?.result || "N/A"}</h2>
+        <h2>${data.simple_explanation?.result || ""}</h2>
         <p>${data.simple_explanation?.meaning || ""}</p>
         ${(data.simple_explanation?.reasons || [])
           .map(r => `<p>• ${r}</p>`).join("")}
@@ -216,20 +242,14 @@ function render(data){
     <!-- LEGAL -->
     <div id="legal" class="tab-content">
       <div class="card">
-
         <h2>Conclusion</h2>
-        <p>${data.legal?.opinion || "N/A"}</p>
+        <p>${data.legal?.opinion || ""}</p>
 
         <h3>Confidence</h3>
-        <p>${data.legal?.confidence || "N/A"}%</p>
+        <p>${data.legal?.confidence || 0}%</p>
 
-        <h3>Important Limitations</h3>
-        <p>
-          This analysis is probabilistic and should not be considered definitive proof.
-          External factors such as recompression, resizing, or platform processing
-          may affect results.
-        </p>
-
+        <h3>Limitations</h3>
+        <p>This analysis is probabilistic and not definitive proof.</p>
       </div>
     </div>
 
@@ -240,12 +260,7 @@ function render(data){
           data.gps
           ? `
             <p><b>Coordinates:</b> ${data.gps.lat.toFixed(6)}, ${data.gps.lon.toFixed(6)}</p>
-            <iframe
-              width="100%"
-              height="400"
-              style="border:0;border-radius:8px;margin-top:10px;"
-              loading="lazy"
-              allowfullscreen
+            <iframe width="100%" height="400"
               src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed">
             </iframe>
           `
@@ -261,11 +276,11 @@ function render(data){
           data.metadata?.available
           ? `
             <p><b>Camera:</b> ${data.metadata.Make || ""} ${data.metadata.Model || ""}</p>
-            <p><b>Date Taken:</b> ${data.metadata.DateTime || "N/A"}</p>
+            <p><b>Date:</b> ${data.metadata.DateTime || "N/A"}</p>
             <p><b>Software:</b> ${data.metadata.Software || "N/A"}</p>
             <p><b>Resolution:</b> ${data.metadata.ImageWidth} x ${data.metadata.ImageHeight}</p>
           `
-          : "<p>No metadata found (may have been stripped).</p>"
+          : "<p>No metadata found.</p>"
         }
       </div>
     </div>
