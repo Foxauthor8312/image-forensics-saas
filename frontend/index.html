@@ -176,9 +176,15 @@ document.getElementById("result").innerHTML = `
 <div id="r" class="tab-content active">
 
 <div class="card">
-<h2>${data.analysis}</h2>
-<p><b>Score:</b> ${data.score}</p>
-<p><b>Confidence:</b> ${data.confidence}%</p>
+  <h2>${data.analysis}</h2>
+
+  <p><b>Score:</b> ${data.score}</p>
+  <p><b>Confidence:</b> ${data.confidence}%</p>
+
+  <p style="margin-top:10px;">
+    <b>Explanation:</b><br>
+    <span style="opacity:0.85;">${data.explanation}</span>
+  </p>
 </div>
 
 <div class="image-row">
