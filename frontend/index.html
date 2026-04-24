@@ -57,33 +57,83 @@ button {
 const API = "https://pixelproof-backend-v2.onrender.com";
 let selectedFile = null;
 
-// ✅ FILE SELECT
+// -----------------------------
+// FILE SELECT
+// -----------------------------
 document.getElementById("file").addEventListener("change", function(e){
   selectedFile = e.target.files[0];
   console.log("📁 Selected:", selectedFile);
 });
 
-// ✅ BUTTON CLICK (NO INLINE HANDLER)
+// -----------------------------
+// BUTTON CLICK
+// -----------------------------
 document.getElementById("analyzeBtn").addEventListener("click", upload);
 
 // -----------------------------
-// UPLOAD FUNCTION
+// RESIZE IMAGE (🔥 FIX)
+// -----------------------------
+function resizeImage(file){
+  return new Promise((resolve) => {
+
+    const img = new Image();
+    const reader = new FileReader();
+
+    reader.onload = e => img.src = e.target.result;
+    reader.readAsDataURL(file);
+
+    img.onload = () => {
+
+      const canvas = document.createElement("canvas");
+
+      const MAX = 1200;
+      let w = img.width;
+      let h = img.height;
+
+      if(w > MAX || h > MAX){
+        if(w > h){
+          h *= MAX / w;
+          w = MAX;
+        } else {
+          w *= MAX / h;
+          h = MAX;
+        }
+      }
+
+      canvas.width = w;
+      canvas.height = h;
+
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+
+      canvas.toBlob(blob => {
+        resolve(new File([blob], file.name, {type:"image/jpeg"}));
+      }, "image/jpeg", 0.7);
+    };
+  });
+}
+
+// -----------------------------
+// UPLOAD
 // -----------------------------
 async function upload(){
-
-  console.log("🔥 Upload triggered");
 
   if(!selectedFile){
     alert("Select a file first");
     return;
   }
 
-  const form = new FormData();
-  form.append("image", selectedFile);
+  document.getElementById("result").innerHTML = "Processing...";
 
   try {
 
-    // wake backend
+    // 🔥 Resize before upload
+    const resizedFile = await resizeImage(selectedFile);
+    console.log("📦 Resized file:", resizedFile);
+
+    const form = new FormData();
+    form.append("image", resizedFile);
+
     await fetch(API + "/health").catch(()=>{});
 
     const res = await fetch(API + "/api/analyze", {
@@ -91,7 +141,7 @@ async function upload(){
       body: form
     });
 
-    console.log("Response status:", res.status);
+    console.log("Status:", res.status);
 
     const data = await res.json();
     console.log("Response:", data);
