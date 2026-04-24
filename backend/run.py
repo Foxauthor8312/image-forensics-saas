@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import os, uuid, threading
+import os, uuid
 
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
@@ -30,13 +30,11 @@ def extract_metadata(path):
         if exif:
             for tag, value in exif.items():
                 name = TAGS.get(tag, tag)
-
                 if name in ["Make","Model","DateTime","Software"]:
                     data[name] = str(value)
 
             data["available"] = True
 
-        print("METADATA:", data)
         return data
 
     except Exception as e:
@@ -82,12 +80,19 @@ def extract_gps(path):
     return None
 
 # -----------------------------
-# PROCESS
+# ANALYZE (SYNC)
 # -----------------------------
-def process_job(job_id, path):
-    try:
-        jobs[job_id] = {"status":"processing"}
+@app.route("/api/analyze", methods=["POST"])
+def analyze():
+    file = request.files.get("image")
+    if not file:
+        return jsonify({"error":"No file"}),400
 
+    job_id = str(uuid.uuid4())
+    path = os.path.join(UPLOAD_FOLDER, job_id+".jpg")
+    file.save(path)
+
+    try:
         img = Image.open(path)
         width, height = img.size
 
@@ -102,32 +107,19 @@ def process_job(job_id, path):
             "gps": gps
         }
 
-        jobs[job_id] = {"status":"done","result":result}
+        # return result immediately (NO THREAD)
+        return jsonify({
+            "status": "done",
+            "result": result
+        })
 
     except Exception as e:
-        jobs[job_id] = {"status":"error","error":str(e)}
+        return jsonify({
+            "status": "error",
+            "error": str(e)
+        })
 
 # -----------------------------
-# API
-# -----------------------------
-@app.route("/api/analyze", methods=["POST"])
-def analyze():
-    file = request.files.get("image")
-    if not file:
-        return jsonify({"error":"No file"}),400
-
-    job_id = str(uuid.uuid4())
-    path = os.path.join(UPLOAD_FOLDER, job_id+".jpg")
-    file.save(path)
-
-    threading.Thread(target=process_job,args=(job_id,path)).start()
-
-    return jsonify({"job_id":job_id})
-
-@app.route("/api/status/<job_id>")
-def status(job_id):
-    return jsonify(jobs.get(job_id,{"status":"error"}))
-
 @app.route("/health")
 def health():
     return {"status":"ok"}
