@@ -1,14 +1,21 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import os, uuid
+import os
+import uuid
 
-import numpy as np
-import cv2
 from PIL import Image, ImageChops, ImageEnhance
 from PIL.ExifTags import TAGS, GPSTAGS
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+
+# -----------------------------
+# 🔥 CORS (Vercel → Render fix)
+# -----------------------------
+CORS(
+    app,
+    resources={r"/*": {"origins": "*"}},
+    supports_credentials=True
+)
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -39,7 +46,8 @@ def extract_metadata(path):
 
         return data
 
-    except:
+    except Exception as e:
+        print("METADATA ERROR:", e)
         return {"available": False}
 
 # -----------------------------
@@ -61,18 +69,13 @@ def extract_gps(path):
         if not gps_info:
             return None
 
-        gps_data = {}
-        for k, v in gps_info.items():
-            gps_data[GPSTAGS.get(k)] = v
+        gps_data = {GPSTAGS.get(k): v for k, v in gps_info.items()}
 
         def convert(value):
             try:
-                if isinstance(value[0], tuple):
-                    d = value[0][0] / value[0][1]
-                    m = value[1][0] / value[1][1]
-                    s = value[2][0] / value[2][1]
-                else:
-                    d, m, s = value
+                d = value[0][0] / value[0][1]
+                m = value[1][0] / value[1][1]
+                s = value[2][0] / value[2][1]
                 return d + (m / 60.0) + (s / 3600.0)
             except:
                 return None
@@ -90,11 +93,12 @@ def extract_gps(path):
 
         return {"lat": lat, "lon": lon}
 
-    except:
+    except Exception as e:
+        print("GPS ERROR:", e)
         return None
 
 # -----------------------------
-# ANALYSIS + HEATMAP
+# ANALYSIS (PIL-based)
 # -----------------------------
 def analyze_image(path, job_id):
 
@@ -106,46 +110,32 @@ def analyze_image(path, job_id):
 
     diff = ImageChops.difference(image, Image.open(temp))
     ela = ImageEnhance.Brightness(diff).enhance(10)
-    ela_np = np.array(ela)
-    ela_gray = cv2.cvtColor(ela_np, cv2.COLOR_BGR2GRAY)
 
-    # --- OpenCV ---
-    img = cv2.imread(path)
-    if img is None:
-        return 0, 0, "Error", None
+    # --- scoring ---
+    ela_gray = ela.convert("L")
+    pixels = list(ela_gray.getdata())
+    mean_val = sum(pixels) / len(pixels)
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    score = int((mean_val / 255) * 100)
+    confidence = score
 
-    noise = cv2.absdiff(gray, cv2.GaussianBlur(gray,(5,5),0))
-    edges = cv2.Canny(gray, 100, 200)
+    if confidence > 60:
+        result = "Likely edited"
+    elif confidence > 30:
+        result = "Possibly edited"
+    else:
+        result = "Likely original"
 
-    ela_n = cv2.normalize(ela_gray,None,0,255,cv2.NORM_MINMAX)
-    noise_n = cv2.normalize(noise,None,0,255,cv2.NORM_MINMAX)
-    edge_n = cv2.normalize(edges,None,0,255,cv2.NORM_MINMAX)
-
-    combined = (0.5*ela_n + 0.3*noise_n + 0.2*edge_n).astype(np.uint8)
-    combined = cv2.GaussianBlur(combined,(5,5),0)
-    combined = cv2.equalizeHist(combined)
-
-    # --- Heatmap ---
-    heat = cv2.applyColorMap(combined, cv2.COLORMAP_JET)
-    overlay = cv2.addWeighted(img, 0.6, heat, 0.4, 0)
+    # --- heatmap (visual enhancement) ---
+    heat = ela.convert("RGB")
+    heat = ImageEnhance.Color(heat).enhance(3)
+    heat = ImageEnhance.Contrast(heat).enhance(2)
 
     heatmap_file = f"{job_id}_heatmap.jpg"
     heatmap_path = os.path.join(UPLOAD_FOLDER, heatmap_file)
 
-    cv2.imwrite(heatmap_path, overlay)
-
-    # --- scoring ---
-    score = int(np.mean(ela_gray)/255*100)
-    confidence = int(np.mean(combined)/255*100)
-
-    if confidence > 70:
-        result = "Likely edited"
-    elif confidence > 40:
-        result = "Possibly edited"
-    else:
-        result = "Likely original"
+    heat.save(heatmap_path)
+    print("✅ Heatmap saved:", heatmap_path)
 
     return score, confidence, result, heatmap_file
 
@@ -154,7 +144,11 @@ def analyze_image(path, job_id):
 # -----------------------------
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
+    print("🔥 ANALYZE HIT")
+
     file = request.files.get("image")
+    print("FILE:", file)
+
     if not file:
         return jsonify({"error": "No file"}), 400
 
@@ -185,12 +179,19 @@ def analyze():
         })
 
     except Exception as e:
+        print("ERROR:", e)
         return jsonify({"status": "error", "error": str(e)})
 
+# -----------------------------
+# FILE SERVING
+# -----------------------------
 @app.route("/files/<filename>")
 def files(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
+# -----------------------------
+# HEALTH CHECK
+# -----------------------------
 @app.route("/health")
 def health():
     return {"status": "ok"}
