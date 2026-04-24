@@ -96,7 +96,7 @@ def extract_gps(path):
 # -----------------------------
 # AI-STYLE ANALYSIS
 # -----------------------------
-def def analyze_image(path, job_id):
+def analyze_image(path, job_id):
 
     image = Image.open(path).convert("RGB")
 
