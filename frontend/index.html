@@ -4,160 +4,289 @@
 <title>PixelProof</title>
 
 <style>
-body{background:#0f172a;color:white;font-family:Arial}
-.container{max-width:1000px;margin:auto;padding:20px}
+body {
+  background:#0f172a;
+  color:white;
+  font-family:Arial;
+  margin:0;
+}
 
-.tabs{display:flex;gap:10px;margin-top:20px}
-.tab{padding:10px;background:#334155;cursor:pointer}
-.tab.active{background:#3b82f6}
+.container {
+  max-width:1100px;
+  margin:auto;
+  padding:20px;
+}
 
-.tab-content{display:none}
-.tab-content.active{display:block}
+h1 { text-align:center; }
 
-img{width:100%;max-height:400px}
+button {
+  padding:10px 20px;
+  background:#3b82f6;
+  border:none;
+  color:white;
+  border-radius:6px;
+  cursor:pointer;
+  margin:5px;
+}
 
-.card{background:#020617;padding:15px;margin-top:10px;border-radius:6px}
+.tabs {
+  display:flex;
+  gap:10px;
+  margin-top:20px;
+  flex-wrap:wrap;
+}
+
+.tab {
+  padding:10px;
+  background:#334155;
+  cursor:pointer;
+  border-radius:6px;
+}
+
+.tab.active {
+  background:#3b82f6;
+}
+
+.tab-content {
+  display:none;
+  margin-top:20px;
+}
+
+.tab-content.active {
+  display:block;
+}
+
+.row {
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.row div {
+  flex:1 1 45%;
+}
+
+img {
+  width:100%;
+  max-height:420px;
+  object-fit:contain;
+  border-radius:6px;
+}
+
+.card {
+  background:#020617;
+  padding:15px;
+  border-radius:8px;
+  margin-top:10px;
+}
 </style>
 </head>
 
 <body>
+
 <div class="container">
 
 <h1>PixelProof 🔍</h1>
 
 <input type="file" id="file">
+<br>
 <button onclick="upload()">Analyze</button>
-<button onclick="downloadPDF()">PDF</button>
+<button id="pdfBtn" style="display:none;" onclick="downloadPDF()">Download Report</button>
 
 <div id="result"></div>
 
 </div>
 
 <script>
-const API="https://pixelproof-backend-v2.onrender.com";
-let selectedFile=null;
-let currentData=null;
 
-file.onchange=e=>selectedFile=e.target.files[0];
+const API = "https://pixelproof-backend-v2.onrender.com";
+
+let selectedFile = null;
+let currentData = null;
+
+file.onchange = e => selectedFile = e.target.files[0];
 
 // -----------------------------
+// UPLOAD
+// -----------------------------
 async function upload(){
-  const form=new FormData();
-  form.append("image",selectedFile);
+  if(!selectedFile) return alert("Select an image");
 
-  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-  const data=await res.json();
+  document.getElementById("result").innerHTML = "Starting analysis...";
+
+  const form = new FormData();
+  form.append("image", selectedFile);
+
+  const res = await fetch(API+"/api/analyze", {
+    method:"POST",
+    body:form
+  });
+
+  const data = await res.json();
   poll(data.job_id);
 }
 
 // -----------------------------
+// POLL
+// -----------------------------
 function poll(id){
-  const interval=setInterval(async()=>{
-    const res=await fetch(API+"/api/status/"+id);
-    const d=await res.json();
+  let attempts = 0;
+
+  const interval = setInterval(async()=>{
+    attempts++;
+
+    const res = await fetch(API+"/api/status/"+id);
+    const d = await res.json();
+
+    if(d.status==="processing"){
+      document.getElementById("result").innerHTML =
+        "Processing...";
+    }
 
     if(d.status==="done"){
       clearInterval(interval);
-      currentData=d.result;
+      currentData = d.result;
       render(d.result);
     }
 
     if(d.status==="error"){
       clearInterval(interval);
-      document.getElementById("result").innerHTML=d.error;
+      document.getElementById("result").innerHTML =
+        "Error: " + d.error;
+    }
+
+    if(attempts > 40){
+      clearInterval(interval);
+      document.getElementById("result").innerHTML =
+        "Analysis timed out.";
     }
 
   },1500);
 }
 
 // -----------------------------
+// RENDER
+// -----------------------------
 function render(data){
-  const original=URL.createObjectURL(selectedFile);
 
-  document.getElementById("result").innerHTML=`
+  const original = URL.createObjectURL(selectedFile);
+  document.getElementById("pdfBtn").style.display = "inline-block";
 
-<div class="tabs">
-<div class="tab active" onclick="tab(event,'r')">Results</div>
-<div class="tab" onclick="tab(event,'h')">Heatmap</div>
-<div class="tab" onclick="tab(event,'s')">Explanation</div>
-<div class="tab" onclick="tab(event,'legal')">Legal</div>
-<div class="tab" onclick="tab(event,'m')">Map</div>
-<div class="tab" onclick="tab(event,'meta')">Metadata</div>
-</div>
+  document.getElementById("result").innerHTML = `
 
-<!-- RESULTS -->
-<div id="r" class="tab-content active">
-<img src="${original}">
-<img src="${data.ela_image}">
-</div>
+    <div>
+      <b>Score:</b> ${data.score} |
+      <b>Confidence:</b> ${data.confidence}%
+    </div>
 
-<!-- HEATMAP -->
-<div id="h" class="tab-content">
-<img src="${data.heatmap}">
-</div>
+    <div class="tabs">
+      <div class="tab active" onclick="openTab(event,'results')">Results</div>
+      <div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
+      <div class="tab" onclick="openTab(event,'simple')">Explanation</div>
+      <div class="tab" onclick="openTab(event,'legal')">Legal</div>
+      <div class="tab" onclick="openTab(event,'map')">Map</div>
+      <div class="tab" onclick="openTab(event,'meta')">Metadata</div>
+    </div>
 
-<!-- SIMPLE -->
-<div id="s" class="tab-content">
-<div class="card">
-<h2>${data.simple_explanation.result}</h2>
-<p>${data.simple_explanation.meaning}</p>
-${data.simple_explanation.reasons.map(r=>`<p>• ${r}</p>`).join("")}
-</div>
-</div>
+    <!-- RESULTS -->
+    <div id="results" class="tab-content active">
+      <div class="row">
+        <div><img src="${original}"></div>
+        <div><img src="${data.ela_image}"></div>
+      </div>
+    </div>
 
-<!-- LEGAL TAB -->
-<div id="legal" class="tab-content">
-<div class="card">
+    <!-- HEATMAP -->
+    <div id="heatmap" class="tab-content">
+      ${data.heatmap 
+        ? `<img src="${data.heatmap}">`
+        : "<p>No heatmap available</p>"}
+    </div>
 
-<h2>Conclusion</h2>
-<p>${data.legal?.opinion || "N/A"}</p>
+    <!-- SIMPLE -->
+    <div id="simple" class="tab-content">
+      <div class="card">
+        <h2>${data.simple_explanation?.result || "N/A"}</h2>
+        <p>${data.simple_explanation?.meaning || ""}</p>
+        ${(data.simple_explanation?.reasons || [])
+          .map(r => `<p>• ${r}</p>`).join("")}
+      </div>
+    </div>
 
-<h3>Basis of Analysis</h3>
-<p>${data.legal?.explanation || ""}</p>
+    <!-- LEGAL -->
+    <div id="legal" class="tab-content">
+      <div class="card">
 
-<h3>Confidence</h3>
-<p>${data.legal?.confidence_text || ""}</p>
+        <h2>Conclusion</h2>
+        <p>${data.legal?.opinion || "N/A"}</p>
 
-<h3>Limitations</h3>
-${(data.legal?.limitations || []).map(l=>`<p>• ${l}</p>`).join("")}
+        <h3>Confidence</h3>
+        <p>${data.legal?.confidence || "N/A"}%</p>
 
-</div>
-</div>
+        <h3>Important Limitations</h3>
+        <p>
+          This analysis is probabilistic and should not be considered definitive proof.
+          External factors such as recompression, resizing, or platform processing
+          may affect results.
+        </p>
 
-<!-- MAP -->
-<div id="m" class="tab-content">
-${data.gps ? `
-<iframe width="100%" height="400"
-src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed"></iframe>
-` : "<p>No GPS data</p>"}
-</div>
+      </div>
+    </div>
 
-<!-- METADATA -->
-<div id="meta" class="tab-content">
-${data.metadata?.available ? `
-<p>Camera: ${data.metadata.Make||""} ${data.metadata.Model||""}</p>
-<p>Date: ${data.metadata.DateTime||""}</p>
-<p>Software: ${data.metadata.Software||""}</p>
-<p>Size: ${data.metadata.ImageWidth}x${data.metadata.ImageHeight}</p>
-` : "<p>No metadata found</p>"}
-</div>
+    <!-- MAP -->
+    <div id="map" class="tab-content">
+      <div class="card">
+        ${
+          data.gps
+          ? `
+            <p><b>Coordinates:</b> ${data.gps.lat.toFixed(6)}, ${data.gps.lon.toFixed(6)}</p>
+            <iframe
+              width="100%"
+              height="400"
+              style="border:0;border-radius:8px;margin-top:10px;"
+              loading="lazy"
+              allowfullscreen
+              src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed">
+            </iframe>
+          `
+          : "<p>No GPS metadata found.</p>"
+        }
+      </div>
+    </div>
 
-`;
+    <!-- METADATA -->
+    <div id="meta" class="tab-content">
+      <div class="card">
+        ${
+          data.metadata?.available
+          ? `
+            <p><b>Camera:</b> ${data.metadata.Make || ""} ${data.metadata.Model || ""}</p>
+            <p><b>Date Taken:</b> ${data.metadata.DateTime || "N/A"}</p>
+            <p><b>Software:</b> ${data.metadata.Software || "N/A"}</p>
+            <p><b>Resolution:</b> ${data.metadata.ImageWidth} x ${data.metadata.ImageHeight}</p>
+          `
+          : "<p>No metadata found (may have been stripped).</p>"
+        }
+      </div>
+    </div>
+  `;
 }
 
 // -----------------------------
-function tab(e,id){
-document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-document.getElementById(id).classList.add("active");
-e.target.classList.add("active");
+function openTab(evt, name){
+  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+
+  document.getElementById(name).classList.add("active");
+  evt.target.classList.add("active");
 }
 
 // -----------------------------
 function downloadPDF(){
-  if(!currentData?.report) return alert("No report");
+  if(!currentData?.report) return alert("No report available");
   window.open(currentData.report);
 }
+
 </script>
 
 </body>
