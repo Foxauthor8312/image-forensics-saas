@@ -3,10 +3,11 @@ from flask_cors import CORS
 import os, uuid
 
 from PIL import Image, ImageChops, ImageEnhance
-from PIL.ExifTags import TAGS, GPSTAGS
+import exifread
 
 app = Flask(__name__)
 
+# CORS (Vercel → Render)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 UPLOAD_FOLDER = "uploads"
@@ -15,74 +16,54 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 
 # -----------------------------
-# METADATA
+# METADATA + GPS (EXIFREAD)
 # -----------------------------
-def extract_metadata(path):
+def extract_metadata_and_gps(path):
     try:
-        img = Image.open(path)
-        exif = img._getexif()
+        with open(path, 'rb') as f:
+            tags = exifread.process_file(f, details=False)
 
-        data = {
+        metadata = {
             "available": False,
-            "ImageWidth": img.width,
-            "ImageHeight": img.height,
             "all": {}
         }
 
-        if exif:
-            for tag, value in exif.items():
-                name = TAGS.get(tag, str(tag))
-                data["all"][name] = str(value)
-            data["available"] = True
+        gps = None
 
-        return data
-    except:
-        return {"available": False}
+        if tags:
+            metadata["available"] = True
 
-# -----------------------------
-# GPS
-# -----------------------------
-def extract_gps(path):
-    try:
-        img = Image.open(path)
-        exif = img._getexif()
-        if not exif:
-            return None
+            for tag in tags:
+                metadata["all"][tag] = str(tags[tag])
 
-        gps_info = None
-        for tag, val in exif.items():
-            if TAGS.get(tag) == "GPSInfo":
-                gps_info = val
-                break
+            # ---- GPS extraction ----
+            if "GPS GPSLatitude" in tags and "GPS GPSLongitude" in tags:
 
-        if not gps_info:
-            return None
+                def convert(coord):
+                    try:
+                        d = float(coord.values[0])
+                        m = float(coord.values[1])
+                        s = float(coord.values[2])
+                        return d + (m / 60.0) + (s / 3600.0)
+                    except:
+                        return None
 
-        gps_data = {GPSTAGS.get(k): v for k, v in gps_info.items()}
+                lat = convert(tags["GPS GPSLatitude"])
+                lon = convert(tags["GPS GPSLongitude"])
 
-        def convert(v):
-            try:
-                d = v[0][0]/v[0][1]
-                m = v[1][0]/v[1][1]
-                s = v[2][0]/v[2][1]
-                return d + m/60 + s/3600
-            except:
-                return None
+                if lat is not None and lon is not None:
+                    if str(tags.get("GPS GPSLatitudeRef", "")).strip() == "S":
+                        lat = -lat
+                    if str(tags.get("GPS GPSLongitudeRef", "")).strip() == "W":
+                        lon = -lon
 
-        lat = convert(gps_data.get("GPSLatitude"))
-        lon = convert(gps_data.get("GPSLongitude"))
+                    gps = {"lat": lat, "lon": lon}
 
-        if lat is None or lon is None:
-            return None
+        return metadata, gps
 
-        if gps_data.get("GPSLatitudeRef") == "S":
-            lat = -lat
-        if gps_data.get("GPSLongitudeRef") == "W":
-            lon = -lon
-
-        return {"lat": lat, "lon": lon}
-    except:
-        return None
+    except Exception as e:
+        print("EXIF ERROR:", e)
+        return {"available": False}, None
 
 # -----------------------------
 # EXPLANATIONS
@@ -111,6 +92,7 @@ def analyze_image(path, job_id):
 
     image = Image.open(path).convert("RGB")
 
+    # ELA
     temp = path + "_temp.jpg"
     image.save(temp, "JPEG", quality=90)
 
@@ -132,7 +114,7 @@ def analyze_image(path, job_id):
 
     simple, legal = explain(score)
 
-    # heatmap
+    # Heatmap
     heat = ela.convert("RGB")
     heat = ImageEnhance.Color(heat).enhance(3)
     heat = ImageEnhance.Contrast(heat).enhance(2)
@@ -162,8 +144,7 @@ def analyze():
 
         score, confidence, result, simple, legal, heatmap = analyze_image(path, job_id)
 
-        metadata = extract_metadata(path)
-        gps = extract_gps(path)
+        metadata, gps = extract_metadata_and_gps(path)
 
         return jsonify({
             "status": "done",
@@ -181,12 +162,19 @@ def analyze():
         })
 
     except Exception as e:
+        print("ERROR:", e)
         return jsonify({"status":"error","error":str(e)})
 
+# -----------------------------
+# FILE SERVING
+# -----------------------------
 @app.route("/files/<filename>")
 def files(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
+# -----------------------------
+# HEALTH
+# -----------------------------
 @app.route("/health")
 def health():
     return {"status":"ok"}
