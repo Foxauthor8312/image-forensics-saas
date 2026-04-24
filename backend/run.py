@@ -17,59 +17,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 
 # -----------------------------
-# METADATA + GPS
-# -----------------------------
-def extract_metadata_and_gps(path):
-    try:
-        img = Image.open(path)
-        exif_data = img.info.get("exif")
-
-        metadata = {"available": False, "all": {}}
-        gps = None
-
-        if not exif_data:
-            return metadata, gps
-
-        exif_dict = piexif.load(exif_data)
-        metadata["available"] = True
-
-        for ifd in exif_dict:
-            for tag in exif_dict[ifd]:
-                try:
-                    name = piexif.TAGS[ifd][tag]["name"]
-                    metadata["all"][name] = str(exif_dict[ifd][tag])
-                except:
-                    pass
-
-        gps_ifd = exif_dict.get("GPS", {})
-
-        if gps_ifd:
-            def convert(coord):
-                try:
-                    d = coord[0][0]/coord[0][1]
-                    m = coord[1][0]/coord[1][1]
-                    s = coord[2][0]/coord[2][1]
-                    return d + m/60 + s/3600
-                except:
-                    return None
-
-            lat = convert(gps_ifd.get(piexif.GPSIFD.GPSLatitude))
-            lon = convert(gps_ifd.get(piexif.GPSIFD.GPSLongitude))
-
-            if lat and lon:
-                if gps_ifd.get(piexif.GPSIFD.GPSLatitudeRef) == b'S':
-                    lat = -lat
-                if gps_ifd.get(piexif.GPSIFD.GPSLongitudeRef) == b'W':
-                    lon = -lon
-
-                gps = {"lat": lat, "lon": lon}
-
-        return metadata, gps
-
-    except:
-        return {"available": False}, None
-
-# -----------------------------
 # EXPLANATIONS
 # -----------------------------
 def explain(score):
@@ -168,7 +115,7 @@ def analyze_image(path, job_id):
     return score, confidence, result, exp, heat_file
 
 # -----------------------------
-# API
+# API (🔥 FIXED EXIF HANDLING)
 # -----------------------------
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
@@ -184,11 +131,56 @@ def analyze():
     analysis_path = os.path.join(UPLOAD_FOLDER, job_id + "_analysis.jpg")
     original_path = os.path.join(UPLOAD_FOLDER, job_id + "_original.jpg")
 
-    analysis_file.save(analysis_path)
-    original_file.save(original_path)
+    # 🔥 READ ORIGINAL BYTES FIRST (PREVENT EXIF LOSS)
+    original_bytes = original_file.read()
 
+    # ---- EXTRACT METADATA + GPS FROM RAW BYTES ----
+    try:
+        exif_dict = piexif.load(original_bytes)
+
+        metadata = {"available": True, "all": {}}
+        gps = None
+
+        for ifd in exif_dict:
+            for tag in exif_dict[ifd]:
+                try:
+                    name = piexif.TAGS[ifd][tag]["name"]
+                    metadata["all"][name] = str(exif_dict[ifd][tag])
+                except:
+                    pass
+
+        gps_ifd = exif_dict.get("GPS", {})
+
+        if gps_ifd:
+            def convert(coord):
+                d = coord[0][0]/coord[0][1]
+                m = coord[1][0]/coord[1][1]
+                s = coord[2][0]/coord[2][1]
+                return d + m/60 + s/3600
+
+            lat = convert(gps_ifd.get(piexif.GPSIFD.GPSLatitude))
+            lon = convert(gps_ifd.get(piexif.GPSIFD.GPSLongitude))
+
+            if gps_ifd.get(piexif.GPSIFD.GPSLatitudeRef) == b'S':
+                lat = -lat
+            if gps_ifd.get(piexif.GPSIFD.GPSLongitudeRef) == b'W':
+                lon = -lon
+
+            gps = {"lat": lat, "lon": lon}
+
+    except Exception as e:
+        print("EXIF ERROR:", e)
+        metadata = {"available": False, "all": {}}
+        gps = None
+
+    # ---- SAVE FILES AFTER READING ----
+    with open(original_path, "wb") as f:
+        f.write(original_bytes)
+
+    analysis_file.save(analysis_path)
+
+    # ---- RUN ANALYSIS ----
     score, confidence, result, exp, heat = analyze_image(analysis_path, job_id)
-    metadata, gps = extract_metadata_and_gps(original_path)
 
     result_data = {
         "analysis": result,
