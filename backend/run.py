@@ -1,226 +1,132 @@
-<!DOCTYPE html>
-<html>
-<head>
-<title>PixelProof</title>
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import os
+import uuid
 
-<style>
-body {
-  background:#0f172a;
-  color:white;
-  font-family:Arial;
-  margin:0;
-}
+import numpy as np
+from PIL import Image, ImageChops, ImageEnhance
+from PIL.ExifTags import TAGS, GPSTAGS
 
-.container {
-  max-width:900px;
-  margin:auto;
-  padding:20px;
-}
+app = Flask(__name__)
+CORS(app)
 
-h1 { text-align:center; }
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-button {
-  padding:10px 20px;
-  background:#3b82f6;
-  border:none;
-  color:white;
-  border-radius:6px;
-  cursor:pointer;
-  margin-top:10px;
-}
+def extract_metadata(path):
+    try:
+        img = Image.open(path)
+        exif = img._getexif()
 
-.tabs {
-  display:flex;
-  gap:10px;
-  margin-top:20px;
-}
-
-.tab {
-  padding:10px;
-  background:#334155;
-  cursor:pointer;
-  border-radius:6px;
-}
-
-.tab.active {
-  background:#3b82f6;
-}
-
-.tab-content {
-  display:none;
-  margin-top:20px;
-}
-
-.tab-content.active {
-  display:block;
-}
-
-.card {
-  background:#020617;
-  padding:15px;
-  border-radius:8px;
-  margin-top:10px;
-}
-</style>
-</head>
-
-<body>
-
-<div class="container">
-
-<h1>PixelProof 🔍</h1>
-
-<input type="file" id="file">
-<br>
-<button onclick="upload()">Analyze</button>
-
-<div id="result"></div>
-
-</div>
-
-<script>
-
-const API = "https://pixelproof-backend-v2.onrender.com";
-
-let selectedFile = null;
-
-document.getElementById("file").onchange = e => {
-  selectedFile = e.target.files[0];
-};
-
-// -----------------------------
-// UPLOAD WITH WAKE + ERROR HANDLING
-// -----------------------------
-async function upload(){
-
-  if(!selectedFile){
-    alert("Select a file first");
-    return;
-  }
-
-  const resultDiv = document.getElementById("result");
-
-  resultDiv.innerHTML = "Waking server...";
-
-  // Wake Render (ignore failure)
-  try {
-    await fetch(API + "/health");
-  } catch {}
-
-  resultDiv.innerHTML = "Uploading & processing...";
-
-  const form = new FormData();
-  form.append("image", selectedFile);
-
-  try {
-    const res = await fetch(API + "/api/analyze", {
-      method:"POST",
-      body:form
-    });
-
-    if(!res.ok){
-      throw new Error("Server responded with " + res.status);
-    }
-
-    const data = await res.json();
-
-    if(data.status === "done"){
-      render(data.result);
-    } else {
-      resultDiv.innerHTML = "Error: " + (data.error || "Unknown issue");
-    }
-
-  } catch (err) {
-    resultDiv.innerHTML = `
-      <b>Connection Failed</b><br><br>
-      Possible causes:<br>
-      • Backend is sleeping (try again)<br>
-      • Wrong API URL<br>
-      • Server crashed during deploy<br><br>
-      <small>${err}</small>
-    `;
-  }
-}
-
-// -----------------------------
-// RENDER RESULTS
-// -----------------------------
-function render(data){
-
-  document.getElementById("result").innerHTML = `
-
-    <h3>${data.message}</h3>
-
-    <div class="tabs">
-      <div class="tab active" onclick="openTab(event,'results')">Results</div>
-      <div class="tab" onclick="openTab(event,'map')">Map</div>
-      <div class="tab" onclick="openTab(event,'meta')">Metadata</div>
-    </div>
-
-    <!-- RESULTS -->
-    <div id="results" class="tab-content active">
-      <div class="card">
-        <p><b>Score:</b> ${data.score}</p>
-        <p><b>Confidence:</b> ${data.confidence}</p>
-      </div>
-    </div>
-
-    <!-- MAP -->
-    <div id="map" class="tab-content">
-      <div class="card">
-        ${
-          data.gps
-          ? `
-            <p><b>Coordinates:</b> ${data.gps.lat.toFixed(6)}, ${data.gps.lon.toFixed(6)}</p>
-            <iframe
-              width="100%"
-              height="400"
-              style="border:0;border-radius:8px;margin-top:10px;"
-              loading="lazy"
-              allowfullscreen
-              src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed">
-            </iframe>
-          `
-          : "<p>No GPS metadata found.</p>"
+        data = {
+            "available": False,
+            "ImageWidth": img.width,
+            "ImageHeight": img.height,
+            "all": {}
         }
-      </div>
-    </div>
 
-    <!-- METADATA -->
-    <div id="meta" class="tab-content">
-      <div class="card">
-        ${
-          data.metadata?.available
-          ? `
-            <p><b>Camera:</b> ${data.metadata.Make || "Unknown"} ${data.metadata.Model || ""}</p>
-            <p><b>Date Taken:</b> ${data.metadata.DateTime || "Unknown"}</p>
-            <p><b>Software:</b> ${data.metadata.Software || "Unknown"}</p>
-            <p><b>Resolution:</b> ${data.metadata.ImageWidth} x ${data.metadata.ImageHeight}</p>
-          `
-          : `
-            <p>No metadata found.</p>
-            <p style="opacity:0.7;">
-              This is common for screenshots, social media uploads, or edited images.
-            </p>
-          `
-        }
-      </div>
-    </div>
-  `;
-}
+        if exif:
+            for tag, value in exif.items():
+                name = TAGS.get(tag, str(tag))
+                data["all"][name] = str(value)
 
-// -----------------------------
-// TAB SWITCHING
-// -----------------------------
-function openTab(evt, name){
-  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+            data["available"] = True
 
-  document.getElementById(name).classList.add("active");
-  evt.target.classList.add("active");
-}
+        return data
 
-</script>
+    except Exception as e:
+        print("METADATA ERROR:", e)
+        return {"available": False}
 
-</body>
-</html>
+def extract_gps(path):
+    try:
+        img = Image.open(path)
+        exif = img._getexif()
+
+        if not exif:
+            return None
+
+        gps_data = {}
+
+        for tag, val in exif.items():
+            if TAGS.get(tag) == "GPSInfo":
+                for k in val:
+                    gps_data[GPSTAGS.get(k)] = val[k]
+
+        if "GPSLatitude" in gps_data and "GPSLongitude" in gps_data:
+
+            def convert(c):
+                return c[0][0]/c[0][1] + c[1][0]/c[1][1]/60 + c[2][0]/c[2][1]/3600
+
+            lat = convert(gps_data["GPSLatitude"])
+            lon = convert(gps_data["GPSLongitude"])
+
+            if gps_data.get("GPSLatitudeRef") == "S":
+                lat = -lat
+            if gps_data.get("GPSLongitudeRef") == "W":
+                lon = -lon
+
+            return {"lat": lat, "lon": lon}
+
+    except Exception as e:
+        print("GPS ERROR:", e)
+
+    return None
+
+def analyze_image(path):
+    image = Image.open(path).convert("RGB")
+
+    temp = path + "_temp.jpg"
+    image.save(temp, "JPEG", quality=90)
+
+    diff = ImageChops.difference(image, Image.open(temp))
+    ela = ImageEnhance.Brightness(diff).enhance(10)
+
+    arr = np.array(ela)
+    score = int(np.mean(arr) / 255 * 100)
+
+    if score > 60:
+        result = "Likely edited"
+    elif score > 30:
+        result = "Possibly edited"
+    else:
+        result = "Likely original"
+
+    return score, result
+
+@app.route("/api/analyze", methods=["POST"])
+def analyze():
+    file = request.files.get("image")
+    if not file:
+        return jsonify({"error": "No file"}), 400
+
+    job_id = str(uuid.uuid4())
+    path = os.path.join(UPLOAD_FOLDER, job_id + ".jpg")
+    file.save(path)
+
+    try:
+        img = Image.open(path)
+        width, height = img.size
+
+        score, result_text = analyze_image(path)
+        metadata = extract_metadata(path)
+        gps = extract_gps(path)
+
+        return jsonify({
+            "status": "done",
+            "result": {
+                "message": f"Image processed: {width}x{height}",
+                "score": score,
+                "confidence": score,
+                "analysis": result_text,
+                "metadata": metadata,
+                "gps": gps
+            }
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
+
+@app.route("/health")
+def health():
+    return {"status": "ok"}
