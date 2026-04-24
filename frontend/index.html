@@ -2,19 +2,115 @@
 <html>
 <head>
 <title>PixelProof</title>
+
 <style>
-body{background:#0f172a;color:white;font-family:Arial}
-.container{max-width:900px;margin:auto;padding:20px}
-.drop{border:2px dashed #334155;padding:40px;text-align:center;cursor:pointer}
-.badge{background:#334155;padding:5px;margin:5px}
-.loading{text-align:center;color:#94a3b8}
-.error{color:#f87171;text-align:center}
-.row{display:flex;gap:10px}
-.row img{width:100%}
+body { background:#0f172a; color:white; font-family:Arial; margin:0; }
+.container { max-width:1100px; margin:auto; padding:20px; }
+
+h1 { text-align:center; }
+
+/* Upload */
+.drop {
+  border:2px dashed #334155;
+  padding:40px;
+  text-align:center;
+  border-radius:10px;
+  cursor:pointer;
+}
+
+/* Buttons */
+button {
+  padding:10px 20px;
+  background:#3b82f6;
+  border:none;
+  color:white;
+  border-radius:6px;
+  margin-top:10px;
+  cursor:pointer;
+}
+
+/* Status */
+.loading { text-align:center; color:#94a3b8; margin-top:20px; }
+.error { text-align:center; color:#f87171; }
+
+/* Badges */
+.badge {
+  display:inline-block;
+  background:#334155;
+  padding:6px 10px;
+  margin:5px;
+  border-radius:6px;
+}
+
+/* Tabs */
+.tabs {
+  display:flex;
+  gap:10px;
+  margin-top:20px;
+}
+
+.tab {
+  padding:10px;
+  background:#334155;
+  border-radius:6px;
+  cursor:pointer;
+}
+
+.tab.active {
+  background:#3b82f6;
+}
+
+.tab-content {
+  display:none;
+  margin-top:20px;
+}
+
+.tab-content.active {
+  display:block;
+}
+
+/* Layout */
+.section {
+  background:#020617;
+  padding:15px;
+  border-radius:8px;
+  margin-top:15px;
+}
+
+.row {
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.row div {
+  flex:1 1 45%;
+}
+
+img {
+  width:100%;
+  max-height:400px;
+  object-fit:contain;
+  border-radius:6px;
+}
+
+/* Bars */
+.bar {
+  background:#1e293b;
+  border-radius:6px;
+  margin-bottom:10px;
+}
+.bar-inner {
+  background:#3b82f6;
+  height:10px;
+  border-radius:6px;
+}
+
 </style>
 </head>
 
 <body>
+
 <div class="container">
 
 <h1>PixelProof 🔍</h1>
@@ -31,95 +127,142 @@ Select Image
 </div>
 
 <script>
-const API="https://pixelproof-backend-v2.onrender.com";
-let selectedFile=null;
+const API = "https://pixelproof-backend-v2.onrender.com";
+let selectedFile = null;
 
-file.onchange=e=>selectedFile=e.target.files[0];
+file.onchange = e => selectedFile = e.target.files[0];
 
-async function upload(){
-if(!selectedFile)return alert("Select file");
+// Upload
+async function upload() {
+  if (!selectedFile) return alert("Select file");
 
-const result=document.getElementById("result");
-result.innerHTML="<div class='loading'>Waking backend...</div>";
+  const result = document.getElementById("result");
+  result.innerHTML = "<div class='loading'>Waking backend...</div>";
 
-try{await fetch(API+"/health")}catch{}
+  try { await fetch(API + "/health"); } catch {}
 
-const form=new FormData();
-form.append("image",selectedFile);
+  const form = new FormData();
+  form.append("image", selectedFile);
 
-try{
-const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-const data=await res.json();
+  try {
+    const res = await fetch(API + "/api/analyze", {
+      method: "POST",
+      body: form
+    });
 
-if(!data.job_id){
-result.innerHTML="<div class='error'>Upload failed</div>";
-return;
+    const data = await res.json();
+    poll(data.job_id);
+
+  } catch {
+    result.innerHTML = "<div class='error'>Backend unavailable</div>";
+  }
 }
 
-poll(data.job_id);
+// Poll
+function poll(id) {
+  const result = document.getElementById("result");
 
-}catch{
-result.innerHTML="<div class='error'>Backend unavailable</div>";
-}
-}
+  const interval = setInterval(async () => {
+    const res = await fetch(API + "/api/status/" + id);
+    const d = await res.json();
 
-function poll(id){
-const result=document.getElementById("result");
+    if (d.status === "processing") {
+      result.innerHTML = `<div class='loading'>${d.step}</div>`;
+    }
 
-const interval=setInterval(async()=>{
-const res=await fetch(API+"/api/status/"+id);
-const d=await res.json();
+    if (d.status === "done") {
+      clearInterval(interval);
+      render(d.result);
+    }
 
-if(d.status==="processing"){
-result.innerHTML="<div class='loading'>"+d.step+"</div>";
-}
+    if (d.status === "error") {
+      clearInterval(interval);
+      result.innerHTML = `<div class='error'>${d.error}</div>`;
+    }
 
-if(d.status==="done"){
-clearInterval(interval);
-render(d.result);
-}
-
-if(d.status==="error"){
-clearInterval(interval);
-result.innerHTML="<div class='error'>"+d.error+"</div>";
+  }, 1500);
 }
 
-},1500);
+// Render
+function render(data) {
+  const original = URL.createObjectURL(selectedFile);
+
+  document.getElementById("result").innerHTML = `
+
+    <div>
+      <span class="badge">Score: ${data.score}</span>
+      <span class="badge">Confidence: ${data.confidence}%</span>
+      <span class="badge">${data.ela_result}</span>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="openTab(event,'results')">Results</div>
+      <div class="tab" onclick="openTab(event,'analysis')">Analysis</div>
+      <div class="tab" onclick="openTab(event,'explanation')">Explanation</div>
+    </div>
+
+    <!-- RESULTS -->
+    <div id="results" class="tab-content active">
+      <div class="section">
+        <div class="row">
+          <div><img src="${original}"></div>
+          <div><img src="${data.ela_image}"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANALYSIS -->
+    <div id="analysis" class="tab-content">
+      <div class="section">
+        <h3>Confidence Breakdown</h3>
+        ${bar("ELA", data.confidence_breakdown.ela)}
+        ${bar("Noise", data.confidence_breakdown.noise)}
+        ${bar("Sharpness", data.confidence_breakdown.sharpness)}
+      </div>
+    </div>
+
+    <!-- EXPLANATION -->
+    <div id="explanation" class="tab-content">
+      <div class="section">
+        <p><b>Score:</b> ${data.score_explanation}</p>
+        <p><b>Confidence:</b> ${data.confidence_explanation}</p>
+
+        <h3>Conclusion</h3>
+        <p>${data.legal_conclusion}</p>
+
+        <h3>How to Read This</h3>
+        ${data.interpretation.map(i => `<p>• ${i}</p>`).join("")}
+
+        <h3>Technical Findings</h3>
+        ${data.explanation.map(e => `<p>• ${e}</p>`).join("")}
+
+        <h3>Narrative</h3>
+        <p>${data.narrative}</p>
+      </div>
+    </div>
+  `;
+
 }
 
-function render(data){
-const original=URL.createObjectURL(selectedFile);
+// Tabs
+function openTab(evt, name) {
+  document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
 
-document.getElementById("result").innerHTML=`
-
-<div>
-<span class="badge">Score: ${data.score}</span>
-<span class="badge">Confidence: ${data.confidence}%</span>
-<span class="badge">${data.ela_result}</span>
-</div>
-
-<p>${data.score_explanation}</p>
-<p>${data.confidence_explanation}</p>
-
-<h3>Conclusion</h3>
-<p>${data.legal_conclusion}</p>
-
-<h3>How to Read This</h3>
-${data.interpretation.map(i=>`<p>• ${i}</p>`).join("")}
-
-<div class="row">
-<img src="${original}">
-<img src="${data.ela_image}">
-</div>
-
-<h3>Technical Findings</h3>
-${data.explanation.map(e=>`<p>• ${e}</p>`).join("")}
-
-<h3>Narrative</h3>
-<p>${data.narrative}</p>
-
-`;
+  document.getElementById(name).classList.add("active");
+  evt.target.classList.add("active");
 }
+
+// Bars
+function bar(label, value) {
+  return `
+    <div>${label}: ${value}</div>
+    <div class="bar">
+      <div class="bar-inner" style="width:${value}%"></div>
+    </div>
+  `;
+}
+
 </script>
 
 </body>
