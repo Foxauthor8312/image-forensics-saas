@@ -30,6 +30,7 @@ body { background:#0f172a; color:white; font-family:Arial; }
 </div>
 
 <script>
+
 const API="https://pixelproof-backend-v2.onrender.com";
 let selectedFile=null;
 
@@ -72,7 +73,6 @@ async function upload(){
 
   let fileToSend = selectedFile;
 
-  // 🔥 ONLY resize if large (preserves metadata)
   if(selectedFile.size > 2 * 1024 * 1024){
     fileToSend = await resizeImage(selectedFile);
   }
@@ -88,21 +88,35 @@ async function upload(){
 
 function render(data){
 document.getElementById("result").innerHTML=`
-<h3>${data.message}</h3>
+
+<h3>Analysis Result</h3>
 
 <div class="tabs">
 <div class="tab active" onclick="tab(event,'r')">Results</div>
-<div class="tab" onclick="tab(event,'simple')">Simple</div>
-<div class="tab" onclick="tab(event,'legal')">Legal</div>
 <div class="tab" onclick="tab(event,'map')">Map</div>
 <div class="tab" onclick="tab(event,'meta')">Metadata</div>
 </div>
 
 <div id="r" class="tab-content active">
+
 <div class="card">
 <h2>${data.analysis}</h2>
 <p>Score: ${data.score}</p>
 <p>Confidence: ${data.confidence}%</p>
+
+<hr>
+
+<p><b>Summary:</b><br>${data.simple_explanation}</p>
+<p><b>Technical:</b><br>${data.technical_explanation}</p>
+<p><b>Conclusion:</b><br>${data.legal_explanation}</p>
+<p><b>Confidence Note:</b><br>${data.confidence_note}</p>
+
+<br>
+<a href="${data.pdf_report}" target="_blank"
+style="padding:10px;background:#22c55e;color:white;border-radius:6px;">
+Download PDF Report
+</a>
+
 </div>
 
 <div class="image-row">
@@ -113,14 +127,7 @@ document.getElementById("result").innerHTML=`
 <img src="${data.heatmap}">
 </div>
 </div>
-</div>
 
-<div id="simple" class="tab-content">
-<div class="card">${data.simple_explanation}</div>
-</div>
-
-<div id="legal" class="tab-content">
-<div class="card">${data.legal_explanation}</div>
 </div>
 
 <div id="map" class="tab-content">
@@ -150,6 +157,7 @@ document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
 document.getElementById(id).classList.add("active");
 e.target.classList.add("active");
 }
+
 </script>
 </body>
 </html>
