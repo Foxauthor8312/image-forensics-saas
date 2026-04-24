@@ -28,6 +28,7 @@ def extract_metadata_and_gps(path):
         gps = None
 
         if not exif_data:
+            print("❌ No EXIF found in file")
             return metadata, gps
 
         exif_dict = piexif.load(exif_data)
@@ -74,28 +75,25 @@ def extract_metadata_and_gps(path):
 # EXPLANATIONS
 # -----------------------------
 def explain(score):
-
     if score > 70:
         return {
-            "simple": "The image shows strong signs of manipulation.",
-            "technical": "High levels of pixel inconsistency and compression artifacts were detected.",
-            "legal": "Significant irregularities in compression and structure indicate likely digital alteration.",
-            "confidence_note": "High confidence due to consistent anomaly patterns."
+            "simple": "Strong signs of manipulation detected.",
+            "technical": "High pixel inconsistency and compression anomalies.",
+            "legal": "Significant irregularities indicate likely digital alteration.",
+            "confidence_note": "High confidence."
         }
-
     elif score > 40:
         return {
-            "simple": "The image may have been altered.",
-            "technical": "Moderate inconsistencies detected in compression and pixel distribution.",
-            "legal": "Moderate anomalies suggest possible recompression or partial editing.",
-            "confidence_note": "Moderate confidence due to partial anomaly distribution."
+            "simple": "Possible editing detected.",
+            "technical": "Moderate inconsistencies in compression.",
+            "legal": "Moderate anomalies suggest possible editing or recompression.",
+            "confidence_note": "Moderate confidence."
         }
-
     else:
         return {
-            "simple": "No clear signs of editing were found.",
-            "technical": "Pixel structure and compression appear consistent.",
-            "legal": "No material irregularities detected. Image appears consistent with original capture.",
+            "simple": "Image appears original.",
+            "technical": "Pixel structure is consistent.",
+            "legal": "No significant irregularities detected.",
             "confidence_note": "High confidence in authenticity."
         }
 
@@ -109,14 +107,13 @@ def generate_pdf(job_id, data):
     styles = getSampleStyleSheet()
 
     content = []
-
     content.append(Paragraph("Digital Image Forensic Report", styles["Title"]))
-    content.append(Spacer(1, 12))
+    content.append(Spacer(1,12))
 
     content.append(Paragraph(f"Result: {data['analysis']}", styles["Normal"]))
     content.append(Paragraph(f"Score: {data['score']}", styles["Normal"]))
     content.append(Paragraph(f"Confidence: {data['confidence']}%", styles["Normal"]))
-    content.append(Spacer(1, 12))
+    content.append(Spacer(1,12))
 
     content.append(Paragraph("Summary", styles["Heading2"]))
     content.append(Paragraph(data["simple_explanation"], styles["Normal"]))
