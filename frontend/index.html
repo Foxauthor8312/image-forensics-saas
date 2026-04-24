@@ -29,7 +29,6 @@ button {
   margin-top:10px;
 }
 
-/* Tabs */
 .tabs {
   display:flex;
   gap:10px;
@@ -57,7 +56,6 @@ button {
   display:block;
 }
 
-/* Cards */
 .card {
   background:#020617;
   padding:15px;
@@ -91,7 +89,7 @@ document.getElementById("file").onchange = e => {
 };
 
 // -----------------------------
-// UPLOAD (SYNC, NO POLLING)
+// UPLOAD
 // -----------------------------
 async function upload(){
 
@@ -108,17 +106,13 @@ async function upload(){
 
   try {
 
-    // Wake backend (Render-safe)
+    // Wake backend (Render safe)
     try { await fetch(API + "/health"); } catch {}
 
     const res = await fetch(API + "/api/analyze", {
       method:"POST",
       body:form
     });
-
-    if(!res.ok){
-      throw new Error("Server error: " + res.status);
-    }
 
     const data = await res.json();
 
@@ -129,11 +123,7 @@ async function upload(){
     }
 
   } catch(err){
-    resultDiv.innerHTML = `
-      <b>Connection failed</b><br><br>
-      ${err}<br><br>
-      Try again (Render may be waking up)
-    `;
+    resultDiv.innerHTML = "Connection failed. Try again.";
   }
 }
 
@@ -144,62 +134,79 @@ function render(data){
 
   document.getElementById("result").innerHTML = `
 
-    <h3>${data.message}</h3>
+<h3>${data.message}</h3>
 
-    <div class="tabs">
-      <div class="tab active" onclick="openTab(event,'results')">Results</div>
-      <div class="tab" onclick="openTab(event,'map')">Map</div>
-      <div class="tab" onclick="openTab(event,'meta')">Metadata</div>
-    </div>
+<div class="tabs">
+  <div class="tab active" onclick="openTab(event,'results')">Results</div>
+  <div class="tab" onclick="openTab(event,'map')">Map</div>
+  <div class="tab" onclick="openTab(event,'meta')">Metadata</div>
+</div>
 
-    <!-- RESULTS -->
-    <div id="results" class="tab-content active">
-      <div class="card">
-        <p><b>Analysis:</b> ${data.analysis}</p>
-        <p><b>Score:</b> ${data.score}</p>
-        <p><b>Confidence:</b> ${data.confidence}</p>
-      </div>
-    </div>
+<!-- RESULTS -->
+<div id="results" class="tab-content active">
+  <div class="card">
+    <h2>${data.analysis}</h2>
 
-    <!-- MAP -->
-    <div id="map" class="tab-content">
-      <div class="card">
-        ${
-          data.gps
-          ? `
-            <p><b>Coordinates:</b> ${data.gps.lat.toFixed(6)}, ${data.gps.lon.toFixed(6)}</p>
-            <iframe
-              width="100%"
-              height="400"
-              style="border:0;border-radius:8px;margin-top:10px;"
-              loading="lazy"
-              allowfullscreen
-              src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed">
-            </iframe>
-          `
-          : "<p>No GPS metadata found.</p>"
-        }
-      </div>
-    </div>
+    <p><b>Score:</b> ${data.score}</p>
+    <p><b>Confidence:</b> ${data.confidence}%</p>
 
-    <!-- METADATA -->
-    <div id="meta" class="tab-content">
-      <div class="card">
-        ${
-          data.metadata?.available
-          ? Object.entries(data.metadata.all)
-              .map(([k,v]) => `<p><b>${k}:</b> ${v}</p>`)
-              .join("")
-          : `
-            <p>No metadata found.</p>
-            <p style="opacity:0.7;">
-              This is common for screenshots, social media images, or edited files.
-            </p>
-          `
-        }
-      </div>
-    </div>
-  `;
+    <p style="opacity:0.7;margin-top:10px;">
+      Higher values indicate stronger signs of potential editing.
+    </p>
+  </div>
+</div>
+
+<!-- MAP -->
+<div id="map" class="tab-content">
+  <div class="card">
+    ${
+      data.gps
+      ? `
+        <p><b>Coordinates:</b> ${data.gps.lat.toFixed(6)}, ${data.gps.lon.toFixed(6)}</p>
+
+        <iframe
+          width="100%"
+          height="400"
+          style="border:0;border-radius:8px;margin-top:10px;"
+          loading="lazy"
+          allowfullscreen
+          src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed">
+        </iframe>
+      `
+      : `
+        <p>No GPS data found.</p>
+        <p style="opacity:0.7;">
+          Even if metadata exists, GPS must be in standard EXIF format to display.
+        </p>
+      `
+    }
+  </div>
+</div>
+
+<!-- METADATA -->
+<div id="meta" class="tab-content">
+  <div class="card">
+    ${
+      data.metadata?.available
+      ? Object.entries(data.metadata.all)
+          .map(([k,v]) => `<p><b>${k}:</b> ${v}</p>`)
+          .join("")
+      : `
+        <p>No metadata found.</p>
+        <p style="opacity:0.7;">
+          This is common for screenshots or images processed by apps.
+        </p>
+      `
+    }
+
+    <hr>
+
+    <!-- DEBUG -->
+    <p style="opacity:0.5;">GPS Debug: ${JSON.stringify(data.gps)}</p>
+  </div>
+</div>
+
+`;
 }
 
 // -----------------------------
