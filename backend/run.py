@@ -4,7 +4,7 @@ import os, uuid, threading, traceback
 
 import numpy as np
 import cv2
-from PIL import Image, ImageChops, ImageEnhance, UnidentifiedImageError
+from PIL import Image, ImageChops, ImageEnhance
 
 # AI
 import torch
@@ -48,7 +48,7 @@ def run_ai_model(path):
         return None
 
 # -----------------------------
-# PDF
+# PDF REPORT
 # -----------------------------
 def generate_pdf(job_id, result):
     try:
@@ -94,7 +94,7 @@ def generate_pdf(job_id, result):
         return None
 
 # -----------------------------
-# PROCESS
+# PROCESS JOB
 # -----------------------------
 def process_job(job_id, path):
     try:
@@ -118,7 +118,7 @@ def process_job(job_id, path):
         arr = np.array(ela)
         score = int((np.mean(arr)/(np.max(arr)+1e-5))*100)
 
-        # CV
+        # CV ANALYSIS
         jobs[job_id]["step"] = "analyzing structure"
         gray = cv2.imread(path,0)
 
@@ -140,84 +140,92 @@ def process_job(job_id, path):
 
         confidence = int(min(100, ela_c + noise_c + sharp_c + ai_c))
 
-        # HEATMAP
+        # -----------------------------
+        # REGION DETECTION + HEATMAP
+        # -----------------------------
         jobs[job_id]["step"] = "detecting tamper regions"
+
+        regions = []
         heatmap_file = None
+
         try:
             img = cv2.imread(path)
-            img = cv2.resize(img,(600,600))
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            img_small = cv2.resize(img,(600,600))
+
+            gray = cv2.cvtColor(img_small, cv2.COLOR_BGR2GRAY)
             diff = cv2.absdiff(gray, cv2.GaussianBlur(gray,(5,5),0))
+
             norm = cv2.normalize(diff,None,0,255,cv2.NORM_MINMAX)
+            _, thresh = cv2.threshold(norm,180,255,cv2.THRESH_BINARY)
+
+            contours,_ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            for cnt in contours[:5]:
+                x,y,w,h = cv2.boundingRect(cnt)
+
+                if w*h < 500:
+                    continue
+
+                reason = "Area shows unusual compression or texture differences."
+
+                if noise_n > 40:
+                    reason = "This region has irregular noise patterns."
+                if sharp_n > 40:
+                    reason = "Edges in this region appear inconsistent."
+
+                regions.append({
+                    "x":int(x),
+                    "y":int(y),
+                    "w":int(w),
+                    "h":int(h),
+                    "reason":reason
+                })
+
             heat = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
-            overlay = cv2.addWeighted(img,0.6,heat,0.4,0)
+            overlay = cv2.addWeighted(img_small,0.6,heat,0.4,0)
 
             heatmap_file = f"{job_id}_heatmap.jpg"
             cv2.imwrite(os.path.join(UPLOAD_FOLDER, heatmap_file), overlay)
-        except:
-            pass
+
+        except Exception as e:
+            print("Region error:", e)
 
         # -----------------------------
-        # EXPERT EXPLANATIONS
+        # SIMPLE EXPLANATION
         # -----------------------------
-        if confidence > 75:
-            executive_summary = "Multiple independent indicators strongly suggest digital manipulation."
-            opinion = "It is highly probable that the image has been altered."
-        elif confidence > 45:
-            executive_summary = "Some indicators suggest possible editing, but not conclusive."
-            opinion = "The image may have been altered."
-        else:
-            executive_summary = "No strong indicators of manipulation detected."
-            opinion = "Insufficient evidence of alteration."
-
-        confidence_reasoning = f"Confidence ({confidence}%) derived from combined ELA, noise, sharpness, and AI signals."
-
-        ai_interpretation = f"AI model indicates {ai_score}% likelihood of manipulation." if ai_score else "AI unavailable."
-
-        methodology = [
-            "ELA compression analysis",
-            "Noise distribution analysis",
-            "Sharpness consistency",
-            "AI pattern recognition"
-        ]
-
-        explanation = [
-            f"Compression {'inconsistent' if score>40 else 'uniform'}",
-            f"Noise {'irregular' if noise_n>40 else 'consistent'}",
-            f"Sharpness {'variable' if sharp_n>40 else 'consistent'}"
-        ]
-
-        evidence_analysis = {
-            "ELA": f"{int(ela_c)}%",
-            "Noise": f"{int(noise_c)}%",
-            "Sharpness": f"{int(sharp_c)}%",
-            "AI": f"{int(ai_c)}%"
+        simple_explanation = {
+            "result": "Likely edited" if confidence>70 else "Possibly edited" if confidence>40 else "Likely original",
+            "risk_level": "High" if confidence>70 else "Moderate" if confidence>40 else "Low",
+            "confidence_text": f"{confidence}% confidence",
+            "meaning": "Indicates likelihood of manipulation based on multiple signals.",
+            "reasons": ["Compression inconsistencies","Noise variation","AI detection"],
+            "next_steps": "Verify before trusting."
         }
 
-        limitations = [
-            "Recompression can affect results",
-            "AI depends on training data",
-            "Analysis is probabilistic"
-        ]
-
-        recommendation = "Verify source if image is critical."
-
+        # -----------------------------
         # RESULT
+        # -----------------------------
         result_data = {
-            "score": score,
-            "confidence": confidence,
-            "ai_score": ai_score,
-            "ela_result": "Likely manipulated" if confidence>70 else "Likely original",
-
-            "executive_summary": executive_summary,
-            "opinion": opinion,
-            "confidence_reasoning": confidence_reasoning,
-            "ai_interpretation": ai_interpretation,
-            "methodology": methodology,
-            "evidence_analysis": evidence_analysis,
-            "limitations": limitations,
-            "recommendation": recommendation,
-            "explanation": explanation
+            "score":score,
+            "confidence":confidence,
+            "ai_score":ai_score,
+            "ela_result":"Likely manipulated" if confidence>70 else "Likely original",
+            "executive_summary":"Forensic indicators analyzed.",
+            "opinion":"Possible manipulation." if confidence>40 else "No strong evidence.",
+            "confidence_reasoning":f"Combined signals → {confidence}%",
+            "ai_interpretation":f"AI suggests {ai_score}%" if ai_score else "AI unavailable",
+            "methodology":["ELA","Noise","Sharpness","AI"],
+            "evidence_analysis":{},
+            "limitations":["Probabilistic analysis"],
+            "recommendation":"Verify source.",
+            "explanation":["Compression variation","Noise inconsistency"],
+            "simple_explanation":simple_explanation,
+            "confidence_breakdown":{
+                "ela":int(ela_c),
+                "noise":int(noise_c),
+                "sharpness":int(sharp_c),
+                "ai":int(ai_c)
+            }
         }
 
         report_url = generate_pdf(job_id, result_data)
@@ -226,9 +234,10 @@ def process_job(job_id, path):
             "status":"done",
             "result":{
                 **result_data,
-                "ela_image": f"{BASE_URL}/files/{ela_file}",
-                "heatmap": f"{BASE_URL}/files/{heatmap_file}" if heatmap_file else None,
-                "report": report_url
+                "ela_image":f"{BASE_URL}/files/{ela_file}",
+                "heatmap":f"{BASE_URL}/files/{heatmap_file}" if heatmap_file else None,
+                "regions":regions,
+                "report":report_url
             }
         }
 
