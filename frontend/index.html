@@ -36,34 +36,6 @@ let selectedFile=null;
 
 file.onchange=e=>selectedFile=e.target.files[0];
 
-function resizeImage(file){
-  return new Promise(resolve=>{
-    const img=new Image();
-    const reader=new FileReader();
-    reader.onload=e=>img.src=e.target.result;
-    reader.readAsDataURL(file);
-
-    img.onload=()=>{
-      const canvas=document.createElement("canvas");
-      let w=img.width,h=img.height;
-      const MAX=1200;
-
-      if(w>MAX||h>MAX){
-        if(w>h){h*=MAX/w;w=MAX;}
-        else{w*=MAX/h;h=MAX;}
-      }
-
-      canvas.width=w;
-      canvas.height=h;
-      canvas.getContext("2d").drawImage(img,0,0,w,h);
-
-      canvas.toBlob(blob=>{
-        resolve(new File([blob],file.name,{type:"image/jpeg"}));
-      },"image/jpeg",0.7);
-    };
-  });
-}
-
 async function upload(){
 
   if(!selectedFile){
@@ -71,14 +43,14 @@ async function upload(){
     return;
   }
 
-  let fileToSend = selectedFile;
-
-  if(selectedFile.size > 2 * 1024 * 1024){
-    fileToSend = await resizeImage(selectedFile);
+  // 🔥 FILE SIZE LIMIT (no resizing → preserves metadata)
+  if(selectedFile.size > 5 * 1024 * 1024){
+    alert("Use image under 5MB to preserve metadata.");
+    return;
   }
 
   const form=new FormData();
-  form.append("image",fileToSend);
+  form.append("image",selectedFile);
 
   const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
   const data=await res.json();
@@ -89,7 +61,7 @@ async function upload(){
 function render(data){
 document.getElementById("result").innerHTML=`
 
-<h3>Analysis Result</h3>
+<h3>Analysis</h3>
 
 <div class="tabs">
 <div class="tab active" onclick="tab(event,'r')">Results</div>
