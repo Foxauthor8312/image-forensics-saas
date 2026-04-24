@@ -7,7 +7,17 @@
 body { background:#0f172a; color:white; font-family:Arial; }
 .container { max-width:1000px; margin:auto; padding:20px; }
 
-.tabs { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
+button {
+  padding:10px 20px;
+  background:#3b82f6;
+  border:none;
+  color:white;
+  border-radius:6px;
+  cursor:pointer;
+  margin-top:10px;
+}
+
+.tabs { display:flex; gap:10px; margin-top:20px; }
 .tab { padding:10px; background:#334155; cursor:pointer; }
 .tab.active { background:#3b82f6; }
 
@@ -18,6 +28,7 @@ body { background:#0f172a; color:white; font-family:Arial; }
 
 .image-row { display:flex; gap:10px; flex-wrap:wrap; }
 .image-box { flex:1 1 48%; }
+
 .image-box img {
   width:100%;
   max-height:400px;
@@ -34,7 +45,8 @@ body { background:#0f172a; color:white; font-family:Arial; }
 <h1>PixelProof 🔍</h1>
 
 <input type="file" id="file">
-<button onclick="upload()">Analyze</button>
+<br>
+<button id="analyzeBtn">Analyze</button>
 
 <div id="result"></div>
 
@@ -42,53 +54,75 @@ body { background:#0f172a; color:white; font-family:Arial; }
 
 <script>
 
-const API="https://pixelproof-backend-v2.onrender.com";
-let selectedFile=null;
+const API = "https://pixelproof-backend-v2.onrender.com";
+let selectedFile = null;
 
-file.onchange=e=>selectedFile=e.target.files[0];
+// ✅ FILE SELECT
+document.getElementById("file").addEventListener("change", function(e){
+  selectedFile = e.target.files[0];
+  console.log("📁 Selected:", selectedFile);
+});
 
+// ✅ BUTTON CLICK (NO INLINE HANDLER)
+document.getElementById("analyzeBtn").addEventListener("click", upload);
+
+// -----------------------------
+// UPLOAD FUNCTION
+// -----------------------------
 async function upload(){
 
+  console.log("🔥 Upload triggered");
+
   if(!selectedFile){
-    alert("Select a file");
+    alert("Select a file first");
     return;
   }
 
-  document.getElementById("result").innerHTML="Processing...";
-
-  const form=new FormData();
-  form.append("image",selectedFile);
+  const form = new FormData();
+  form.append("image", selectedFile);
 
   try {
-    await fetch(API+"/health").catch(()=>{});
 
-    const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-    const data=await res.json();
+    // wake backend
+    await fetch(API + "/health").catch(()=>{});
 
-    if(data.status==="done"){
+    const res = await fetch(API + "/api/analyze", {
+      method: "POST",
+      body: form
+    });
+
+    console.log("Response status:", res.status);
+
+    const data = await res.json();
+    console.log("Response:", data);
+
+    if(data.status === "done"){
       render(data.result);
     } else {
-      document.getElementById("result").innerHTML="Error: "+data.error;
+      document.getElementById("result").innerHTML = "Error: " + data.error;
     }
 
   } catch(err){
-    document.getElementById("result").innerHTML="Connection failed";
+    console.error(err);
+    document.getElementById("result").innerHTML = "Connection failed";
   }
 }
 
+// -----------------------------
+// RENDER
+// -----------------------------
 function render(data){
 
-document.getElementById("result").innerHTML=`
+document.getElementById("result").innerHTML = `
 
 <h3>${data.message}</h3>
 
 <div class="tabs">
-<div class="tab active" onclick="tab(event,'r')">Results</div>
-<div class="tab" onclick="tab(event,'map')">Map</div>
-<div class="tab" onclick="tab(event,'meta')">Metadata</div>
+  <div class="tab active" onclick="tab(event,'r')">Results</div>
+  <div class="tab" onclick="tab(event,'map')">Map</div>
+  <div class="tab" onclick="tab(event,'meta')">Metadata</div>
 </div>
 
-<!-- RESULTS -->
 <div id="r" class="tab-content active">
 
 <div class="card">
@@ -109,9 +143,7 @@ document.getElementById("result").innerHTML=`
 ${
 data.heatmap
 ? `<img src="${data.heatmap}">`
-: `<div style="height:400px;display:flex;align-items:center;justify-content:center;background:#111;">
-     <span>No heatmap</span>
-   </div>`
+: `<p>No heatmap</p>`
 }
 </div>
 
@@ -119,7 +151,6 @@ data.heatmap
 
 </div>
 
-<!-- MAP -->
 <div id="map" class="tab-content">
 ${
 data.gps
@@ -129,7 +160,6 @@ src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed"
 }
 </div>
 
-<!-- METADATA -->
 <div id="meta" class="tab-content">
 <div class="card">
 ${
@@ -142,12 +172,14 @@ data.metadata?.available
 `;
 }
 
+// -----------------------------
 function tab(e,id){
 document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
 document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
 document.getElementById(id).classList.add("active");
 e.target.classList.add("active");
 }
+
 </script>
 
 </body>
