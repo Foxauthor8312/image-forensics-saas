@@ -29,7 +29,6 @@ button {
   margin-top:10px;
 }
 
-/* Tabs */
 .tabs {
   display:flex;
   gap:10px;
@@ -56,7 +55,6 @@ button {
   display:block;
 }
 
-/* Cards */
 .card {
   background:#020617;
   padding:15px;
@@ -91,18 +89,25 @@ document.getElementById("file").onchange = e => {
 };
 
 // -----------------------------
-// UPLOAD (SYNC VERSION)
+// UPLOAD WITH WAKE + ERROR HANDLING
 // -----------------------------
 async function upload(){
-  if(!selectedFile) return alert("Select a file");
 
-  document.getElementById("result").innerHTML = "Waking server...";
+  if(!selectedFile){
+    alert("Select a file first");
+    return;
+  }
 
+  const resultDiv = document.getElementById("result");
+
+  resultDiv.innerHTML = "Waking server...";
+
+  // Wake Render (ignore failure)
   try {
     await fetch(API + "/health");
   } catch {}
 
-  document.getElementById("result").innerHTML = "Processing...";
+  resultDiv.innerHTML = "Uploading & processing...";
 
   const form = new FormData();
   form.append("image", selectedFile);
@@ -113,18 +118,27 @@ async function upload(){
       body:form
     });
 
+    if(!res.ok){
+      throw new Error("Server responded with " + res.status);
+    }
+
     const data = await res.json();
 
     if(data.status === "done"){
       render(data.result);
     } else {
-      document.getElementById("result").innerHTML =
-        "Error: " + (data.error || "Unknown error");
+      resultDiv.innerHTML = "Error: " + (data.error || "Unknown issue");
     }
 
   } catch (err) {
-    document.getElementById("result").innerHTML =
-      "Connection failed. Backend may be asleep or URL is wrong.";
+    resultDiv.innerHTML = `
+      <b>Connection Failed</b><br><br>
+      Possible causes:<br>
+      • Backend is sleeping (try again)<br>
+      • Wrong API URL<br>
+      • Server crashed during deploy<br><br>
+      <small>${err}</small>
+    `;
   }
 }
 
@@ -186,7 +200,7 @@ function render(data){
           : `
             <p>No metadata found.</p>
             <p style="opacity:0.7;">
-              This is common for screenshots, social media images, or edited files.
+              This is common for screenshots, social media uploads, or edited images.
             </p>
           `
         }
