@@ -3,11 +3,10 @@ from flask_cors import CORS
 import os, uuid
 
 from PIL import Image, ImageChops, ImageEnhance
-import exifread
+import piexif
 
 app = Flask(__name__)
 
-# CORS (Vercel → Render)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 UPLOAD_FOLDER = "uploads"
@@ -16,53 +15,62 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 
 # -----------------------------
-# METADATA + GPS (EXIFREAD)
+# METADATA + GPS (PIEXIF)
 # -----------------------------
 def extract_metadata_and_gps(path):
     try:
-        with open(path, 'rb') as f:
-            tags = exifread.process_file(f, details=False)
+        img = Image.open(path)
+        exif_data = img.info.get("exif")
 
         metadata = {
             "available": False,
             "all": {}
         }
-
         gps = None
 
-        if tags:
-            metadata["available"] = True
+        if not exif_data:
+            return metadata, gps
 
-            for tag in tags:
-                metadata["all"][tag] = str(tags[tag])
+        exif_dict = piexif.load(exif_data)
+        metadata["available"] = True
 
-            # ---- GPS extraction ----
-            if "GPS GPSLatitude" in tags and "GPS GPSLongitude" in tags:
+        for ifd in exif_dict:
+            for tag in exif_dict[ifd]:
+                try:
+                    name = piexif.TAGS[ifd][tag]["name"]
+                    value = exif_dict[ifd][tag]
+                    metadata["all"][name] = str(value)
+                except:
+                    pass
 
-                def convert(coord):
-                    try:
-                        d = float(coord.values[0])
-                        m = float(coord.values[1])
-                        s = float(coord.values[2])
-                        return d + (m / 60.0) + (s / 3600.0)
-                    except:
-                        return None
+        # GPS
+        gps_ifd = exif_dict.get("GPS", {})
 
-                lat = convert(tags["GPS GPSLatitude"])
-                lon = convert(tags["GPS GPSLongitude"])
+        if gps_ifd:
+            def convert(coord):
+                try:
+                    d = coord[0][0] / coord[0][1]
+                    m = coord[1][0] / coord[1][1]
+                    s = coord[2][0] / coord[2][1]
+                    return d + (m/60) + (s/3600)
+                except:
+                    return None
 
-                if lat is not None and lon is not None:
-                    if str(tags.get("GPS GPSLatitudeRef", "")).strip() == "S":
-                        lat = -lat
-                    if str(tags.get("GPS GPSLongitudeRef", "")).strip() == "W":
-                        lon = -lon
+            lat = convert(gps_ifd.get(piexif.GPSIFD.GPSLatitude))
+            lon = convert(gps_ifd.get(piexif.GPSIFD.GPSLongitude))
 
-                    gps = {"lat": lat, "lon": lon}
+            if lat and lon:
+                if gps_ifd.get(piexif.GPSIFD.GPSLatitudeRef) == b'S':
+                    lat = -lat
+                if gps_ifd.get(piexif.GPSIFD.GPSLongitudeRef) == b'W':
+                    lon = -lon
+
+                gps = {"lat": lat, "lon": lon}
 
         return metadata, gps
 
     except Exception as e:
-        print("EXIF ERROR:", e)
+        print("PIEXIF ERROR:", e)
         return {"available": False}, None
 
 # -----------------------------
@@ -72,12 +80,12 @@ def explain(score):
     if score > 60:
         return (
             "Strong signs of editing were detected.",
-            "Analysis reveals significant irregularities in compression artifacts and pixel structure consistent with digital manipulation."
+            "Significant irregularities in compression artifacts and pixel structure indicate likely digital manipulation."
         )
     elif score > 30:
         return (
             "Some unusual patterns detected.",
-            "Moderate anomalies detected which may indicate recompression or editing."
+            "Moderate anomalies suggest possible recompression or editing."
         )
     else:
         return (
@@ -92,7 +100,6 @@ def analyze_image(path, job_id):
 
     image = Image.open(path).convert("RGB")
 
-    # ELA
     temp = path + "_temp.jpg"
     image.save(temp, "JPEG", quality=90)
 
@@ -114,7 +121,7 @@ def analyze_image(path, job_id):
 
     simple, legal = explain(score)
 
-    # Heatmap
+    # heatmap
     heat = ela.convert("RGB")
     heat = ImageEnhance.Color(heat).enhance(3)
     heat = ImageEnhance.Contrast(heat).enhance(2)
@@ -165,16 +172,10 @@ def analyze():
         print("ERROR:", e)
         return jsonify({"status":"error","error":str(e)})
 
-# -----------------------------
-# FILE SERVING
-# -----------------------------
 @app.route("/files/<filename>")
 def files(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
-# -----------------------------
-# HEALTH
-# -----------------------------
 @app.route("/health")
 def health():
     return {"status":"ok"}
