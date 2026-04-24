@@ -40,32 +40,12 @@ button {
 }
 
 /* Tabs */
-.tabs {
-  display:flex;
-  gap:10px;
-  margin-top:20px;
-  flex-wrap:wrap;
-}
+.tabs { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
+.tab { padding:10px; background:#334155; border-radius:6px; cursor:pointer; }
+.tab.active { background:#3b82f6; }
 
-.tab {
-  padding:10px;
-  background:#334155;
-  border-radius:6px;
-  cursor:pointer;
-}
-
-.tab.active {
-  background:#3b82f6;
-}
-
-.tab-content {
-  display:none;
-  margin-top:20px;
-}
-
-.tab-content.active {
-  display:block;
-}
+.tab-content { display:none; margin-top:20px; }
+.tab-content.active { display:block; }
 
 /* Layout */
 .section {
@@ -75,15 +55,8 @@ button {
   margin-top:15px;
 }
 
-.row {
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-}
-
-.row div {
-  flex:1 1 45%;
-}
+.row { display:flex; gap:10px; flex-wrap:wrap; }
+.row div { flex:1 1 45%; }
 
 img {
   width:100%;
@@ -93,17 +66,8 @@ img {
 }
 
 /* Bars */
-.bar {
-  background:#1e293b;
-  border-radius:6px;
-  margin-bottom:10px;
-}
-
-.bar-inner {
-  background:#3b82f6;
-  height:10px;
-  border-radius:6px;
-}
+.bar { background:#1e293b; border-radius:6px; margin-bottom:10px; }
+.bar-inner { background:#3b82f6; height:10px; border-radius:6px; }
 </style>
 </head>
 
@@ -157,7 +121,6 @@ async function upload() {
   const resultDiv = document.getElementById("result");
   resultDiv.innerHTML = "<div class='loading'>Waking backend...</div>";
 
-  // Wake backend
   try { await fetch(API + "/health"); } catch {}
 
   const form = new FormData();
@@ -168,12 +131,6 @@ async function upload() {
       method: "POST",
       body: form
     });
-
-    if (!res.ok) {
-      const err = await res.text();
-      resultDiv.innerHTML = `<div class="error">${err}</div>`;
-      return;
-    }
 
     const data = await res.json();
     poll(data.job_id);
@@ -234,7 +191,7 @@ function render(data) {
       <div class="tab active" onclick="openTab(event,'results')">Results</div>
       <div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
       <div class="tab" onclick="openTab(event,'analysis')">Analysis</div>
-      <div class="tab" onclick="openTab(event,'explanation')">Explanation</div>
+      <div class="tab" onclick="openTab(event,'expert')">Expert Report</div>
     </div>
 
     <!-- RESULTS -->
@@ -258,32 +215,41 @@ function render(data) {
     <div id="analysis" class="tab-content">
       <div class="section">
         <h3>Confidence Breakdown</h3>
-        ${bar("ELA", data.confidence_breakdown.ela)}
-        ${bar("Noise", data.confidence_breakdown.noise)}
-        ${bar("Sharpness", data.confidence_breakdown.sharpness)}
-        ${bar("AI", data.confidence_breakdown.ai)}
+        ${bar("ELA", data.confidence_breakdown?.ela || 0)}
+        ${bar("Noise", data.confidence_breakdown?.noise || 0)}
+        ${bar("Sharpness", data.confidence_breakdown?.sharpness || 0)}
+        ${bar("AI", data.confidence_breakdown?.ai || 0)}
       </div>
     </div>
 
-    <!-- EXPLANATION -->
-    <div id="explanation" class="tab-content">
+    <!-- EXPERT REPORT -->
+    <div id="expert" class="tab-content">
       <div class="section">
 
-        <p><b>Score:</b> ${data.score_explanation}</p>
-        <p><b>Confidence:</b> ${data.confidence_explanation}</p>
-        <p><b>AI Detection:</b> ${data.ai_score ?? "Unavailable"}%</p>
+        <h2>Executive Summary</h2>
+        <p>${data.executive_summary || "N/A"}</p>
 
         <h3>Conclusion</h3>
-        <p>${data.legal_conclusion}</p>
+        <p><b>${data.opinion || "N/A"}</b></p>
 
-        <h3>How to Read This</h3>
-        ${data.interpretation.map(i => `<p>• ${i}</p>`).join("")}
+        <h3>Confidence</h3>
+        <p>${data.confidence_reasoning || "N/A"}</p>
 
-        <h3>Technical Findings</h3>
-        ${data.explanation.map(e => `<p>• ${e}</p>`).join("")}
+        <h3>AI Interpretation</h3>
+        <p>${data.ai_interpretation || "N/A"}</p>
 
-        <h3>Narrative</h3>
-        <p>${data.narrative}</p>
+        <h3>Methodology</h3>
+        ${(data.methodology || []).map(m => `<p>• ${m}</p>`).join("")}
+
+        <h3>Evidence Analysis</h3>
+        ${Object.entries(data.evidence_analysis || {})
+          .map(([k,v]) => `<p><b>${k}:</b> ${v}</p>`).join("")}
+
+        <h3>Limitations</h3>
+        ${(data.limitations || []).map(l => `<p>• ${l}</p>`).join("")}
+
+        <h3>Recommendation</h3>
+        <p>${data.recommendation || "N/A"}</p>
 
       </div>
     </div>
@@ -304,7 +270,7 @@ function openTab(evt, name) {
 
 
 // -----------------------------
-// BAR UI
+// BAR
 // -----------------------------
 function bar(label, value) {
   return `
