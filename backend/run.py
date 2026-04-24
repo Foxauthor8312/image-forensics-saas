@@ -1,9 +1,8 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import os, uuid
+import os, uuid, json
 
 from PIL import Image, ImageChops, ImageEnhance
-import piexif
 
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
@@ -23,27 +22,27 @@ def explain(score):
     if score > 70:
         return {
             "simple": "Strong signs of manipulation detected.",
-            "technical": "High pixel inconsistency and compression anomalies.",
-            "legal": "Significant irregularities indicate likely digital alteration.",
-            "confidence_note": "High confidence."
+            "technical": "High pixel inconsistency and compression anomalies detected.",
+            "legal": "Significant irregularities in pixel structure and compression patterns indicate likely digital alteration.",
+            "confidence_note": "High confidence due to consistent anomaly patterns."
         }
     elif score > 40:
         return {
             "simple": "Possible editing detected.",
-            "technical": "Moderate inconsistencies in compression.",
-            "legal": "Moderate anomalies suggest possible editing.",
-            "confidence_note": "Moderate confidence."
+            "technical": "Moderate inconsistencies in compression and pixel distribution.",
+            "legal": "Moderate anomalies suggest possible recompression or partial editing.",
+            "confidence_note": "Moderate confidence due to partial anomaly distribution."
         }
     else:
         return {
             "simple": "Image appears original.",
-            "technical": "Pixel structure is consistent.",
-            "legal": "No significant irregularities detected.",
+            "technical": "Pixel structure and compression patterns are consistent.",
+            "legal": "No material irregularities detected. Image appears consistent with original capture.",
             "confidence_note": "High confidence in authenticity."
         }
 
 # -----------------------------
-# PDF
+# PDF GENERATION
 # -----------------------------
 def generate_pdf(job_id, data):
     path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
@@ -70,7 +69,7 @@ def generate_pdf(job_id, data):
     content.append(Paragraph("Conclusion", styles["Heading2"]))
     content.append(Paragraph(data["legal_explanation"], styles["Normal"]))
 
-    content.append(Paragraph("Confidence", styles["Heading2"]))
+    content.append(Paragraph("Confidence Statement", styles["Heading2"]))
     content.append(Paragraph(data["confidence_note"], styles["Normal"]))
 
     doc.build(content)
@@ -78,12 +77,13 @@ def generate_pdf(job_id, data):
     return f"{BASE_URL}/files/{job_id}_report.pdf"
 
 # -----------------------------
-# ANALYSIS
+# IMAGE ANALYSIS
 # -----------------------------
 def analyze_image(path, job_id):
 
     image = Image.open(path).convert("RGB")
 
+    # ELA
     temp = path + "_temp.jpg"
     image.save(temp, "JPEG", quality=90)
 
@@ -92,9 +92,9 @@ def analyze_image(path, job_id):
 
     gray = ela.convert("L")
     pixels = list(gray.getdata())
-    mean = sum(pixels)/len(pixels)
+    mean_val = sum(pixels) / len(pixels)
 
-    score = int((mean/255)*100)
+    score = int((mean_val / 255) * 100)
     confidence = score
 
     result = (
@@ -103,8 +103,9 @@ def analyze_image(path, job_id):
         "Likely original"
     )
 
-    exp = explain(score)
+    explanations = explain(score)
 
+    # Heatmap
     heat = ela.convert("RGB")
     heat = ImageEnhance.Color(heat).enhance(3)
     heat = ImageEnhance.Contrast(heat).enhance(2)
@@ -112,97 +113,67 @@ def analyze_image(path, job_id):
     heat_file = f"{job_id}_heatmap.jpg"
     heat.save(os.path.join(UPLOAD_FOLDER, heat_file))
 
-    return score, confidence, result, exp, heat_file
+    return score, confidence, result, explanations, heat_file
 
 # -----------------------------
-# API (🔥 FIXED EXIF HANDLING)
+# API
 # -----------------------------
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
 
-    analysis_file = request.files.get("image")
-    original_file = request.files.get("original") or analysis_file
+    file = request.files.get("image")
+    if not file:
+        return jsonify({"error": "No file"}), 400
 
-    if not analysis_file:
-        return {"error":"No file"},400
+    # 🔥 Metadata from frontend
+    metadata = json.loads(request.form.get("metadata", "{}"))
+    gps = json.loads(request.form.get("gps", "null"))
 
     job_id = str(uuid.uuid4())
+    path = os.path.join(UPLOAD_FOLDER, job_id + ".jpg")
+    file.save(path)
 
-    analysis_path = os.path.join(UPLOAD_FOLDER, job_id + "_analysis.jpg")
-    original_path = os.path.join(UPLOAD_FOLDER, job_id + "_original.jpg")
-
-    # 🔥 READ ORIGINAL BYTES FIRST (PREVENT EXIF LOSS)
-    original_bytes = original_file.read()
-
-    # ---- EXTRACT METADATA + GPS FROM RAW BYTES ----
     try:
-        exif_dict = piexif.load(original_bytes)
+        score, confidence, result, exp, heatmap = analyze_image(path, job_id)
 
-        metadata = {"available": True, "all": {}}
-        gps = None
+        result_data = {
+            "analysis": result,
+            "score": score,
+            "confidence": confidence,
+            "simple_explanation": exp["simple"],
+            "technical_explanation": exp["technical"],
+            "legal_explanation": exp["legal"],
+            "confidence_note": exp["confidence_note"],
+            "metadata": {
+                "available": bool(metadata),
+                "all": metadata
+            },
+            "gps": gps,
+            "heatmap": f"{BASE_URL}/files/{heatmap}"
+        }
 
-        for ifd in exif_dict:
-            for tag in exif_dict[ifd]:
-                try:
-                    name = piexif.TAGS[ifd][tag]["name"]
-                    metadata["all"][name] = str(exif_dict[ifd][tag])
-                except:
-                    pass
+        # Generate PDF
+        result_data["pdf_report"] = generate_pdf(job_id, result_data)
 
-        gps_ifd = exif_dict.get("GPS", {})
-
-        if gps_ifd:
-            def convert(coord):
-                d = coord[0][0]/coord[0][1]
-                m = coord[1][0]/coord[1][1]
-                s = coord[2][0]/coord[2][1]
-                return d + m/60 + s/3600
-
-            lat = convert(gps_ifd.get(piexif.GPSIFD.GPSLatitude))
-            lon = convert(gps_ifd.get(piexif.GPSIFD.GPSLongitude))
-
-            if gps_ifd.get(piexif.GPSIFD.GPSLatitudeRef) == b'S':
-                lat = -lat
-            if gps_ifd.get(piexif.GPSIFD.GPSLongitudeRef) == b'W':
-                lon = -lon
-
-            gps = {"lat": lat, "lon": lon}
+        return jsonify({
+            "status": "done",
+            "result": result_data
+        })
 
     except Exception as e:
-        print("EXIF ERROR:", e)
-        metadata = {"available": False, "all": {}}
-        gps = None
+        print("ERROR:", e)
+        return jsonify({"status": "error", "error": str(e)})
 
-    # ---- SAVE FILES AFTER READING ----
-    with open(original_path, "wb") as f:
-        f.write(original_bytes)
-
-    analysis_file.save(analysis_path)
-
-    # ---- RUN ANALYSIS ----
-    score, confidence, result, exp, heat = analyze_image(analysis_path, job_id)
-
-    result_data = {
-        "analysis": result,
-        "score": score,
-        "confidence": confidence,
-        "simple_explanation": exp["simple"],
-        "technical_explanation": exp["technical"],
-        "legal_explanation": exp["legal"],
-        "confidence_note": exp["confidence_note"],
-        "metadata": metadata,
-        "gps": gps,
-        "heatmap": f"{BASE_URL}/files/{heat}"
-    }
-
-    result_data["pdf_report"] = generate_pdf(job_id, result_data)
-
-    return jsonify({"status":"done","result":result_data})
-
+# -----------------------------
+# FILE SERVING
+# -----------------------------
 @app.route("/files/<filename>")
 def files(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
+# -----------------------------
+# HEALTH CHECK
+# -----------------------------
 @app.route("/health")
 def health():
-    return {"status":"ok"}
+    return {"status": "ok"}
