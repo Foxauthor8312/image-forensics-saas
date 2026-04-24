@@ -2,8 +2,5 @@ flask
 flask-cors
 numpy
 opencv-python-headless
-Pillow
-reportlab
-torch
-torchvision
+pillow
 gunicorn
