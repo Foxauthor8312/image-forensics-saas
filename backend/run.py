@@ -9,7 +9,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+CORS(app)
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -28,7 +28,6 @@ def extract_metadata_and_gps(path):
         gps = None
 
         if not exif_data:
-            print("❌ No EXIF found in file")
             return metadata, gps
 
         exif_dict = piexif.load(exif_data)
@@ -67,8 +66,7 @@ def extract_metadata_and_gps(path):
 
         return metadata, gps
 
-    except Exception as e:
-        print("EXIF ERROR:", e)
+    except:
         return {"available": False}, None
 
 # -----------------------------
@@ -86,7 +84,7 @@ def explain(score):
         return {
             "simple": "Possible editing detected.",
             "technical": "Moderate inconsistencies in compression.",
-            "legal": "Moderate anomalies suggest possible editing or recompression.",
+            "legal": "Moderate anomalies suggest possible editing.",
             "confidence_note": "Moderate confidence."
         }
     else:
@@ -98,7 +96,7 @@ def explain(score):
         }
 
 # -----------------------------
-# PDF REPORT
+# PDF
 # -----------------------------
 def generate_pdf(job_id, data):
     path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
@@ -107,6 +105,7 @@ def generate_pdf(job_id, data):
     styles = getSampleStyleSheet()
 
     content = []
+
     content.append(Paragraph("Digital Image Forensic Report", styles["Title"]))
     content.append(Spacer(1,12))
 
@@ -124,7 +123,7 @@ def generate_pdf(job_id, data):
     content.append(Paragraph("Conclusion", styles["Heading2"]))
     content.append(Paragraph(data["legal_explanation"], styles["Normal"]))
 
-    content.append(Paragraph("Confidence Statement", styles["Heading2"]))
+    content.append(Paragraph("Confidence", styles["Heading2"]))
     content.append(Paragraph(data["confidence_note"], styles["Normal"]))
 
     doc.build(content)
@@ -174,16 +173,22 @@ def analyze_image(path, job_id):
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
 
-    file = request.files.get("image")
-    if not file:
+    analysis_file = request.files.get("image")
+    original_file = request.files.get("original") or analysis_file
+
+    if not analysis_file:
         return {"error":"No file"},400
 
     job_id = str(uuid.uuid4())
-    path = os.path.join(UPLOAD_FOLDER, job_id + ".jpg")
-    file.save(path)
 
-    score, confidence, result, exp, heat = analyze_image(path, job_id)
-    metadata, gps = extract_metadata_and_gps(path)
+    analysis_path = os.path.join(UPLOAD_FOLDER, job_id + "_analysis.jpg")
+    original_path = os.path.join(UPLOAD_FOLDER, job_id + "_original.jpg")
+
+    analysis_file.save(analysis_path)
+    original_file.save(original_path)
+
+    score, confidence, result, exp, heat = analyze_image(analysis_path, job_id)
+    metadata, gps = extract_metadata_and_gps(original_path)
 
     result_data = {
         "analysis": result,
