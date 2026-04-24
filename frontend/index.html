@@ -7,16 +7,6 @@
 body { background:#0f172a; color:white; font-family:Arial; }
 .container { max-width:1000px; margin:auto; padding:20px; }
 
-button {
-  padding:10px 20px;
-  background:#3b82f6;
-  border:none;
-  color:white;
-  border-radius:6px;
-  cursor:pointer;
-  margin-top:10px;
-}
-
 .tabs { display:flex; gap:10px; margin-top:20px; }
 .tab { padding:10px; background:#334155; cursor:pointer; }
 .tab.active { background:#3b82f6; }
@@ -28,13 +18,7 @@ button {
 
 .image-row { display:flex; gap:10px; flex-wrap:wrap; }
 .image-box { flex:1 1 48%; }
-
-.image-box img {
-  width:100%;
-  max-height:400px;
-  object-fit:contain;
-  border-radius:8px;
-}
+.image-box img { width:100%; max-height:400px; object-fit:contain; }
 </style>
 </head>
 
@@ -45,7 +29,6 @@ button {
 <h1>PixelProof 🔍</h1>
 
 <input type="file" id="file">
-<br>
 <button id="analyzeBtn">Analyze</button>
 
 <div id="result"></div>
@@ -54,157 +37,98 @@ button {
 
 <script>
 
-const API = "https://pixelproof-backend-v2.onrender.com";
-let selectedFile = null;
+const API="https://pixelproof-backend-v2.onrender.com";
+let selectedFile=null;
 
-// -----------------------------
-// FILE SELECT
-// -----------------------------
-document.getElementById("file").addEventListener("change", function(e){
-  selectedFile = e.target.files[0];
-  console.log("📁 Selected:", selectedFile);
-});
+file.onchange=e=>selectedFile=e.target.files[0];
 
-// -----------------------------
-// BUTTON CLICK
-// -----------------------------
-document.getElementById("analyzeBtn").addEventListener("click", upload);
+document.getElementById("analyzeBtn").onclick=upload;
 
-// -----------------------------
-// RESIZE IMAGE (🔥 FIX)
-// -----------------------------
 function resizeImage(file){
-  return new Promise((resolve) => {
-
-    const img = new Image();
-    const reader = new FileReader();
-
-    reader.onload = e => img.src = e.target.result;
+  return new Promise(resolve=>{
+    const img=new Image();
+    const reader=new FileReader();
+    reader.onload=e=>img.src=e.target.result;
     reader.readAsDataURL(file);
 
-    img.onload = () => {
+    img.onload=()=>{
+      const canvas=document.createElement("canvas");
+      let w=img.width,h=img.height;
+      const MAX=1200;
 
-      const canvas = document.createElement("canvas");
-
-      const MAX = 1200;
-      let w = img.width;
-      let h = img.height;
-
-      if(w > MAX || h > MAX){
-        if(w > h){
-          h *= MAX / w;
-          w = MAX;
-        } else {
-          w *= MAX / h;
-          h = MAX;
-        }
+      if(w>MAX||h>MAX){
+        if(w>h){h*=MAX/w;w=MAX;}
+        else{w*=MAX/h;h=MAX;}
       }
 
-      canvas.width = w;
-      canvas.height = h;
+      canvas.width=w;
+      canvas.height=h;
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
 
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, w, h);
-
-      canvas.toBlob(blob => {
-        resolve(new File([blob], file.name, {type:"image/jpeg"}));
-      }, "image/jpeg", 0.7);
+      canvas.toBlob(blob=>{
+        resolve(new File([blob],file.name,{type:"image/jpeg"}));
+      },"image/jpeg",0.7);
     };
   });
 }
 
-// -----------------------------
-// UPLOAD
-// -----------------------------
 async function upload(){
 
   if(!selectedFile){
-    alert("Select a file first");
+    alert("Select file");
     return;
   }
 
-  document.getElementById("result").innerHTML = "Processing...";
+  const resized=await resizeImage(selectedFile);
 
-  try {
+  const form=new FormData();
+  form.append("image",resized);
 
-    // 🔥 Resize before upload
-    const resizedFile = await resizeImage(selectedFile);
-    console.log("📦 Resized file:", resizedFile);
+  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+  const data=await res.json();
 
-    const form = new FormData();
-    form.append("image", resizedFile);
-
-    await fetch(API + "/health").catch(()=>{});
-
-    const res = await fetch(API + "/api/analyze", {
-      method: "POST",
-      body: form
-    });
-
-    console.log("Status:", res.status);
-
-    const data = await res.json();
-    console.log("Response:", data);
-
-    if(data.status === "done"){
-      render(data.result);
-    } else {
-      document.getElementById("result").innerHTML = "Error: " + data.error;
-    }
-
-  } catch(err){
-    console.error(err);
-    document.getElementById("result").innerHTML = "Connection failed";
-  }
+  render(data.result);
 }
 
-// -----------------------------
-// RENDER
-// -----------------------------
 function render(data){
 
-document.getElementById("result").innerHTML = `
+document.getElementById("result").innerHTML=`
 
 <h3>${data.message}</h3>
 
 <div class="tabs">
-  <div class="tab active" onclick="tab(event,'r')">Results</div>
-  <div class="tab" onclick="tab(event,'map')">Map</div>
-  <div class="tab" onclick="tab(event,'meta')">Metadata</div>
+<div class="tab active" onclick="tab(event,'r')">Results</div>
+<div class="tab" onclick="tab(event,'simple')">Simple</div>
+<div class="tab" onclick="tab(event,'legal')">Legal</div>
+<div class="tab" onclick="tab(event,'map')">Map</div>
+<div class="tab" onclick="tab(event,'meta')">Metadata</div>
 </div>
 
 <div id="r" class="tab-content active">
-
 <div class="card">
-  <h2>${data.analysis}</h2>
-
-  <p><b>Score:</b> ${data.score}</p>
-  <p><b>Confidence:</b> ${data.confidence}%</p>
-
-  <p style="margin-top:10px;">
-    <b>Explanation:</b><br>
-    <span style="opacity:0.85;">${data.explanation}</span>
-  </p>
+<h2>${data.analysis}</h2>
+<p>Score: ${data.score}</p>
+<p>Confidence: ${data.confidence}%</p>
 </div>
 
 <div class="image-row">
-
 <div class="image-box">
-<p><b>Original</b></p>
+<p>Original</p>
 <img src="${URL.createObjectURL(selectedFile)}">
 </div>
-
 <div class="image-box">
-<p><b>Heatmap</b></p>
-${
-data.heatmap
-? `<img src="${data.heatmap}">`
-: `<p>No heatmap</p>`
-}
+<p>Heatmap</p>
+<img src="${data.heatmap}">
+</div>
+</div>
 </div>
 
+<div id="simple" class="tab-content">
+<div class="card">${data.simple_explanation}</div>
 </div>
 
+<div id="legal" class="tab-content">
+<div class="card">${data.legal_explanation}</div>
 </div>
 
 <div id="map" class="tab-content">
@@ -212,7 +136,7 @@ ${
 data.gps
 ? `<iframe width="100%" height="400"
 src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed"></iframe>`
-: "<p>No GPS data</p>"
+: "<p>No GPS</p>"
 }
 </div>
 
@@ -228,7 +152,6 @@ data.metadata?.available
 `;
 }
 
-// -----------------------------
 function tab(e,id){
 document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
 document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
