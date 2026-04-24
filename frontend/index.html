@@ -2,20 +2,15 @@
 <html>
 <head>
 <title>PixelProof</title>
-
 <style>
 body { background:#0f172a; color:white; font-family:Arial; }
 .container { max-width:1000px; margin:auto; padding:20px; }
-
 .tabs { display:flex; gap:10px; margin-top:20px; }
 .tab { padding:10px; background:#334155; cursor:pointer; }
 .tab.active { background:#3b82f6; }
-
 .tab-content { display:none; margin-top:20px; }
 .tab-content.active { display:block; }
-
 .card { background:#020617; padding:15px; margin-top:10px; }
-
 .image-row { display:flex; gap:10px; flex-wrap:wrap; }
 .image-box { flex:1 1 48%; }
 .image-box img { width:100%; max-height:400px; object-fit:contain; }
@@ -23,26 +18,22 @@ body { background:#0f172a; color:white; font-family:Arial; }
 </head>
 
 <body>
-
 <div class="container">
 
 <h1>PixelProof 🔍</h1>
 
 <input type="file" id="file">
-<button id="analyzeBtn">Analyze</button>
+<button onclick="upload()">Analyze</button>
 
 <div id="result"></div>
 
 </div>
 
 <script>
-
 const API="https://pixelproof-backend-v2.onrender.com";
 let selectedFile=null;
 
 file.onchange=e=>selectedFile=e.target.files[0];
-
-document.getElementById("analyzeBtn").onclick=upload;
 
 function resizeImage(file){
   return new Promise(resolve=>{
@@ -79,10 +70,15 @@ async function upload(){
     return;
   }
 
-  const resized=await resizeImage(selectedFile);
+  let fileToSend = selectedFile;
+
+  // 🔥 ONLY resize if large (preserves metadata)
+  if(selectedFile.size > 2 * 1024 * 1024){
+    fileToSend = await resizeImage(selectedFile);
+  }
 
   const form=new FormData();
-  form.append("image",resized);
+  form.append("image",fileToSend);
 
   const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
   const data=await res.json();
@@ -91,9 +87,7 @@ async function upload(){
 }
 
 function render(data){
-
 document.getElementById("result").innerHTML=`
-
 <h3>${data.message}</h3>
 
 <div class="tabs">
@@ -113,11 +107,9 @@ document.getElementById("result").innerHTML=`
 
 <div class="image-row">
 <div class="image-box">
-<p>Original</p>
 <img src="${URL.createObjectURL(selectedFile)}">
 </div>
 <div class="image-box">
-<p>Heatmap</p>
 <img src="${data.heatmap}">
 </div>
 </div>
@@ -158,8 +150,6 @@ document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
 document.getElementById(id).classList.add("active");
 e.target.classList.add("active");
 }
-
 </script>
-
 </body>
 </html>
