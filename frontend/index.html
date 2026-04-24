@@ -2,99 +2,331 @@
 <html>
 <head>
 <title>PixelProof</title>
+
 <style>
-body{background:#0f172a;color:white;font-family:Arial}
-.container{max-width:1000px;margin:auto;padding:20px}
-.tabs{display:flex;gap:10px;margin-top:20px}
-.tab{padding:10px;background:#334155;cursor:pointer}
-.tab.active{background:#3b82f6}
-.tab-content{display:none}
-.tab-content.active{display:block}
-img{width:100%;max-height:400px;object-fit:contain}
+body { background:#0f172a; color:white; font-family:Arial; margin:0; }
+.container { max-width:1100px; margin:auto; padding:20px; }
+
+h1 { text-align:center; }
+
+.drop {
+  border:2px dashed #334155;
+  padding:40px;
+  text-align:center;
+  border-radius:10px;
+  cursor:pointer;
+  margin-bottom:10px;
+}
+
+button {
+  padding:10px 20px;
+  background:#3b82f6;
+  border:none;
+  color:white;
+  border-radius:6px;
+  margin:5px;
+  cursor:pointer;
+}
+
+.loading { text-align:center; color:#94a3b8; margin-top:20px; }
+.error { text-align:center; color:#f87171; }
+
+.badge {
+  display:inline-block;
+  background:#334155;
+  padding:6px 10px;
+  margin:5px;
+  border-radius:6px;
+}
+
+/* Tabs */
+.tabs {
+  display:flex;
+  gap:10px;
+  margin-top:20px;
+  flex-wrap:wrap;
+}
+
+.tab {
+  padding:10px;
+  background:#334155;
+  border-radius:6px;
+  cursor:pointer;
+}
+
+.tab.active {
+  background:#3b82f6;
+}
+
+.tab-content {
+  display:none;
+  margin-top:20px;
+}
+
+.tab-content.active {
+  display:block;
+}
+
+/* Layout */
+.section {
+  background:#020617;
+  padding:15px;
+  border-radius:8px;
+  margin-top:15px;
+}
+
+.row {
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.row div {
+  flex:1 1 45%;
+}
+
+img {
+  width:100%;
+  max-height:420px;
+  object-fit:contain;
+  border-radius:6px;
+}
+
+/* Bars */
+.bar {
+  background:#1e293b;
+  border-radius:6px;
+  margin-bottom:10px;
+}
+
+.bar-inner {
+  background:#3b82f6;
+  height:10px;
+  border-radius:6px;
+}
 </style>
 </head>
 
 <body>
+
 <div class="container">
 
 <h1>PixelProof 🔍</h1>
 
-<input type="file" id="file">
+<div class="drop" id="drop">
+Click or Drag Image
+<input type="file" id="file" hidden>
+</div>
+
 <button onclick="upload()">Analyze</button>
+<button id="pdfBtn" style="display:none;" onclick="downloadPDF()">Download Report</button>
 
 <div id="result"></div>
 
 </div>
 
 <script>
-const API="https://pixelproof-backend-v2.onrender.com";
-let fileInput=document.getElementById("file");
-let selectedFile=null;
+const API = "https://pixelproof-backend-v2.onrender.com";
 
-fileInput.onchange=e=>selectedFile=e.target.files[0];
+let selectedFile = null;
+let currentData = null;
 
-async function upload(){
-if(!selectedFile)return alert("Select file");
+// Upload UI
+drop.onclick = () => file.click();
 
-await fetch(API+"/health");
+file.onchange = (e) => {
+  selectedFile = e.target.files[0];
+  drop.innerHTML = selectedFile.name;
+};
 
-let form=new FormData();
-form.append("image",selectedFile);
+drop.ondrop = (e) => {
+  e.preventDefault();
+  selectedFile = e.dataTransfer.files[0];
+  drop.innerHTML = selectedFile.name;
+};
 
-let res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-let data=await res.json();
+drop.ondragover = (e) => e.preventDefault();
 
-poll(data.job_id);
+
+// -----------------------------
+// UPLOAD
+// -----------------------------
+async function upload() {
+  if (!selectedFile) return alert("Select file");
+
+  const resultDiv = document.getElementById("result");
+  resultDiv.innerHTML = "<div class='loading'>Waking backend...</div>";
+
+  // Wake backend
+  try { await fetch(API + "/health"); } catch {}
+
+  const form = new FormData();
+  form.append("image", selectedFile);
+
+  try {
+    const res = await fetch(API + "/api/analyze", {
+      method: "POST",
+      body: form
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      resultDiv.innerHTML = `<div class="error">${err}</div>`;
+      return;
+    }
+
+    const data = await res.json();
+    poll(data.job_id);
+
+  } catch {
+    resultDiv.innerHTML = "<div class='error'>Backend unavailable</div>";
+  }
 }
 
-function poll(id){
-let interval=setInterval(async()=>{
-let res=await fetch(API+"/api/status/"+id);
-let d=await res.json();
 
-if(d.status==="done"){
-clearInterval(interval);
-render(d.result);
+// -----------------------------
+// POLL
+// -----------------------------
+function poll(id) {
+  const resultDiv = document.getElementById("result");
+
+  const interval = setInterval(async () => {
+    const res = await fetch(API + "/api/status/" + id);
+    const d = await res.json();
+
+    if (d.status === "processing") {
+      resultDiv.innerHTML =
+        `<div class='loading'>Processing: ${d.step || "working..."}</div>`;
+    }
+
+    if (d.status === "done") {
+      clearInterval(interval);
+      currentData = d.result;
+      render(d.result);
+    }
+
+    if (d.status === "error") {
+      clearInterval(interval);
+      resultDiv.innerHTML = `<div class="error">${d.error}</div>`;
+    }
+
+  }, 1500);
 }
 
-},1500);
+
+// -----------------------------
+// RENDER
+// -----------------------------
+function render(data) {
+  const original = URL.createObjectURL(selectedFile);
+  document.getElementById("pdfBtn").style.display = "inline-block";
+
+  document.getElementById("result").innerHTML = `
+
+    <div>
+      <span class="badge">Score: ${data.score}</span>
+      <span class="badge">Confidence: ${data.confidence}%</span>
+      <span class="badge">AI: ${data.ai_score ?? "N/A"}%</span>
+      <span class="badge">${data.ela_result}</span>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="openTab(event,'results')">Results</div>
+      <div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
+      <div class="tab" onclick="openTab(event,'analysis')">Analysis</div>
+      <div class="tab" onclick="openTab(event,'explanation')">Explanation</div>
+    </div>
+
+    <!-- RESULTS -->
+    <div id="results" class="tab-content active">
+      <div class="section">
+        <div class="row">
+          <div><img src="${original}"></div>
+          <div><img src="${data.ela_image}"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HEATMAP -->
+    <div id="heatmap" class="tab-content">
+      <div class="section">
+        ${data.heatmap ? `<img src="${data.heatmap}">` : "No heatmap available"}
+      </div>
+    </div>
+
+    <!-- ANALYSIS -->
+    <div id="analysis" class="tab-content">
+      <div class="section">
+        <h3>Confidence Breakdown</h3>
+        ${bar("ELA", data.confidence_breakdown.ela)}
+        ${bar("Noise", data.confidence_breakdown.noise)}
+        ${bar("Sharpness", data.confidence_breakdown.sharpness)}
+        ${bar("AI", data.confidence_breakdown.ai)}
+      </div>
+    </div>
+
+    <!-- EXPLANATION -->
+    <div id="explanation" class="tab-content">
+      <div class="section">
+
+        <p><b>Score:</b> ${data.score_explanation}</p>
+        <p><b>Confidence:</b> ${data.confidence_explanation}</p>
+        <p><b>AI Detection:</b> ${data.ai_score ?? "Unavailable"}%</p>
+
+        <h3>Conclusion</h3>
+        <p>${data.legal_conclusion}</p>
+
+        <h3>How to Read This</h3>
+        ${data.interpretation.map(i => `<p>• ${i}</p>`).join("")}
+
+        <h3>Technical Findings</h3>
+        ${data.explanation.map(e => `<p>• ${e}</p>`).join("")}
+
+        <h3>Narrative</h3>
+        <p>${data.narrative}</p>
+
+      </div>
+    </div>
+  `;
 }
 
-function render(data){
-let original=URL.createObjectURL(selectedFile);
 
-document.getElementById("result").innerHTML=`
+// -----------------------------
+// TABS
+// -----------------------------
+function openTab(evt, name) {
+  document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
 
-<div class="tabs">
-<div class="tab active" onclick="openTab(event,'results')">Results</div>
-<div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
-<div class="tab" onclick="openTab(event,'explanation')">Explanation</div>
-</div>
-
-<div id="results" class="tab-content active">
-<img src="${original}">
-<img src="${data.ela_image}">
-</div>
-
-<div id="heatmap" class="tab-content">
-<img src="${data.heatmap}">
-</div>
-
-<div id="explanation" class="tab-content">
-<p>${data.legal_conclusion}</p>
-${data.explanation.map(e=>`<p>${e}</p>`).join("")}
-</div>
-
-<button onclick="window.open('${data.report}')">Download PDF</button>
-`;
+  document.getElementById(name).classList.add("active");
+  evt.target.classList.add("active");
 }
 
-function openTab(evt,name){
-document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-document.getElementById(name).classList.add("active");
-evt.target.classList.add("active");
+
+// -----------------------------
+// BAR UI
+// -----------------------------
+function bar(label, value) {
+  return `
+    <div>${label}: ${value}</div>
+    <div class="bar">
+      <div class="bar-inner" style="width:${value}%"></div>
+    </div>
+  `;
 }
+
+
+// -----------------------------
+// PDF
+// -----------------------------
+function downloadPDF() {
+  if (!currentData || !currentData.report) {
+    alert("Report not available");
+    return;
+  }
+  window.open(currentData.report);
+}
+
 </script>
 
 </body>
