@@ -94,7 +94,7 @@ def extract_gps(path):
         return None
 
 # -----------------------------
-# AI-STYLE ANALYSIS
+# ANALYSIS + HEATMAP
 # -----------------------------
 def analyze_image(path, job_id):
 
@@ -111,9 +111,7 @@ def analyze_image(path, job_id):
 
     # --- OpenCV ---
     img = cv2.imread(path)
-
     if img is None:
-        print("❌ OpenCV failed to read image")
         return 0, 0, "Error", None
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -121,41 +119,24 @@ def analyze_image(path, job_id):
     noise = cv2.absdiff(gray, cv2.GaussianBlur(gray,(5,5),0))
     edges = cv2.Canny(gray, 100, 200)
 
-    # normalize
     ela_n = cv2.normalize(ela_gray,None,0,255,cv2.NORM_MINMAX)
     noise_n = cv2.normalize(noise,None,0,255,cv2.NORM_MINMAX)
     edge_n = cv2.normalize(edges,None,0,255,cv2.NORM_MINMAX)
 
-    combined = (
-        0.5 * ela_n +
-        0.3 * noise_n +
-        0.2 * edge_n
-    ).astype(np.uint8)
-
+    combined = (0.5*ela_n + 0.3*noise_n + 0.2*edge_n).astype(np.uint8)
     combined = cv2.GaussianBlur(combined,(5,5),0)
     combined = cv2.equalizeHist(combined)
 
-    # -----------------------------
-    # 🔥 HEATMAP (FORCED SAVE)
-    # -----------------------------
+    # --- Heatmap ---
     heat = cv2.applyColorMap(combined, cv2.COLORMAP_JET)
     overlay = cv2.addWeighted(img, 0.6, heat, 0.4, 0)
 
     heatmap_file = f"{job_id}_heatmap.jpg"
     heatmap_path = os.path.join(UPLOAD_FOLDER, heatmap_file)
 
-    success = cv2.imwrite(heatmap_path, overlay)
+    cv2.imwrite(heatmap_path, overlay)
 
-    if success:
-        print("✅ Heatmap saved:", heatmap_path)
-    else:
-        print("❌ Heatmap save FAILED")
-
-        # fallback image so UI always shows something
-        fallback = np.zeros((300,300,3), dtype=np.uint8)
-        cv2.imwrite(heatmap_path, fallback)
-
-    # scoring
+    # --- scoring ---
     score = int(np.mean(ela_gray)/255*100)
     confidence = int(np.mean(combined)/255*100)
 
