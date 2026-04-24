@@ -28,18 +28,6 @@ button {
   cursor:pointer;
 }
 
-.loading { text-align:center; color:#94a3b8; margin-top:20px; }
-.error { text-align:center; color:#f87171; }
-
-.badge {
-  display:inline-block;
-  background:#334155;
-  padding:6px 10px;
-  margin:5px;
-  border-radius:6px;
-}
-
-/* Tabs */
 .tabs { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
 .tab { padding:10px; background:#334155; border-radius:6px; cursor:pointer; }
 .tab.active { background:#3b82f6; }
@@ -47,7 +35,6 @@ button {
 .tab-content { display:none; margin-top:20px; }
 .tab-content.active { display:block; }
 
-/* Layout */
 .section {
   background:#020617;
   padding:15px;
@@ -68,6 +55,7 @@ img {
 /* Bars */
 .bar { background:#1e293b; border-radius:6px; margin-bottom:10px; }
 .bar-inner { background:#3b82f6; height:10px; border-radius:6px; }
+
 </style>
 </head>
 
@@ -90,206 +78,233 @@ Click or Drag Image
 </div>
 
 <script>
-const API = "https://pixelproof-backend-v2.onrender.com";
 
+const API = "https://pixelproof-backend-v2.onrender.com";
 let selectedFile = null;
 let currentData = null;
 
-// Upload UI
 drop.onclick = () => file.click();
 
-file.onchange = (e) => {
+file.onchange = e => {
   selectedFile = e.target.files[0];
   drop.innerHTML = selectedFile.name;
 };
 
-drop.ondrop = (e) => {
+drop.ondrop = e => {
   e.preventDefault();
   selectedFile = e.dataTransfer.files[0];
   drop.innerHTML = selectedFile.name;
 };
 
-drop.ondragover = (e) => e.preventDefault();
-
+drop.ondragover = e => e.preventDefault();
 
 // -----------------------------
 // UPLOAD
 // -----------------------------
-async function upload() {
-  if (!selectedFile) return alert("Select file");
+async function upload(){
+  if(!selectedFile) return alert("Select file");
 
-  const resultDiv = document.getElementById("result");
-  resultDiv.innerHTML = "<div class='loading'>Waking backend...</div>";
+  document.getElementById("result").innerHTML = "Starting...";
 
-  try { await fetch(API + "/health"); } catch {}
+  await fetch(API+"/health").catch(()=>{});
 
   const form = new FormData();
   form.append("image", selectedFile);
 
-  try {
-    const res = await fetch(API + "/api/analyze", {
-      method: "POST",
-      body: form
-    });
+  const res = await fetch(API+"/api/analyze", {
+    method:"POST",
+    body:form
+  });
 
-    const data = await res.json();
-    poll(data.job_id);
-
-  } catch {
-    resultDiv.innerHTML = "<div class='error'>Backend unavailable</div>";
-  }
+  const data = await res.json();
+  poll(data.job_id);
 }
-
 
 // -----------------------------
 // POLL
 // -----------------------------
-function poll(id) {
-  const resultDiv = document.getElementById("result");
-
-  const interval = setInterval(async () => {
-    const res = await fetch(API + "/api/status/" + id);
+function poll(id){
+  const interval = setInterval(async()=>{
+    const res = await fetch(API+"/api/status/"+id);
     const d = await res.json();
 
-    if (d.status === "processing") {
-      resultDiv.innerHTML =
-        `<div class='loading'>Processing: ${d.step || "working..."}</div>`;
+    if(d.status==="processing"){
+      document.getElementById("result").innerHTML =
+        "Processing: "+(d.step || "working...");
     }
 
-    if (d.status === "done") {
+    if(d.status==="done"){
       clearInterval(interval);
       currentData = d.result;
       render(d.result);
     }
 
-    if (d.status === "error") {
-      clearInterval(interval);
-      resultDiv.innerHTML = `<div class="error">${d.error}</div>`;
-    }
-
-  }, 1500);
+  },1500);
 }
-
 
 // -----------------------------
 // RENDER
 // -----------------------------
-function render(data) {
+function render(data){
+
   const original = URL.createObjectURL(selectedFile);
-  document.getElementById("pdfBtn").style.display = "inline-block";
+  document.getElementById("pdfBtn").style.display="inline-block";
 
   document.getElementById("result").innerHTML = `
 
-    <div>
-      <span class="badge">Score: ${data.score}</span>
-      <span class="badge">Confidence: ${data.confidence}%</span>
-      <span class="badge">AI: ${data.ai_score ?? "N/A"}%</span>
-      <span class="badge">${data.ela_result}</span>
-    </div>
+  <div>
+    <b>Score:</b> ${data.score} |
+    <b>Confidence:</b> ${data.confidence}% |
+    <b>AI:</b> ${data.ai_score ?? "N/A"}%
+  </div>
 
-    <div class="tabs">
-      <div class="tab active" onclick="openTab(event,'results')">Results</div>
-      <div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
-      <div class="tab" onclick="openTab(event,'analysis')">Analysis</div>
-      <div class="tab" onclick="openTab(event,'expert')">Expert Report</div>
-    </div>
+  <div class="tabs">
+    <div class="tab active" onclick="openTab(event,'results')">Results</div>
+    <div class="tab" onclick="openTab(event,'heatmap')">Heatmap</div>
+    <div class="tab" onclick="openTab(event,'simple')">Simple</div>
+    <div class="tab" onclick="openTab(event,'analysis')">Analysis</div>
+    <div class="tab" onclick="openTab(event,'expert')">Expert</div>
+  </div>
 
-    <!-- RESULTS -->
-    <div id="results" class="tab-content active">
-      <div class="section">
-        <div class="row">
-          <div><img src="${original}"></div>
-          <div><img src="${data.ela_image}"></div>
-        </div>
+  <!-- RESULTS -->
+  <div id="results" class="tab-content active">
+    <div class="section">
+      <div class="row">
+        <div><img src="${original}"></div>
+        <div><img src="${data.ela_image}"></div>
       </div>
     </div>
+  </div>
 
-    <!-- HEATMAP -->
-    <div id="heatmap" class="tab-content">
-      <div class="section">
-        ${data.heatmap ? `<img src="${data.heatmap}">` : "No heatmap available"}
-      </div>
+  <!-- HEATMAP WITH CLICKABLE REGIONS -->
+  <div id="heatmap" class="tab-content">
+    <div class="section" style="position:relative;">
+
+      <img id="heatmapImg" src="${data.heatmap}">
+
+      <div id="overlay" style="
+        position:absolute;
+        top:0;
+        left:0;
+        width:100%;
+        height:100%;
+      "></div>
+
+      <div id="regionInfo" style="margin-top:10px;"></div>
+
     </div>
+  </div>
 
-    <!-- ANALYSIS -->
-    <div id="analysis" class="tab-content">
-      <div class="section">
-        <h3>Confidence Breakdown</h3>
-        ${bar("ELA", data.confidence_breakdown?.ela || 0)}
-        ${bar("Noise", data.confidence_breakdown?.noise || 0)}
-        ${bar("Sharpness", data.confidence_breakdown?.sharpness || 0)}
-        ${bar("AI", data.confidence_breakdown?.ai || 0)}
+  <!-- SIMPLE VISUAL -->
+  <div id="simple" class="tab-content">
+    <div class="section">
+
+      <h2>${data.simple_explanation?.result}</h2>
+
+      <b>Risk Level:</b> ${data.simple_explanation?.risk_level}
+
+      <div style="height:10px;background:#1e293b;margin-top:5px;">
+        <div style="
+          width:${data.confidence}%;
+          height:10px;
+          background:${getColor(data.simple_explanation?.risk_level)};
+        "></div>
       </div>
+
+      <h3>Meaning</h3>
+      <p>${data.simple_explanation?.meaning}</p>
+
+      <h3>Why</h3>
+      ${(data.simple_explanation?.reasons||[]).map(r=>`<p>• ${r}</p>`).join("")}
+
+      <h3>Next Steps</h3>
+      <p>${data.simple_explanation?.next_steps}</p>
+
     </div>
+  </div>
 
-    <!-- EXPERT REPORT -->
-    <div id="expert" class="tab-content">
-      <div class="section">
-
-        <h2>Executive Summary</h2>
-        <p>${data.executive_summary || "N/A"}</p>
-
-        <h3>Conclusion</h3>
-        <p><b>${data.opinion || "N/A"}</b></p>
-
-        <h3>Confidence</h3>
-        <p>${data.confidence_reasoning || "N/A"}</p>
-
-        <h3>AI Interpretation</h3>
-        <p>${data.ai_interpretation || "N/A"}</p>
-
-        <h3>Methodology</h3>
-        ${(data.methodology || []).map(m => `<p>• ${m}</p>`).join("")}
-
-        <h3>Evidence Analysis</h3>
-        ${Object.entries(data.evidence_analysis || {})
-          .map(([k,v]) => `<p><b>${k}:</b> ${v}</p>`).join("")}
-
-        <h3>Limitations</h3>
-        ${(data.limitations || []).map(l => `<p>• ${l}</p>`).join("")}
-
-        <h3>Recommendation</h3>
-        <p>${data.recommendation || "N/A"}</p>
-
-      </div>
+  <!-- ANALYSIS -->
+  <div id="analysis" class="tab-content">
+    <div class="section">
+      ${bar("ELA",data.confidence_breakdown?.ela)}
+      ${bar("Noise",data.confidence_breakdown?.noise)}
+      ${bar("Sharpness",data.confidence_breakdown?.sharpness)}
+      ${bar("AI",data.confidence_breakdown?.ai)}
     </div>
+  </div>
+
+  <!-- EXPERT -->
+  <div id="expert" class="tab-content">
+    <div class="section">
+      <p>${data.executive_summary}</p>
+      <p><b>${data.opinion}</b></p>
+      <p>${data.confidence_reasoning}</p>
+    </div>
+  </div>
   `;
+
+  setTimeout(()=>drawRegions(data.regions),300);
 }
 
+// -----------------------------
+// DRAW REGIONS
+// -----------------------------
+function drawRegions(regions){
+  const overlay = document.getElementById("overlay");
+  overlay.innerHTML="";
+
+  if(!regions) return;
+
+  regions.forEach((r,i)=>{
+    const box = document.createElement("div");
+
+    box.style.position="absolute";
+    box.style.border="2px solid red";
+    box.style.cursor="pointer";
+
+    box.style.left=r.x+"px";
+    box.style.top=r.y+"px";
+    box.style.width=r.w+"px";
+    box.style.height=r.h+"px";
+
+    box.onclick=()=>{
+      document.getElementById("regionInfo").innerHTML =
+        "<b>Region "+(i+1)+"</b><br>"+r.reason;
+    };
+
+    overlay.appendChild(box);
+  });
+}
 
 // -----------------------------
-// TABS
-// -----------------------------
-function openTab(evt, name) {
-  document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+function openTab(evt,name){
+  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
 
   document.getElementById(name).classList.add("active");
   evt.target.classList.add("active");
 }
 
-
 // -----------------------------
-// BAR
-// -----------------------------
-function bar(label, value) {
+function bar(label,val){
   return `
-    <div>${label}: ${value}</div>
+    <div>${label}: ${val}</div>
     <div class="bar">
-      <div class="bar-inner" style="width:${value}%"></div>
+      <div class="bar-inner" style="width:${val}%"></div>
     </div>
   `;
 }
 
+// -----------------------------
+function getColor(level){
+  if(level==="High") return "#ef4444";
+  if(level==="Moderate") return "#f59e0b";
+  return "#22c55e";
+}
 
 // -----------------------------
-// PDF
-// -----------------------------
-function downloadPDF() {
-  if (!currentData || !currentData.report) {
-    alert("Report not available");
-    return;
-  }
+function downloadPDF(){
+  if(!currentData?.report) return alert("No report");
   window.open(currentData.report);
 }
 
