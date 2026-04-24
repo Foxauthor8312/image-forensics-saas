@@ -39,8 +39,7 @@ def extract_metadata(path):
 
         return data
 
-    except Exception as e:
-        print("METADATA ERROR:", e)
+    except:
         return {"available": False}
 
 # -----------------------------
@@ -50,12 +49,10 @@ def extract_gps(path):
     try:
         img = Image.open(path)
         exif = img._getexif()
-
         if not exif:
             return None
 
         gps_info = None
-
         for tag, val in exif.items():
             if TAGS.get(tag) == "GPSInfo":
                 gps_info = val
@@ -93,59 +90,68 @@ def extract_gps(path):
 
         return {"lat": lat, "lon": lon}
 
-    except Exception as e:
-        print("GPS ERROR:", e)
+    except:
         return None
 
 # -----------------------------
-# ANALYSIS + HEATMAP
+# AI-STYLE ANALYSIS
 # -----------------------------
 def analyze_image(path, job_id):
 
     image = Image.open(path).convert("RGB")
 
+    # --- ELA ---
     temp = path + "_temp.jpg"
     image.save(temp, "JPEG", quality=90)
 
     diff = ImageChops.difference(image, Image.open(temp))
     ela = ImageEnhance.Brightness(diff).enhance(10)
+    ela_np = np.array(ela)
+    ela_gray = cv2.cvtColor(ela_np, cv2.COLOR_BGR2GRAY)
 
-    arr = np.array(ela)
-    score = int(np.mean(arr) / 255 * 100)
+    # --- OpenCV features ---
+    img = cv2.imread(path)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    if score > 60:
+    noise = cv2.absdiff(gray, cv2.GaussianBlur(gray,(5,5),0))
+    edges = cv2.Canny(gray, 100, 200)
+
+    # --- normalize ---
+    ela_n = cv2.normalize(ela_gray,None,0,255,cv2.NORM_MINMAX)
+    noise_n = cv2.normalize(noise,None,0,255,cv2.NORM_MINMAX)
+    edge_n = cv2.normalize(edges,None,0,255,cv2.NORM_MINMAX)
+
+    # --- combine (AI-style fusion) ---
+    combined = (
+        0.5 * ela_n +
+        0.3 * noise_n +
+        0.2 * edge_n
+    ).astype(np.uint8)
+
+    combined = cv2.GaussianBlur(combined,(5,5),0)
+    combined = cv2.equalizeHist(combined)
+
+    # --- scoring ---
+    score = int(np.mean(ela_gray)/255*100)
+    confidence = int(np.mean(combined)/255*100)
+
+    if confidence > 70:
         result = "Likely edited"
-    elif score > 30:
+    elif confidence > 40:
         result = "Possibly edited"
     else:
         result = "Likely original"
 
     # -----------------------------
-    # HEATMAP
+    # HEATMAP (NOW BASED ON AI MAP)
     # -----------------------------
-    try:
-        img = cv2.imread(path)
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    heat = cv2.applyColorMap(combined, cv2.COLORMAP_JET)
+    overlay = cv2.addWeighted(img, 0.6, heat, 0.4, 0)
 
-        blur = cv2.GaussianBlur(gray, (5,5), 0)
-        diff = cv2.absdiff(gray, blur)
+    heatmap_file = f"{job_id}_heatmap.jpg"
+    cv2.imwrite(os.path.join(UPLOAD_FOLDER, heatmap_file), overlay)
 
-        norm = cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX)
-        norm = cv2.equalizeHist(norm)
-
-        heat = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
-        overlay = cv2.addWeighted(img, 0.6, heat, 0.4, 0)
-
-        heatmap_file = f"{job_id}_heatmap.jpg"
-        heatmap_path = os.path.join(UPLOAD_FOLDER, heatmap_file)
-
-        cv2.imwrite(heatmap_path, overlay)
-
-    except Exception as e:
-        print("HEATMAP ERROR:", e)
-        heatmap_file = None
-
-    return score, result, heatmap_file
+    return score, confidence, result, heatmap_file
 
 # -----------------------------
 # API
@@ -164,7 +170,7 @@ def analyze():
         img = Image.open(path)
         width, height = img.size
 
-        score, result_text, heatmap_file = analyze_image(path, job_id)
+        score, confidence, result_text, heatmap_file = analyze_image(path, job_id)
 
         metadata = extract_metadata(path)
         gps = extract_gps(path)
@@ -174,11 +180,11 @@ def analyze():
             "result": {
                 "message": f"Image processed: {width}x{height}",
                 "score": score,
-                "confidence": score,
+                "confidence": confidence,
                 "analysis": result_text,
                 "metadata": metadata,
                 "gps": gps,
-                "heatmap": f"{BASE_URL}/files/{heatmap_file}" if heatmap_file else None
+                "heatmap": f"{BASE_URL}/files/{heatmap_file}"
             }
         })
 
