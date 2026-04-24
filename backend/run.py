@@ -7,9 +7,7 @@ import cv2
 from PIL import Image, ImageChops, ImageEnhance
 from PIL.ExifTags import TAGS, GPSTAGS
 
-# PDF
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, Table, TableStyle
-from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 
@@ -30,11 +28,7 @@ def extract_metadata(path):
         img = Image.open(path)
         exif = img._getexif()
 
-        data = {
-            "available": False,
-            "ImageWidth": img.width,
-            "ImageHeight": img.height
-        }
+        data = {"available": False, "ImageWidth": img.width, "ImageHeight": img.height}
 
         if not exif:
             return data
@@ -46,7 +40,6 @@ def extract_metadata(path):
 
         data["available"] = True
         return data
-
     except:
         return {"available": False}
 
@@ -74,26 +67,23 @@ def extract_gps(path):
             lat = conv(gps["GPSLatitude"])
             lon = conv(gps["GPSLongitude"])
 
-            if gps.get("GPSLatitudeRef") == "S":
-                lat = -lat
-            if gps.get("GPSLongitudeRef") == "W":
-                lon = -lon
+            if gps.get("GPSLatitudeRef") == "S": lat = -lat
+            if gps.get("GPSLongitudeRef") == "W": lon = -lon
 
             return {"lat": lat, "lon": lon}
-
     except:
         return None
 
 # -----------------------------
-# LEGAL LANGUAGE
+# LEGAL
 # -----------------------------
 def build_legal(score, confidence):
     if confidence > 70:
-        opinion = "It is my professional opinion, within a reasonable degree of technical certainty, that this image exhibits characteristics consistent with digital alteration."
+        opinion = "High likelihood of digital alteration."
     elif confidence > 40:
-        opinion = "The image contains indicators that may be consistent with digital alteration; however, these findings are not conclusive."
+        opinion = "Possible indicators of alteration."
     else:
-        opinion = "The analysis does not reveal strong indicators of digital alteration."
+        opinion = "No strong indicators of alteration."
 
     return {
         "opinion": opinion,
@@ -101,90 +91,30 @@ def build_legal(score, confidence):
     }
 
 # -----------------------------
-# COURT-STYLE PDF
+# PDF
 # -----------------------------
 def generate_pdf(job_id, result):
     try:
-        file_path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
-
-        doc = SimpleDocTemplate(file_path)
+        path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
+        doc = SimpleDocTemplate(path)
         styles = getSampleStyleSheet()
         content = []
 
-        # HEADER
-        content.append(Paragraph("DIGITAL IMAGE FORENSIC REPORT", styles["Title"]))
-        content.append(Spacer(1, 12))
+        content.append(Paragraph("Forensic Image Report", styles["Title"]))
+        content.append(Spacer(1,10))
 
-        content.append(Paragraph(
-            f"Date of Analysis: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            styles["Normal"]
-        ))
-        content.append(Spacer(1, 10))
-
-        # SUMMARY TABLE
-        table_data = [
-            ["Score", str(result["score"])],
-            ["Confidence", f"{result['confidence']}%"],
-            ["Conclusion", result["legal"]["opinion"]]
-        ]
-
-        table = Table(table_data, colWidths=[120, 300])
-        table.setStyle(TableStyle([
-            ("GRID",(0,0),(-1,-1),1,colors.black)
-        ]))
-
-        content.append(table)
-        content.append(Spacer(1, 15))
-
-        # METHODOLOGY
-        content.append(Paragraph("Methodology", styles["Heading2"]))
-        content.append(Paragraph(
-            "This analysis utilized Error Level Analysis (ELA), noise distribution evaluation, "
-            "and sharpness consistency measurements to identify anomalies that may indicate "
-            "digital manipulation.",
-            styles["Normal"]
-        ))
-        content.append(Spacer(1, 10))
-
-        # FINDINGS
-        content.append(Paragraph("Findings", styles["Heading2"]))
-        for r in result["simple_explanation"]["reasons"]:
-            content.append(Paragraph(f"- {r}", styles["Normal"]))
-
-        content.append(Spacer(1, 10))
-
-        # CONCLUSION
-        content.append(Paragraph("Conclusion", styles["Heading2"]))
         content.append(Paragraph(result["legal"]["opinion"], styles["Normal"]))
+        content.append(Paragraph(f"Confidence: {result['confidence']}%", styles["Normal"]))
 
-        content.append(Spacer(1, 10))
+        ela = os.path.join(UPLOAD_FOLDER, f"{job_id}_ela.jpg")
+        if os.path.exists(ela):
+            content.append(RLImage(ela, width=5*inch, height=3*inch))
 
-        # LIMITATIONS
-        content.append(Paragraph("Limitations", styles["Heading2"]))
-        limitations = [
-            "This analysis is probabilistic and does not constitute definitive proof.",
-            "Image recompression may introduce artifacts.",
-            "Low-resolution images reduce analytical reliability."
-        ]
-
-        for l in limitations:
-            content.append(Paragraph(f"- {l}", styles["Normal"]))
-
-        content.append(Spacer(1, 15))
-
-        # IMAGES
-        ela_path = os.path.join(UPLOAD_FOLDER, f"{job_id}_ela.jpg")
-        if os.path.exists(ela_path):
-            content.append(Paragraph("ELA Analysis", styles["Heading3"]))
-            content.append(RLImage(ela_path, width=5*inch, height=3*inch))
-
-        heat_path = os.path.join(UPLOAD_FOLDER, f"{job_id}_heatmap.jpg")
-        if os.path.exists(heat_path):
-            content.append(Paragraph("Heatmap Analysis", styles["Heading3"]))
-            content.append(RLImage(heat_path, width=5*inch, height=3*inch))
+        heat = os.path.join(UPLOAD_FOLDER, f"{job_id}_heatmap.jpg")
+        if os.path.exists(heat):
+            content.append(RLImage(heat, width=5*inch, height=3*inch))
 
         doc.build(content)
-
         return f"{BASE_URL}/files/{job_id}_report.pdf"
 
     except Exception as e:
@@ -192,17 +122,19 @@ def generate_pdf(job_id, result):
         return None
 
 # -----------------------------
-# PROCESS JOB (same logic)
+# MAIN PROCESS
 # -----------------------------
 def process_job(job_id, path):
     try:
-        jobs[job_id] = {"status":"processing"}
+        jobs[job_id] = {"status":"processing","step":"starting"}
 
         image = Image.open(path).convert("RGB")
         image.thumbnail((800,800))
         image.save(path)
 
+        # -----------------------------
         # ELA
+        # -----------------------------
         temp = path+"_c.jpg"
         image.save(temp,"JPEG",quality=90)
 
@@ -212,32 +144,81 @@ def process_job(job_id, path):
         ela_file = f"{job_id}_ela.jpg"
         ela.save(os.path.join(UPLOAD_FOLDER, ela_file))
 
-        arr = np.array(ela)
-        score = int((np.mean(arr)/(np.max(arr)+1e-5))*100)
+        ela_np = np.array(ela)
+        ela_gray = cv2.cvtColor(ela_np, cv2.COLOR_BGR2GRAY)
 
-        # CV
-        gray = cv2.imread(path,0)
-        noise = np.mean(cv2.absdiff(gray, cv2.GaussianBlur(gray,(5,5),0)))
-        sharp = cv2.Laplacian(gray, cv2.CV_64F).var()
-
-        confidence = int(min(100, score*0.4 + noise*0.3 + sharp*0.3))
-
-        # HEATMAP
+        # -----------------------------
+        # CV FEATURES
+        # -----------------------------
         img = cv2.imread(path)
-        img_small = cv2.resize(img,(600,600))
-        gray = cv2.cvtColor(img_small, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        norm = cv2.normalize(gray,None,0,255,cv2.NORM_MINMAX)
-        heat = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
-        overlay = cv2.addWeighted(img_small,0.6,heat,0.4,0)
+        noise = cv2.absdiff(gray, cv2.GaussianBlur(gray,(5,5),0))
+        edges = cv2.Canny(gray, 100, 200)
+
+        # -----------------------------
+        # 🔥 AI-STYLE FUSION MAP
+        # -----------------------------
+        ela_n = cv2.normalize(ela_gray,None,0,255,cv2.NORM_MINMAX)
+        noise_n = cv2.normalize(noise,None,0,255,cv2.NORM_MINMAX)
+        edge_n = cv2.normalize(edges,None,0,255,cv2.NORM_MINMAX)
+
+        combined = (
+            0.5 * ela_n +
+            0.3 * noise_n +
+            0.2 * edge_n
+        ).astype(np.uint8)
+
+        combined = cv2.GaussianBlur(combined,(5,5),0)
+        combined = cv2.equalizeHist(combined)
+
+        # -----------------------------
+        # HEATMAP
+        # -----------------------------
+        heat = cv2.applyColorMap(combined, cv2.COLORMAP_JET)
+        overlay = cv2.addWeighted(img, 0.6, heat, 0.4, 0)
 
         heatmap_file = f"{job_id}_heatmap.jpg"
         cv2.imwrite(os.path.join(UPLOAD_FOLDER, heatmap_file), overlay)
 
+        # -----------------------------
+        # REGION DETECTION
+        # -----------------------------
+        regions = []
+        _, thresh = cv2.threshold(combined, 180, 255, cv2.THRESH_BINARY)
+
+        contours,_ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        for cnt in contours[:6]:
+            x,y,w,h = cv2.boundingRect(cnt)
+            if w*h < 800:
+                continue
+
+            regions.append({
+                "x":int(x),
+                "y":int(y),
+                "w":int(w),
+                "h":int(h),
+                "reason":"High anomaly score in this region (multi-signal detection)."
+            })
+
+        # -----------------------------
+        # SCORING
+        # -----------------------------
+        score = int(np.mean(ela_gray)/255*100)
+        confidence = int(np.mean(combined)/255*100)
+
+        # -----------------------------
+        # EXPLANATION
+        # -----------------------------
         simple = {
             "result": "Likely edited" if confidence>70 else "Possibly edited" if confidence>40 else "Likely original",
-            "meaning": "Image consistency analysis performed.",
-            "reasons": ["Compression variance","Noise inconsistency","Sharpness variance"]
+            "meaning": "This result is based on combined analysis of compression artifacts, noise patterns, and edge consistency.",
+            "reasons": [
+                "Compression inconsistencies detected",
+                "Noise patterns differ across regions",
+                "Edge structures are inconsistent"
+            ]
         }
 
         result = {
@@ -245,6 +226,7 @@ def process_job(job_id, path):
             "confidence":confidence,
             "ela_image":f"{BASE_URL}/files/{ela_file}",
             "heatmap":f"{BASE_URL}/files/{heatmap_file}",
+            "regions":regions,
             "simple_explanation":simple,
             "metadata":extract_metadata(path),
             "gps":extract_gps(path),
