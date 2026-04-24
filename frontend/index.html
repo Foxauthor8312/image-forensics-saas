@@ -2,6 +2,9 @@
 <html>
 <head>
 <title>PixelProof</title>
+
+<script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+
 <style>
 body { background:#0f172a; color:white; font-family:Arial; }
 .container { max-width:1000px; margin:auto; padding:20px; }
@@ -25,14 +28,84 @@ body { background:#0f172a; color:white; font-family:Arial; }
 <script>
 
 const API = "https://pixelproof-backend-v2.onrender.com";
-let selectedFile = null;
 
-// 🔥 RAW FILE ONLY (NO PROCESSING)
-document.getElementById("file").onchange = (e) => {
+let selectedFile = null;
+let extractedMetadata = {};
+let gpsData = null;
+
+// -----------------------------
+// EXTRACT METADATA IN BROWSER
+// -----------------------------
+document.getElementById("file").onchange = function(e){
+
   selectedFile = e.target.files[0];
-  console.log("RAW FILE SELECTED:", selectedFile);
+
+  EXIF.getData(selectedFile, function(){
+
+    extractedMetadata = EXIF.getAllTags(this);
+
+    if(extractedMetadata.GPSLatitude && extractedMetadata.GPSLongitude){
+
+      function convert(coord){
+        return coord[0] + coord[1]/60 + coord[2]/3600;
+      }
+
+      let lat = convert(extractedMetadata.GPSLatitude);
+      let lon = convert(extractedMetadata.GPSLongitude);
+
+      if(extractedMetadata.GPSLatitudeRef === "S") lat = -lat;
+      if(extractedMetadata.GPSLongitudeRef === "W") lon = -lon;
+
+      gpsData = {lat, lon};
+    }
+
+    console.log("EXIF:", extractedMetadata);
+  });
 };
 
+// -----------------------------
+// RESIZE IMAGE (FOR ANALYSIS)
+// -----------------------------
+function resizeImage(file){
+  return new Promise(resolve=>{
+    const img = new Image();
+    const reader = new FileReader();
+
+    reader.onload = e => img.src = e.target.result;
+    reader.readAsDataURL(file);
+
+    img.onload = ()=>{
+      const canvas = document.createElement("canvas");
+
+      let w = img.width;
+      let h = img.height;
+      const MAX = 1200;
+
+      if(w > MAX || h > MAX){
+        if(w > h){
+          h *= MAX / w;
+          w = MAX;
+        } else {
+          w *= MAX / h;
+          h = MAX;
+        }
+      }
+
+      canvas.width = w;
+      canvas.height = h;
+
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
+
+      canvas.toBlob(blob=>{
+        resolve(new File([blob], file.name, {type:"image/jpeg"}));
+      }, "image/jpeg", 0.7);
+    };
+  });
+}
+
+// -----------------------------
+// UPLOAD
+// -----------------------------
 async function upload(){
 
   if(!selectedFile){
@@ -40,43 +113,49 @@ async function upload(){
     return;
   }
 
-  // 🚨 DO NOT MODIFY FILE
+  const resized = await resizeImage(selectedFile);
+
   const form = new FormData();
-  form.append("image", selectedFile);
-  form.append("original", selectedFile);
+  form.append("image", resized);
 
-  try {
+  // 🔥 SEND METADATA SEPARATELY
+  form.append("metadata", JSON.stringify(extractedMetadata));
+  form.append("gps", JSON.stringify(gpsData));
 
-    const res = await fetch(API + "/api/analyze", {
-      method: "POST",
-      body: form
-    });
+  const res = await fetch(API + "/api/analyze", {
+    method: "POST",
+    body: form
+  });
 
-    const data = await res.json();
+  const data = await res.json();
 
-    console.log("SERVER RESPONSE:", data);
+  render(data.result);
+}
 
-    document.getElementById("result").innerHTML = `
-      <div class="card">
-        <h2>${data.result.analysis}</h2>
-        <p>Score: ${data.result.score}</p>
-        <p>Confidence: ${data.result.confidence}%</p>
+// -----------------------------
+function render(data){
 
-        <hr>
+document.getElementById("result").innerHTML = `
+<div class="card">
 
-        <p><b>Metadata Available:</b> ${data.result.metadata?.available}</p>
-        <pre style="white-space:pre-wrap;">
-${JSON.stringify(data.result.metadata?.all, null, 2)}
-        </pre>
+<h2>${data.analysis}</h2>
 
-        <p><b>GPS:</b> ${JSON.stringify(data.result.gps)}</p>
-      </div>
-    `;
+<p>Score: ${data.score}</p>
+<p>Confidence: ${data.confidence}%</p>
 
-  } catch(err){
-    console.error(err);
-    document.getElementById("result").innerHTML = "Upload failed";
-  }
+<hr>
+
+<p><b>Summary:</b> ${data.simple_explanation}</p>
+
+<hr>
+
+<p><b>Metadata:</b></p>
+<pre>${JSON.stringify(data.metadata, null, 2)}</pre>
+
+<p><b>GPS:</b> ${JSON.stringify(data.gps)}</p>
+
+</div>
+`;
 }
 
 </script>
