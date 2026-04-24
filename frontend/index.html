@@ -96,6 +96,12 @@ document.getElementById("file").onchange = e => {
 async function upload(){
   if(!selectedFile) return alert("Select a file");
 
+  document.getElementById("result").innerHTML = "Waking server...";
+
+  try {
+    await fetch(API + "/health");
+  } catch {}
+
   document.getElementById("result").innerHTML = "Processing...";
 
   const form = new FormData();
@@ -118,7 +124,7 @@ async function upload(){
 
   } catch (err) {
     document.getElementById("result").innerHTML =
-      "Request failed: " + err;
+      "Connection failed. Backend may be asleep or URL is wrong.";
   }
 }
 
