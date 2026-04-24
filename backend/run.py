@@ -46,32 +46,48 @@ def extract_gps(path):
         if not exif:
             return None
 
-        gps_data = {}
+        gps_info = None
 
         for tag, val in exif.items():
             if TAGS.get(tag) == "GPSInfo":
-                for k in val:
-                    gps_data[GPSTAGS.get(k)] = val[k]
+                gps_info = val
+                break
 
-        if "GPSLatitude" in gps_data and "GPSLongitude" in gps_data:
+        if not gps_info:
+            return None
 
-            def convert(c):
-                return c[0][0]/c[0][1] + c[1][0]/c[1][1]/60 + c[2][0]/c[2][1]/3600
+        gps_data = {}
+        for k, v in gps_info.items():
+            gps_data[GPSTAGS.get(k)] = v
 
-            lat = convert(gps_data["GPSLatitude"])
-            lon = convert(gps_data["GPSLongitude"])
+        def convert(value):
+            try:
+                if isinstance(value[0], tuple):
+                    d = value[0][0] / value[0][1]
+                    m = value[1][0] / value[1][1]
+                    s = value[2][0] / value[2][1]
+                else:
+                    d, m, s = value
+                return d + (m / 60.0) + (s / 3600.0)
+            except:
+                return None
 
-            if gps_data.get("GPSLatitudeRef") == "S":
-                lat = -lat
-            if gps_data.get("GPSLongitudeRef") == "W":
-                lon = -lon
+        lat = convert(gps_data.get("GPSLatitude"))
+        lon = convert(gps_data.get("GPSLongitude"))
 
-            return {"lat": lat, "lon": lon}
+        if lat is None or lon is None:
+            return None
+
+        if gps_data.get("GPSLatitudeRef") == "S":
+            lat = -lat
+        if gps_data.get("GPSLongitudeRef") == "W":
+            lon = -lon
+
+        return {"lat": lat, "lon": lon}
 
     except Exception as e:
         print("GPS ERROR:", e)
-
-    return None
+        return None
 
 def analyze_image(path):
     image = Image.open(path).convert("RGB")
