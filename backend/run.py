@@ -5,8 +5,10 @@ import os, uuid
 from PIL import Image, ImageChops, ImageEnhance
 import piexif
 
-app = Flask(__name__)
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 
+app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 UPLOAD_FOLDER = "uploads"
@@ -15,17 +17,14 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 
 # -----------------------------
-# METADATA + GPS (PIEXIF)
+# METADATA + GPS
 # -----------------------------
 def extract_metadata_and_gps(path):
     try:
         img = Image.open(path)
         exif_data = img.info.get("exif")
 
-        metadata = {
-            "available": False,
-            "all": {}
-        }
+        metadata = {"available": False, "all": {}}
         gps = None
 
         if not exif_data:
@@ -38,21 +37,19 @@ def extract_metadata_and_gps(path):
             for tag in exif_dict[ifd]:
                 try:
                     name = piexif.TAGS[ifd][tag]["name"]
-                    value = exif_dict[ifd][tag]
-                    metadata["all"][name] = str(value)
+                    metadata["all"][name] = str(exif_dict[ifd][tag])
                 except:
                     pass
 
-        # GPS
         gps_ifd = exif_dict.get("GPS", {})
 
         if gps_ifd:
             def convert(coord):
                 try:
-                    d = coord[0][0] / coord[0][1]
-                    m = coord[1][0] / coord[1][1]
-                    s = coord[2][0] / coord[2][1]
-                    return d + (m/60) + (s/3600)
+                    d = coord[0][0]/coord[0][1]
+                    m = coord[1][0]/coord[1][1]
+                    s = coord[2][0]/coord[2][1]
+                    return d + m/60 + s/3600
                 except:
                     return None
 
@@ -70,28 +67,72 @@ def extract_metadata_and_gps(path):
         return metadata, gps
 
     except Exception as e:
-        print("PIEXIF ERROR:", e)
+        print("EXIF ERROR:", e)
         return {"available": False}, None
 
 # -----------------------------
 # EXPLANATIONS
 # -----------------------------
 def explain(score):
-    if score > 60:
-        return (
-            "Strong signs of editing were detected.",
-            "Significant irregularities in compression artifacts and pixel structure indicate likely digital manipulation."
-        )
-    elif score > 30:
-        return (
-            "Some unusual patterns detected.",
-            "Moderate anomalies suggest possible recompression or editing."
-        )
+
+    if score > 70:
+        return {
+            "simple": "The image shows strong signs of manipulation.",
+            "technical": "High levels of pixel inconsistency and compression artifacts were detected.",
+            "legal": "Significant irregularities in compression and structure indicate likely digital alteration.",
+            "confidence_note": "High confidence due to consistent anomaly patterns."
+        }
+
+    elif score > 40:
+        return {
+            "simple": "The image may have been altered.",
+            "technical": "Moderate inconsistencies detected in compression and pixel distribution.",
+            "legal": "Moderate anomalies suggest possible recompression or partial editing.",
+            "confidence_note": "Moderate confidence due to partial anomaly distribution."
+        }
+
     else:
-        return (
-            "Image appears original.",
-            "No material inconsistencies detected in compression or pixel structure."
-        )
+        return {
+            "simple": "No clear signs of editing were found.",
+            "technical": "Pixel structure and compression appear consistent.",
+            "legal": "No material irregularities detected. Image appears consistent with original capture.",
+            "confidence_note": "High confidence in authenticity."
+        }
+
+# -----------------------------
+# PDF REPORT
+# -----------------------------
+def generate_pdf(job_id, data):
+    path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
+
+    doc = SimpleDocTemplate(path)
+    styles = getSampleStyleSheet()
+
+    content = []
+
+    content.append(Paragraph("Digital Image Forensic Report", styles["Title"]))
+    content.append(Spacer(1, 12))
+
+    content.append(Paragraph(f"Result: {data['analysis']}", styles["Normal"]))
+    content.append(Paragraph(f"Score: {data['score']}", styles["Normal"]))
+    content.append(Paragraph(f"Confidence: {data['confidence']}%", styles["Normal"]))
+    content.append(Spacer(1, 12))
+
+    content.append(Paragraph("Summary", styles["Heading2"]))
+    content.append(Paragraph(data["simple_explanation"], styles["Normal"]))
+
+    content.append(Paragraph("Technical Findings", styles["Heading2"]))
+    content.append(Paragraph(data["technical_explanation"], styles["Normal"]))
+
+    content.append(Paragraph("Conclusion", styles["Heading2"]))
+    content.append(Paragraph(data["legal_explanation"], styles["Normal"]))
+
+    content.append(Paragraph("Confidence Statement", styles["Heading2"]))
+    content.append(Paragraph(data["confidence_note"], styles["Normal"]))
+
+    doc.build(content)
+
+    return f"{BASE_URL}/files/{job_id}_report.pdf"
 
 # -----------------------------
 # ANALYSIS
@@ -108,28 +149,27 @@ def analyze_image(path, job_id):
 
     gray = ela.convert("L")
     pixels = list(gray.getdata())
-    mean_val = sum(pixels) / len(pixels)
+    mean = sum(pixels)/len(pixels)
 
-    score = int((mean_val / 255) * 100)
+    score = int((mean/255)*100)
     confidence = score
 
     result = (
-        "Likely edited" if score > 60 else
-        "Possibly edited" if score > 30 else
+        "Likely edited" if score > 70 else
+        "Possibly edited" if score > 40 else
         "Likely original"
     )
 
-    simple, legal = explain(score)
+    exp = explain(score)
 
-    # heatmap
     heat = ela.convert("RGB")
     heat = ImageEnhance.Color(heat).enhance(3)
     heat = ImageEnhance.Contrast(heat).enhance(2)
 
-    heatmap_file = f"{job_id}_heatmap.jpg"
-    heat.save(os.path.join(UPLOAD_FOLDER, heatmap_file))
+    heat_file = f"{job_id}_heatmap.jpg"
+    heat.save(os.path.join(UPLOAD_FOLDER, heat_file))
 
-    return score, confidence, result, simple, legal, heatmap_file
+    return score, confidence, result, exp, heat_file
 
 # -----------------------------
 # API
@@ -139,38 +179,31 @@ def analyze():
 
     file = request.files.get("image")
     if not file:
-        return jsonify({"error": "No file"}), 400
+        return {"error":"No file"},400
 
     job_id = str(uuid.uuid4())
     path = os.path.join(UPLOAD_FOLDER, job_id + ".jpg")
     file.save(path)
 
-    try:
-        img = Image.open(path)
-        w, h = img.size
+    score, confidence, result, exp, heat = analyze_image(path, job_id)
+    metadata, gps = extract_metadata_and_gps(path)
 
-        score, confidence, result, simple, legal, heatmap = analyze_image(path, job_id)
+    result_data = {
+        "analysis": result,
+        "score": score,
+        "confidence": confidence,
+        "simple_explanation": exp["simple"],
+        "technical_explanation": exp["technical"],
+        "legal_explanation": exp["legal"],
+        "confidence_note": exp["confidence_note"],
+        "metadata": metadata,
+        "gps": gps,
+        "heatmap": f"{BASE_URL}/files/{heat}"
+    }
 
-        metadata, gps = extract_metadata_and_gps(path)
+    result_data["pdf_report"] = generate_pdf(job_id, result_data)
 
-        return jsonify({
-            "status": "done",
-            "result": {
-                "message": f"{w}x{h} processed",
-                "analysis": result,
-                "score": score,
-                "confidence": confidence,
-                "simple_explanation": simple,
-                "legal_explanation": legal,
-                "metadata": metadata,
-                "gps": gps,
-                "heatmap": f"{BASE_URL}/files/{heatmap}"
-            }
-        })
-
-    except Exception as e:
-        print("ERROR:", e)
-        return jsonify({"status":"error","error":str(e)})
+    return jsonify({"status":"done","result":result_data})
 
 @app.route("/files/<filename>")
 def files(filename):
