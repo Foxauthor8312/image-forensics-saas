@@ -4,79 +4,20 @@
 <title>PixelProof</title>
 
 <style>
-body {
-  background:#0f172a;
-  color:white;
-  font-family:Arial;
-  margin:0;
-}
+body { background:#0f172a; color:white; font-family:Arial; }
+.container { max-width:1000px; margin:auto; padding:20px; }
 
-.container {
-  max-width:1000px;
-  margin:auto;
-  padding:20px;
-}
+.tabs { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
+.tab { padding:10px; background:#334155; cursor:pointer; }
+.tab.active { background:#3b82f6; }
 
-h1 { text-align:center; }
+.tab-content { display:none; margin-top:20px; }
+.tab-content.active { display:block; }
 
-button {
-  padding:10px 20px;
-  background:#3b82f6;
-  border:none;
-  color:white;
-  border-radius:6px;
-  cursor:pointer;
-  margin-top:10px;
-}
+.card { background:#020617; padding:15px; margin-top:10px; }
 
-/* Tabs */
-.tabs {
-  display:flex;
-  gap:10px;
-  margin-top:20px;
-  flex-wrap:wrap;
-}
-
-.tab {
-  padding:10px;
-  background:#334155;
-  cursor:pointer;
-  border-radius:6px;
-}
-
-.tab.active {
-  background:#3b82f6;
-}
-
-.tab-content {
-  display:none;
-  margin-top:20px;
-}
-
-.tab-content.active {
-  display:block;
-}
-
-/* Cards */
-.card {
-  background:#020617;
-  padding:15px;
-  border-radius:8px;
-  margin-top:10px;
-}
-
-/* Images */
-.image-row {
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-  margin-top:10px;
-}
-
-.image-box {
-  flex:1 1 48%;
-}
-
+.image-row { display:flex; gap:10px; flex-wrap:wrap; }
+.image-box { flex:1 1 48%; }
 .image-box img {
   width:100%;
   max-height:400px;
@@ -93,7 +34,6 @@ button {
 <h1>PixelProof 🔍</h1>
 
 <input type="file" id="file">
-<br>
 <button onclick="upload()">Analyze</button>
 
 <div id="result"></div>
@@ -102,170 +42,112 @@ button {
 
 <script>
 
-const API = "https://pixelproof-backend-v2.onrender.com";
-let selectedFile = null;
+const API="https://pixelproof-backend-v2.onrender.com";
+let selectedFile=null;
 
-document.getElementById("file").onchange = e => {
-  selectedFile = e.target.files[0];
-};
+file.onchange=e=>selectedFile=e.target.files[0];
 
-// -----------------------------
-// UPLOAD
-// -----------------------------
 async function upload(){
 
   if(!selectedFile){
-    alert("Select a file first");
+    alert("Select a file");
     return;
   }
 
-  const resultDiv = document.getElementById("result");
-  resultDiv.innerHTML = "Processing...";
+  document.getElementById("result").innerHTML="Processing...";
 
-  const form = new FormData();
-  form.append("image", selectedFile);
+  const form=new FormData();
+  form.append("image",selectedFile);
 
   try {
+    await fetch(API+"/health").catch(()=>{});
 
-    // Wake backend (Render-safe)
-    try { await fetch(API + "/health"); } catch {}
+    const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+    const data=await res.json();
 
-    const res = await fetch(API + "/api/analyze", {
-      method:"POST",
-      body:form
-    });
-
-    if(!res.ok){
-      throw new Error("Server error: " + res.status);
-    }
-
-    const data = await res.json();
-
-    if(data.status === "done"){
+    if(data.status==="done"){
       render(data.result);
     } else {
-      resultDiv.innerHTML = "Error: " + (data.error || "Unknown error");
+      document.getElementById("result").innerHTML="Error: "+data.error;
     }
 
   } catch(err){
-    resultDiv.innerHTML = `
-      <b>Connection failed</b><br><br>
-      ${err}<br><br>
-      Try again (backend may be waking up)
-    `;
+    document.getElementById("result").innerHTML="Connection failed";
   }
 }
 
-// -----------------------------
-// RENDER
-// -----------------------------
 function render(data){
 
-  document.getElementById("result").innerHTML = `
+document.getElementById("result").innerHTML=`
 
-<h3>${data.message || ""}</h3>
+<h3>${data.message}</h3>
 
 <div class="tabs">
-  <div class="tab active" onclick="openTab(event,'results')">Results</div>
-  <div class="tab" onclick="openTab(event,'map')">Map</div>
-  <div class="tab" onclick="openTab(event,'meta')">Metadata</div>
+<div class="tab active" onclick="tab(event,'r')">Results</div>
+<div class="tab" onclick="tab(event,'map')">Map</div>
+<div class="tab" onclick="tab(event,'meta')">Metadata</div>
 </div>
 
 <!-- RESULTS -->
-<div id="results" class="tab-content active">
+<div id="r" class="tab-content active">
 
-  <div class="card">
-    <h2>${data.analysis || "No analysis"}</h2>
+<div class="card">
+<h2>${data.analysis}</h2>
+<p><b>Score:</b> ${data.score}</p>
+<p><b>Confidence:</b> ${data.confidence}%</p>
+</div>
 
-    <p><b>Score:</b> ${data.score ?? "N/A"}</p>
-    <p><b>Confidence:</b> ${data.confidence ?? "N/A"}%</p>
+<div class="image-row">
 
-    <p style="opacity:0.7;margin-top:10px;">
-      Higher values indicate stronger signs of potential editing.
-    </p>
-  </div>
+<div class="image-box">
+<p><b>Original</b></p>
+<img src="${URL.createObjectURL(selectedFile)}">
+</div>
 
-  <div class="image-row">
+<div class="image-box">
+<p><b>Heatmap</b></p>
+${
+data.heatmap
+? `<img src="${data.heatmap}">`
+: `<div style="height:400px;display:flex;align-items:center;justify-content:center;background:#111;">
+     <span>No heatmap</span>
+   </div>`
+}
+</div>
 
-    <!-- ORIGINAL -->
-    <div class="image-box">
-      <p><b>Original</b></p>
-      <img src="${URL.createObjectURL(selectedFile)}">
-    </div>
-
-    <!-- HEATMAP -->
-    <div class="image-box">
-      <p><b>Heatmap</b></p>
-      ${
-        data.heatmap
-        ? `<img src="${data.heatmap}">`
-        : `<div style="height:400px;display:flex;align-items:center;justify-content:center;background:#111;border-radius:8px;">
-             <span style="opacity:0.6;">No heatmap available</span>
-           </div>`
-      }
-    </div>
-
-  </div>
+</div>
 
 </div>
 
 <!-- MAP -->
 <div id="map" class="tab-content">
-  <div class="card">
-    ${
-      data.gps
-      ? `
-        <p><b>Coordinates:</b> ${data.gps.lat.toFixed(6)}, ${data.gps.lon.toFixed(6)}</p>
-
-        <iframe
-          width="100%"
-          height="400"
-          style="border:0;border-radius:8px;margin-top:10px;"
-          loading="lazy"
-          allowfullscreen
-          src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed">
-        </iframe>
-      `
-      : `
-        <p>No GPS data found.</p>
-        <p style="opacity:0.7;">
-          GPS must be in standard EXIF format to display.
-        </p>
-      `
-    }
-  </div>
+${
+data.gps
+? `<iframe width="100%" height="400"
+src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed"></iframe>`
+: "<p>No GPS data</p>"
+}
 </div>
 
 <!-- METADATA -->
 <div id="meta" class="tab-content">
-  <div class="card">
-    ${
-      data.metadata?.available
-      ? Object.entries(data.metadata.all)
-          .map(([k,v]) => `<p><b>${k}:</b> ${v}</p>`)
-          .join("")
-      : `
-        <p>No metadata found.</p>
-        <p style="opacity:0.7;">
-          Common for screenshots or processed images.
-        </p>
-      `
-    }
-  </div>
+<div class="card">
+${
+data.metadata?.available
+? Object.entries(data.metadata.all).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")
+: "<p>No metadata</p>"
+}
 </div>
-
+</div>
 `;
 }
 
-// -----------------------------
-function openTab(evt, name){
-  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-
-  document.getElementById(name).classList.add("active");
-  evt.target.classList.add("active");
+function tab(e,id){
+document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+document.getElementById(id).classList.add("active");
+e.target.classList.add("active");
 }
-
 </script>
 
 </body>
