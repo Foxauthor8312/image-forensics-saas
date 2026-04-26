@@ -22,7 +22,7 @@ def explain(score):
     if score > 70:
         return {
             "simple": "Strong signs of manipulation detected.",
-            "technical": "High pixel inconsistency and compression anomalies detected.",
+            "technical": "High pixel inconsistency and compression anomalies detected across multiple regions.",
             "legal": "Significant irregularities in pixel structure and compression patterns indicate likely digital alteration.",
             "confidence_note": "High confidence due to consistent anomaly patterns."
         }
@@ -42,7 +42,7 @@ def explain(score):
         }
 
 # -----------------------------
-# PDF GENERATION
+# PDF
 # -----------------------------
 def generate_pdf(job_id, data):
     path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
@@ -77,13 +77,12 @@ def generate_pdf(job_id, data):
     return f"{BASE_URL}/files/{job_id}_report.pdf"
 
 # -----------------------------
-# IMAGE ANALYSIS
+# ANALYSIS
 # -----------------------------
 def analyze_image(path, job_id):
 
     image = Image.open(path).convert("RGB")
 
-    # ELA
     temp = path + "_temp.jpg"
     image.save(temp, "JPEG", quality=90)
 
@@ -105,7 +104,6 @@ def analyze_image(path, job_id):
 
     explanations = explain(score)
 
-    # Heatmap
     heat = ela.convert("RGB")
     heat = ImageEnhance.Color(heat).enhance(3)
     heat = ImageEnhance.Contrast(heat).enhance(2)
@@ -125,7 +123,6 @@ def analyze():
     if not file:
         return jsonify({"error": "No file"}), 400
 
-    # 🔥 Metadata from frontend
     metadata = json.loads(request.form.get("metadata", "{}"))
     gps = json.loads(request.form.get("gps", "null"))
 
@@ -133,47 +130,32 @@ def analyze():
     path = os.path.join(UPLOAD_FOLDER, job_id + ".jpg")
     file.save(path)
 
-    try:
-        score, confidence, result, exp, heatmap = analyze_image(path, job_id)
+    score, confidence, result, exp, heatmap = analyze_image(path, job_id)
 
-        result_data = {
-            "analysis": result,
-            "score": score,
-            "confidence": confidence,
-            "simple_explanation": exp["simple"],
-            "technical_explanation": exp["technical"],
-            "legal_explanation": exp["legal"],
-            "confidence_note": exp["confidence_note"],
-            "metadata": {
-                "available": bool(metadata),
-                "all": metadata
-            },
-            "gps": gps,
-            "heatmap": f"{BASE_URL}/files/{heatmap}"
-        }
+    result_data = {
+        "analysis": result,
+        "score": score,
+        "confidence": confidence,
+        "simple_explanation": exp["simple"],
+        "technical_explanation": exp["technical"],
+        "legal_explanation": exp["legal"],
+        "confidence_note": exp["confidence_note"],
+        "metadata": {
+            "available": bool(metadata),
+            "all": metadata
+        },
+        "gps": gps,
+        "heatmap": f"{BASE_URL}/files/{heatmap}"
+    }
 
-        # Generate PDF
-        result_data["pdf_report"] = generate_pdf(job_id, result_data)
+    result_data["pdf_report"] = generate_pdf(job_id, result_data)
 
-        return jsonify({
-            "status": "done",
-            "result": result_data
-        })
+    return jsonify({"status": "done", "result": result_data})
 
-    except Exception as e:
-        print("ERROR:", e)
-        return jsonify({"status": "error", "error": str(e)})
-
-# -----------------------------
-# FILE SERVING
-# -----------------------------
 @app.route("/files/<filename>")
 def files(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
-# -----------------------------
-# HEALTH CHECK
-# -----------------------------
 @app.route("/health")
 def health():
     return {"status": "ok"}
