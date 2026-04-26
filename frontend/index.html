@@ -3,7 +3,6 @@
 <head>
 <title>PixelProof</title>
 
-<!-- PWA -->
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#0f172a">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -20,33 +19,37 @@ button {
   border:none;
   border-radius:6px;
   color:white;
+  margin-right:10px;
 }
 
+#installBtn { display:none; background:#22c55e; }
+
+/* progress */
+#progress-container { display:none; margin-top:15px; }
+.progress-bar { width:100%; height:8px; background:#1e293b; border-radius:5px; overflow:hidden; }
+.progress-fill { height:100%; width:0%; background:#3b82f6; transition:0.4s; }
+
+/* tabs */
 .tabs { display:flex; gap:10px; margin-top:20px; }
 .tab { padding:10px; background:#1e293b; border-radius:6px; cursor:pointer; }
 .tab.active { background:#3b82f6; }
-
 .tab-content { display:none; margin-top:20px; }
 .tab-content.active { display:block; }
 
+/* card */
 .card { background:#020617; padding:18px; border-radius:10px; margin-top:15px; }
 
+/* images */
 .image-row { display:flex; gap:15px; flex-wrap:wrap; margin-top:20px; }
 .image-box { flex:1 1 48%; }
 .image-box img { width:100%; max-height:420px; object-fit:contain; }
 
+/* gauge */
 .gauge { width:120px; height:120px; position:relative; }
 .gauge svg { transform:rotate(-90deg); }
 .gauge-text {
   position:absolute; top:50%; left:50%;
   transform:translate(-50%,-50%);
-}
-
-/* Install button */
-#installBtn {
-  display:none;
-  margin-top:10px;
-  background:#22c55e;
 }
 </style>
 </head>
@@ -59,11 +62,16 @@ button {
 
 <button id="installBtn">Install App</button>
 
-<input type="file" id="file" accept="image/jpeg">
-<button onclick="upload()">Analyze</button>
+<br><br>
 
-<div id="progress-container" style="display:none;">
-  <p id="status">Processing...</p>
+<input type="file" id="file" accept="image/*">
+<button onclick="upload()">Upload Image</button>
+
+<button onclick="capturePhoto()">📷 Capture Photo</button>
+
+<div id="progress-container">
+  <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+  <p id="status">Preparing...</p>
 </div>
 
 <div id="result"></div>
@@ -74,39 +82,110 @@ button {
 
 const API="https://pixelproof-backend-v2.onrender.com";
 
-let deferredPrompt;
-const installBtn = document.getElementById("installBtn");
-
-/* INSTALL PROMPT */
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  installBtn.style.display = "inline-block";
-});
-
-installBtn.onclick = async () => {
-  deferredPrompt.prompt();
-  await deferredPrompt.userChoice;
-  installBtn.style.display = "none";
-};
-
-/* SERVICE WORKER */
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js');
-}
-
-/* STATE */
 let selectedFile=null;
 let metadata={};
 let gps=null;
 
-/* EXIF */
+/* INSTALL */
+let deferredPrompt;
+const installBtn=document.getElementById("installBtn");
+
+window.addEventListener('beforeinstallprompt', e=>{
+  e.preventDefault();
+  deferredPrompt=e;
+  installBtn.style.display="inline-block";
+});
+
+installBtn.onclick=async()=>{
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  installBtn.style.display="none";
+};
+
+/* SERVICE WORKER */
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js');
+}
+
+/* FILE INPUT */
 file.onchange=e=>{
   selectedFile=e.target.files[0];
+
   EXIF.getData(selectedFile,function(){
     metadata=EXIF.getAllTags(this);
   });
 };
+
+/* CAMERA MODE */
+async function capturePhoto(){
+
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({video:true});
+
+    const video = document.createElement("video");
+    video.srcObject = stream;
+    video.play();
+
+    const overlay = document.createElement("div");
+    overlay.style.position="fixed";
+    overlay.style.top=0;
+    overlay.style.left=0;
+    overlay.style.width="100%";
+    overlay.style.height="100%";
+    overlay.style.background="#000";
+    overlay.style.zIndex=9999;
+    overlay.appendChild(video);
+
+    const btn=document.createElement("button");
+    btn.innerText="Capture";
+    btn.style.position="absolute";
+    btn.style.bottom="20px";
+    btn.style.left="50%";
+    btn.style.transform="translateX(-50%)";
+
+    overlay.appendChild(btn);
+    document.body.appendChild(overlay);
+
+    btn.onclick=async()=>{
+      const canvas=document.createElement("canvas");
+      canvas.width=video.videoWidth;
+      canvas.height=video.videoHeight;
+      canvas.getContext("2d").drawImage(video,0,0);
+
+      canvas.toBlob(blob=>{
+        selectedFile=new File([blob],"capture.jpg",{type:"image/jpeg"});
+      });
+
+      stream.getTracks().forEach(t=>t.stop());
+      document.body.removeChild(overlay);
+
+      gps = await getDeviceLocation();
+
+      alert("Photo captured. Now press Upload Image.");
+    };
+
+  }catch(e){
+    alert("Camera not available");
+  }
+}
+
+/* GPS fallback */
+function getDeviceLocation(){
+  return new Promise(resolve=>{
+    if(!navigator.geolocation) return resolve(null);
+
+    navigator.geolocation.getCurrentPosition(
+      pos=>resolve({lat:pos.coords.latitude,lon:pos.coords.longitude}),
+      ()=>resolve(null)
+    );
+  });
+}
+
+/* progress */
+function setProgress(p,t){
+  document.getElementById("progress-fill").style.width=p+"%";
+  document.getElementById("status").innerText=t;
+}
 
 /* GAUGE */
 function gauge(v,label){
@@ -141,18 +220,30 @@ function renderExplanations(d){
 
 /* UPLOAD */
 async function upload(){
-  if(!selectedFile) return alert("Select file");
 
-  document.getElementById("progress-container").style.display="block";
+  if(!selectedFile) return alert("Select or capture image");
+
+  const progress=document.getElementById("progress-container");
+  progress.style.display="block";
+
+  setProgress(20,"Preparing...");
+
+  let finalGPS = gps || await getDeviceLocation();
 
   const form=new FormData();
   form.append("image",selectedFile);
   form.append("metadata",JSON.stringify(metadata));
+  form.append("gps",JSON.stringify(finalGPS));
+
+  setProgress(50,"Uploading...");
 
   const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+
+  setProgress(80,"Analyzing...");
+
   const data=await res.json();
 
-  document.getElementById("progress-container").style.display="none";
+  setProgress(100,"Done");
 
   render(data.result);
 }
@@ -186,12 +277,8 @@ ${renderExplanations(d)}
 </div>
 
 <div class="image-row">
-<div class="image-box">
-<img src="${URL.createObjectURL(selectedFile)}">
-</div>
-<div class="image-box">
-<img src="${d.heatmap}">
-</div>
+<div class="image-box"><img src="${URL.createObjectURL(selectedFile)}"></div>
+<div class="image-box"><img src="${d.heatmap}"></div>
 </div>
 
 </div>
