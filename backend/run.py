@@ -15,6 +15,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 
+# -----------------------------
+# HASH
+# -----------------------------
 def generate_file_hash(path):
     sha256 = hashlib.sha256()
     with open(path, "rb") as f:
@@ -22,6 +25,9 @@ def generate_file_hash(path):
             sha256.update(chunk)
     return sha256.hexdigest()
 
+# -----------------------------
+# EXPLANATIONS
+# -----------------------------
 def explain(score):
     if score > 70:
         return {
@@ -45,6 +51,9 @@ def explain(score):
             "confidence_note": "High confidence in authenticity."
         }
 
+# -----------------------------
+# ANALYSIS
+# -----------------------------
 def analyze_image(path, job_id):
     image = Image.open(path).convert("RGB")
 
@@ -78,6 +87,9 @@ def analyze_image(path, job_id):
 
     return score, confidence, result, exp, heat_file
 
+# -----------------------------
+# FULL FORENSIC PDF
+# -----------------------------
 def generate_pdf(job_id, data):
     path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
 
@@ -85,31 +97,92 @@ def generate_pdf(job_id, data):
     styles = getSampleStyleSheet()
     content = []
 
-    content.append(Paragraph("Digital Image Forensic Report", styles["Title"]))
-    content.append(Spacer(1,12))
+    content.append(Paragraph("Digital Image Forensic Analysis Report", styles["Title"]))
+    content.append(Spacer(1, 12))
 
+    # 1 Summary
+    content.append(Paragraph("<b>1. Analysis Summary</b>", styles["Heading2"]))
     content.append(Paragraph(f"Result: {data['analysis']}", styles["Normal"]))
-    content.append(Paragraph(f"Score: {data['score']}", styles["Normal"]))
+    content.append(Paragraph(f"Score: {data['score']} / 100", styles["Normal"]))
     content.append(Paragraph(f"Confidence: {data['confidence']}%", styles["Normal"]))
-    content.append(Spacer(1,12))
+    content.append(Spacer(1, 12))
 
-    content.append(Paragraph("Technical Findings", styles["Heading2"]))
+    # 2 Score Interpretation
+    content.append(Paragraph("<b>2. Score Interpretation</b>", styles["Heading2"]))
+
+    if data["score"] > 70:
+        txt = "High irregularity indicating likely manipulation or editing."
+    elif data["score"] > 40:
+        txt = "Moderate irregularities—possible editing or recompression."
+    else:
+        txt = "High consistency—no meaningful signs of manipulation detected."
+
+    content.append(Paragraph(txt, styles["Normal"]))
+    content.append(Spacer(1, 12))
+
+    # 3 Methodology
+    content.append(Paragraph("<b>3. Methodology (ELA)</b>", styles["Heading2"]))
+    content.append(Paragraph(
+        "Error Level Analysis evaluates how uniformly an image responds to recompression. "
+        "Edited regions typically show inconsistent compression behavior.",
+        styles["Normal"]
+    ))
+    content.append(Spacer(1, 12))
+
+    # 4 Technical
+    content.append(Paragraph("<b>4. Technical Findings</b>", styles["Heading2"]))
     content.append(Paragraph(data["technical_explanation"], styles["Normal"]))
-    content.append(Spacer(1,12))
+    content.append(Spacer(1, 12))
 
-    content.append(Paragraph("Conclusion", styles["Heading2"]))
-    content.append(Paragraph(data["legal_explanation"], styles["Normal"]))
-    content.append(Spacer(1,12))
+    # 5 Confidence
+    content.append(Paragraph("<b>5. Confidence</b>", styles["Heading2"]))
+    content.append(Paragraph(data["confidence_note"], styles["Normal"]))
+    content.append(Spacer(1, 12))
 
-    content.append(Paragraph("Forensic Integrity", styles["Heading2"]))
+    # 6 Metadata
+    content.append(Paragraph("<b>6. Metadata</b>", styles["Heading2"]))
+    if data["metadata"]["available"]:
+        for k, v in list(data["metadata"]["all"].items())[:15]:
+            content.append(Paragraph(f"{k}: {v}", styles["Normal"]))
+    else:
+        content.append(Paragraph("No metadata available.", styles["Normal"]))
+    content.append(Spacer(1, 12))
+
+    # 7 GPS
+    content.append(Paragraph("<b>7. GPS</b>", styles["Heading2"]))
+    if data["gps"]:
+        content.append(Paragraph(f"Lat: {data['gps']['lat']}", styles["Normal"]))
+        content.append(Paragraph(f"Lon: {data['gps']['lon']}", styles["Normal"]))
+    else:
+        content.append(Paragraph("No GPS data available.", styles["Normal"]))
+    content.append(Spacer(1, 12))
+
+    # 8 Limitations
+    content.append(Paragraph("<b>8. Limitations</b>", styles["Heading2"]))
+    content.append(Paragraph(
+        "Recompression, resizing, and platform processing can introduce artifacts that resemble editing.",
+        styles["Normal"]
+    ))
+    content.append(Spacer(1, 12))
+
+    # 9 Integrity
+    content.append(Paragraph("<b>9. Forensic Integrity</b>", styles["Heading2"]))
     content.append(Paragraph(f"Timestamp: {data['integrity']['timestamp']}", styles["Normal"]))
     content.append(Paragraph(f"Dimensions: {data['integrity']['width']} x {data['integrity']['height']}", styles["Normal"]))
     content.append(Paragraph(f"File Size: {data['integrity']['file_size']}", styles["Normal"]))
     content.append(Paragraph(f"SHA-256: {data['integrity']['hash']}", styles["Normal"]))
+    content.append(Spacer(1, 12))
+
+    # 10 Conclusion
+    content.append(Paragraph("<b>10. Conclusion</b>", styles["Heading2"]))
+    content.append(Paragraph(data["legal_explanation"], styles["Normal"]))
 
     doc.build(content)
     return f"{BASE_URL}/files/{job_id}_report.pdf"
 
+# -----------------------------
+# API
+# -----------------------------
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
 
@@ -124,6 +197,7 @@ def analyze():
     path = os.path.join(UPLOAD_FOLDER, job_id+".jpg")
     file.save(path)
 
+    # Integrity
     file_hash = generate_file_hash(path)
     image = Image.open(path)
     width, height = image.size
