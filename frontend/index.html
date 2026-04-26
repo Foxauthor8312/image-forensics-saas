@@ -2,13 +2,16 @@
 <html>
 <head>
 <title>PixelProof</title>
-<div id="installHelp" style="margin-top:10px; opacity:0.8;"></div>
-  
+
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#0f172a">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+
+<!-- LEAFLET -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <style>
 body { background:#0f172a; color:white; font-family:system-ui; margin:0; }
@@ -20,15 +23,13 @@ button {
   border:none;
   border-radius:6px;
   color:white;
-  margin-right:10px;
+  margin:5px;
 }
-
-#installBtn { display:none; background:#22c55e; }
 
 /* progress */
 #progress-container { display:none; margin-top:15px; }
 .progress-bar { width:100%; height:8px; background:#1e293b; border-radius:5px; overflow:hidden; }
-.progress-fill { height:100%; width:0%; background:#3b82f6; transition:0.4s; }
+.progress-fill { height:100%; width:0%; background:#3b82f6; }
 
 /* tabs */
 .tabs { display:flex; gap:10px; margin-top:20px; }
@@ -41,7 +42,7 @@ button {
 .card { background:#020617; padding:18px; border-radius:10px; margin-top:15px; }
 
 /* images */
-.image-row { display:flex; gap:15px; flex-wrap:wrap; margin-top:20px; }
+.image-row { display:flex; gap:15px; flex-wrap:wrap; }
 .image-box { flex:1 1 48%; }
 .image-box img { width:100%; max-height:420px; object-fit:contain; }
 
@@ -52,6 +53,9 @@ button {
   position:absolute; top:50%; left:50%;
   transform:translate(-50%,-50%);
 }
+
+/* map */
+#map { height:400px; border-radius:10px; }
 </style>
 </head>
 
@@ -61,14 +65,9 @@ button {
 
 <h1>PixelProof 🔍</h1>
 
-<button id="installBtn">Install App</button>
-
-<br><br>
-
-<input type="file" id="file" accept="image/*">
-<button onclick="upload()">Upload Image</button>
-
-<button onclick="capturePhoto()">📷 Capture Photo</button>
+<input type="file" id="file">
+<button onclick="upload()">Upload</button>
+<button onclick="capturePhoto()">📷 Capture</button>
 
 <div id="progress-container">
   <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
@@ -87,102 +86,86 @@ let selectedFile=null;
 let metadata={};
 let gps=null;
 
-/* INSTALL */
-let deferredPrompt;
-const installBtn=document.getElementById("installBtn");
+/* EXIF */
+function extractGPS(meta){
+  if(!meta.GPSLatitude) return null;
 
-window.addEventListener('beforeinstallprompt', e=>{
-  e.preventDefault();
-  deferredPrompt=e;
-  installBtn.style.display="inline-block";
-});
+  const conv=c=>c[0]+c[1]/60+c[2]/3600;
 
-installBtn.onclick=async()=>{
-  deferredPrompt.prompt();
-  await deferredPrompt.userChoice;
-  installBtn.style.display="none";
-};
+  let lat=conv(meta.GPSLatitude);
+  let lon=conv(meta.GPSLongitude);
 
-/* SERVICE WORKER */
-if ('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js');
+  if(meta.GPSLatitudeRef==="S") lat=-lat;
+  if(meta.GPSLongitudeRef==="W") lon=-lon;
+
+  return {lat,lon};
 }
 
-/* FILE INPUT */
 file.onchange=e=>{
   selectedFile=e.target.files[0];
-
   EXIF.getData(selectedFile,function(){
     metadata=EXIF.getAllTags(this);
+    gps=extractGPS(metadata);
   });
 };
 
-/* CAMERA MODE */
-async function capturePhoto(){
-
-  try{
-    const stream = await navigator.mediaDevices.getUserMedia({video:true});
-
-    const video = document.createElement("video");
-    video.srcObject = stream;
-    video.play();
-
-    const overlay = document.createElement("div");
-    overlay.style.position="fixed";
-    overlay.style.top=0;
-    overlay.style.left=0;
-    overlay.style.width="100%";
-    overlay.style.height="100%";
-    overlay.style.background="#000";
-    overlay.style.zIndex=9999;
-    overlay.appendChild(video);
-
-    const btn=document.createElement("button");
-    btn.innerText="Capture";
-    btn.style.position="absolute";
-    btn.style.bottom="20px";
-    btn.style.left="50%";
-    btn.style.transform="translateX(-50%)";
-
-    overlay.appendChild(btn);
-    document.body.appendChild(overlay);
-
-    btn.onclick=async()=>{
-      const canvas=document.createElement("canvas");
-      canvas.width=video.videoWidth;
-      canvas.height=video.videoHeight;
-      canvas.getContext("2d").drawImage(video,0,0);
-
-      canvas.toBlob(blob=>{
-        selectedFile=new File([blob],"capture.jpg",{type:"image/jpeg"});
-      });
-
-      stream.getTracks().forEach(t=>t.stop());
-      document.body.removeChild(overlay);
-
-      gps = await getDeviceLocation();
-
-      alert("Photo captured. Now press Upload Image.");
-    };
-
-  }catch(e){
-    alert("Camera not available");
-  }
-}
-
-/* GPS fallback */
+/* DEVICE GPS */
 function getDeviceLocation(){
   return new Promise(resolve=>{
-    if(!navigator.geolocation) return resolve(null);
-
     navigator.geolocation.getCurrentPosition(
-      pos=>resolve({lat:pos.coords.latitude,lon:pos.coords.longitude}),
-      ()=>resolve(null)
+      pos=>resolve({
+        lat:pos.coords.latitude,
+        lon:pos.coords.longitude,
+        accuracy:pos.coords.accuracy
+      }),
+      ()=>resolve(null),
+      {enableHighAccuracy:true,timeout:10000}
     );
   });
 }
 
-/* progress */
+/* CAMERA */
+async function capturePhoto(){
+  const stream=await navigator.mediaDevices.getUserMedia({video:true});
+  const video=document.createElement("video");
+  video.srcObject=stream;
+  video.play();
+
+  const overlay=document.createElement("div");
+  overlay.style.position="fixed";
+  overlay.style.inset="0";
+  overlay.style.background="#000";
+  overlay.style.zIndex=9999;
+  overlay.appendChild(video);
+
+  const btn=document.createElement("button");
+  btn.innerText="Capture";
+  btn.style.position="absolute";
+  btn.style.bottom="20px";
+  btn.style.left="50%";
+  btn.style.transform="translateX(-50%)";
+
+  overlay.appendChild(btn);
+  document.body.appendChild(overlay);
+
+  btn.onclick=async()=>{
+    const canvas=document.createElement("canvas");
+    canvas.width=video.videoWidth;
+    canvas.height=video.videoHeight;
+    canvas.getContext("2d").drawImage(video,0,0);
+
+    canvas.toBlob(blob=>{
+      selectedFile=new File([blob],"capture.jpg",{type:"image/jpeg"});
+    });
+
+    stream.getTracks().forEach(t=>t.stop());
+    document.body.removeChild(overlay);
+
+    gps=await getDeviceLocation();
+  };
+}
+
+/* PROGRESS */
 function setProgress(p,t){
   document.getElementById("progress-fill").style.width=p+"%";
   document.getElementById("status").innerText=t;
@@ -208,14 +191,13 @@ function gauge(v,label){
   </div>`;
 }
 
-/* LOCKED EXPLANATIONS */
-function renderExplanations(d){
+/* EXPLANATIONS */
+function explain(d){
   return `
   <hr>
   <p><b>Summary:</b><br>${d.simple_explanation}</p>
   <p><b>Technical:</b><br>${d.technical_explanation}</p>
   <p><b>Conclusion:</b><br>${d.legal_explanation}</p>
-  <p><b>Confidence:</b><br>${d.confidence_note}</p>
   `;
 }
 
@@ -224,24 +206,20 @@ async function upload(){
 
   if(!selectedFile) return alert("Select or capture image");
 
-  const progress=document.getElementById("progress-container");
-  progress.style.display="block";
+  document.getElementById("progress-container").style.display="block";
 
   setProgress(20,"Preparing...");
 
-  let finalGPS = gps || await getDeviceLocation();
+  let finalGPS=gps||await getDeviceLocation();
 
   const form=new FormData();
   form.append("image",selectedFile);
   form.append("metadata",JSON.stringify(metadata));
   form.append("gps",JSON.stringify(finalGPS));
 
-  setProgress(50,"Uploading...");
+  setProgress(60,"Uploading...");
 
   const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-
-  setProgress(80,"Analyzing...");
-
   const data=await res.json();
 
   setProgress(100,"Done");
@@ -256,8 +234,7 @@ document.getElementById("result").innerHTML=`
 
 <div class="tabs">
   <div class="tab active" onclick="tab(event,'r')">Results</div>
-  <div class="tab" onclick="tab(event,'map')">Map</div>
-  <div class="tab" onclick="tab(event,'meta')">Metadata</div>
+  <div class="tab" onclick="tab(event,'mapTab')">Map</div>
 </div>
 
 <div id="r" class="tab-content active">
@@ -271,7 +248,7 @@ ${gauge(d.score,"Score")}
 ${gauge(d.confidence,"Confidence")}
 </div>
 
-${renderExplanations(d)}
+${explain(d)}
 
 <a href="${d.pdf_report}" target="_blank">Download PDF</a>
 
@@ -284,23 +261,35 @@ ${renderExplanations(d)}
 
 </div>
 
-<div id="map" class="tab-content">
-${
-d.gps
-? `<iframe width="100%" height="400"
-src="https://www.google.com/maps?q=${d.gps.lat},${d.gps.lon}&output=embed"></iframe>`
-: "No GPS data"
-}
-</div>
-
-<div id="meta" class="tab-content">
-<div class="card">
-${Object.entries(d.metadata.all||{}).map(([k,v])=>`${k}: ${v}<br>`).join("")}
-</div>
+<div id="mapTab" class="tab-content">
+<div id="map"></div>
 </div>
 `;
+
+setTimeout(()=>initMap(d.gps),200);
 }
 
+/* MAP WITH ACCURACY */
+function initMap(gps){
+
+  if(!gps) return;
+
+  const map=L.map('map').setView([gps.lat,gps.lon],15);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+  L.marker([gps.lat,gps.lon]).addTo(map);
+
+  if(gps.accuracy){
+    L.circle([gps.lat,gps.lon],{
+      radius:gps.accuracy,
+      color:"blue",
+      fillOpacity:0.2
+    }).addTo(map);
+  }
+}
+
+/* TABS */
 function tab(e,id){
 document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
 document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
@@ -309,6 +298,5 @@ e.target.classList.add("active");
 }
 
 </script>
-
 </body>
 </html>
