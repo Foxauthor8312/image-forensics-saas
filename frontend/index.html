@@ -203,18 +203,51 @@ document.getElementById("result").innerHTML = `
 <p><b>Score:</b> ${data.score} / 100</p>
 <p><b>Confidence:</b> ${data.confidence}%</p>
 
+<p style="margin-top:10px; opacity:0.9;">
+  <b>Score Interpretation:</b><br>
+  ${
+    data.score > 70
+      ? "This score indicates a high level of irregularity in pixel structure and compression patterns. Such values are commonly associated with deliberate digital alterations, compositing, or localized editing."
+      : data.score > 40
+      ? "This score reflects moderate irregularities. These may result from editing, image recompression, or platform processing. While not definitive, the image warrants closer inspection."
+      : "This score indicates a high level of structural consistency. The image does not exhibit meaningful signs of manipulation based on compression and pixel analysis."
+  }
+</p>
+
+<p style="margin-top:10px; opacity:0.9;">
+  <b>What the Score Measures:</b><br>
+  The score is derived from Error Level Analysis (ELA), which evaluates how uniformly an image responds to recompression. Edited regions often compress differently than the rest of the image, creating detectable inconsistencies.
+</p>
+
 <hr>
 
 <p><b>Summary:</b><br>${data.simple_explanation}</p>
-<p><b>Technical:</b><br>${data.technical_explanation}</p>
+
+<p><b>Technical Analysis:</b><br>${data.technical_explanation}</p>
+
+<p style="margin-top:10px; opacity:0.9;">
+  <b>Confidence Explanation:</b><br>
+  ${
+    data.confidence > 70
+      ? "High confidence: Detected anomalies are strong and consistently distributed across the image, increasing reliability of the assessment."
+      : data.confidence > 40
+      ? "Moderate confidence: Some anomalies are present, but distribution is uneven or less pronounced."
+      : "High confidence in authenticity: The image maintains consistent compression and pixel structure throughout."
+  }
+</p>
+
+<p style="margin-top:10px; opacity:0.9;">
+  <b>Important Note:</b><br>
+  Compression artifacts can also be introduced by saving, exporting, or sharing images across platforms. This analysis should be considered alongside image history and source context.
+</p>
+
 <p><b>Conclusion:</b><br>${data.legal_explanation}</p>
-<p><b>Confidence:</b><br>${data.confidence_note}</p>
 
 <br>
 
 <a href="${data.pdf_report}" target="_blank"
-style="padding:10px;background:#22c55e;color:white;border-radius:6px;">
-Download PDF Report
+style="display:inline-block;padding:10px;background:#22c55e;color:white;border-radius:6px;">
+Download Forensic PDF Report
 </a>
 
 </div>
