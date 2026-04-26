@@ -4,56 +4,28 @@
 <title>PixelProof</title>
 
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#0f172a">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
-
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <style>
-body { background:#0f172a; color:white; font-family:system-ui; margin:0; }
-.container { max-width:1100px; margin:auto; padding:20px; }
+body{background:#0f172a;color:white;font-family:system-ui;}
+.container{max-width:1100px;margin:auto;padding:20px;}
+button{padding:10px;background:#3b82f6;border:none;color:white;margin:5px;border-radius:6px;}
 
-button {
-  padding:10px 16px;
-  background:#3b82f6;
-  border:none;
-  border-radius:6px;
-  color:white;
-  margin:5px;
-  cursor:pointer;
-}
+.tabs{display:flex;gap:10px;margin-top:20px;}
+.tab{padding:10px;background:#1e293b;border-radius:6px;cursor:pointer;}
+.tab.active{background:#3b82f6;}
+.tab-content{display:none;margin-top:20px;}
+.tab-content.active{display:block;}
 
-#installBtn { display:none; background:#22c55e; }
+.image-row{display:flex;gap:15px;flex-wrap:wrap;}
+.image-box{flex:1 1 48%;}
+.image-box img{width:100%;max-height:400px;object-fit:contain;}
 
-/* progress */
-#progress-container { display:none; margin-top:15px; }
-.progress-bar { width:100%; height:8px; background:#1e293b; border-radius:5px; overflow:hidden; }
-.progress-fill { height:100%; width:0%; background:#3b82f6; }
-
-/* tabs */
-.tabs { display:flex; gap:10px; margin-top:20px; }
-.tab { padding:10px; background:#1e293b; border-radius:6px; cursor:pointer; }
-.tab.active { background:#3b82f6; }
-.tab-content { display:none; margin-top:20px; }
-.tab-content.active { display:block; }
-
-.card { background:#020617; padding:18px; border-radius:10px; margin-top:15px; }
-
-.image-row { display:flex; gap:15px; flex-wrap:wrap; }
-.image-box { flex:1 1 48%; }
-.image-box img { width:100%; max-height:420px; object-fit:contain; }
-
-.gauge { width:120px; height:120px; position:relative; }
-.gauge svg { transform:rotate(-90deg); }
-.gauge-text {
-  position:absolute; top:50%; left:50%;
-  transform:translate(-50%,-50%);
-}
-
-#map { height:400px; border-radius:10px; }
+#map{height:400px;}
 </style>
 </head>
 
@@ -63,23 +35,9 @@ button {
 
 <h1>PixelProof 🔍</h1>
 
-<!-- INSTALL -->
-<button id="installBtn">Install App</button>
-<div id="installHelp" style="opacity:0.8; margin-bottom:10px;"></div>
-
-<!-- INPUTS -->
-<input type="file" id="file" accept="image/*">
-
-<br>
-
-<button onclick="capturePhoto()">📷 Capture Photo</button>
-<button onclick="analyzeImage()" style="background:#22c55e;">Analyze Image</button>
-
-<!-- PROGRESS -->
-<div id="progress-container">
-  <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
-  <p id="status">Preparing...</p>
-</div>
+<input type="file" id="file">
+<button onclick="capturePhoto()">📷 Capture</button>
+<button onclick="analyzeImage()" style="background:#22c55e;">Analyze</button>
 
 <div id="result"></div>
 
@@ -88,240 +46,110 @@ button {
 <script>
 
 const API="https://pixelproof-backend-v2.onrender.com";
+let selectedFile=null,gps=null,metadata={};
 
-let selectedFile=null;
-let metadata={};
-let gps=null;
+file.onchange=e=>{
+selectedFile=e.target.files[0];
+EXIF.getData(selectedFile,function(){
+metadata=EXIF.getAllTags(this);
+});
+};
 
-/* INSTALL LOGIC */
-let deferredPrompt;
-const installBtn=document.getElementById("installBtn");
+async function getDeviceLocation(){
+return new Promise(r=>{
+navigator.geolocation.getCurrentPosition(p=>r({
+lat:p.coords.latitude,
+lon:p.coords.longitude,
+accuracy:p.coords.accuracy
+}),()=>r(null));
+});
+}
 
-window.addEventListener('beforeinstallprompt', e=>{
-  e.preventDefault();
-  deferredPrompt=e;
-  installBtn.style.display="inline-block";
+async function capturePhoto(){
+const stream=await navigator.mediaDevices.getUserMedia({video:true});
+const video=document.createElement("video");
+video.srcObject=stream;video.play();
+
+const canvas=document.createElement("canvas");
+
+setTimeout(()=>{
+canvas.width=video.videoWidth;
+canvas.height=video.videoHeight;
+canvas.getContext("2d").drawImage(video,0,0);
+
+canvas.toBlob(async blob=>{
+selectedFile=new File([blob],"capture.jpg");
+gps=await getDeviceLocation();
+alert("Captured. Tap Analyze.");
 });
 
-installBtn.onclick=async()=>{
-  deferredPrompt.prompt();
-  await deferredPrompt.userChoice;
-  installBtn.style.display="none";
-};
-
-function isIOS(){
-  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+stream.getTracks().forEach(t=>t.stop());
+},2000);
 }
 
-function showInstallHelp(){
-  const el=document.getElementById("installHelp");
-
-  if(isIOS()){
-    el.innerHTML="📱 Tap Share → Add to Home Screen";
-  } else {
-    el.innerHTML="📱 Tap Install App button or browser menu";
-  }
-}
-showInstallHelp();
-
-/* SERVICE WORKER */
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js');
-}
-
-/* FILE INPUT */
-file.onchange=e=>{
-  selectedFile=e.target.files[0];
-
-  EXIF.getData(selectedFile,function(){
-    metadata=EXIF.getAllTags(this);
-    gps=extractGPS(metadata);
-  });
-};
-
-/* EXIF GPS */
-function extractGPS(meta){
-  if(!meta.GPSLatitude) return null;
-
-  const c=x=>x[0]+x[1]/60+x[2]/3600;
-
-  let lat=c(meta.GPSLatitude);
-  let lon=c(meta.GPSLongitude);
-
-  if(meta.GPSLatitudeRef==="S") lat=-lat;
-  if(meta.GPSLongitudeRef==="W") lon=-lon;
-
-  return {lat,lon};
-}
-
-/* DEVICE GPS */
-function getDeviceLocation(){
-  return new Promise(resolve=>{
-    navigator.geolocation.getCurrentPosition(
-      pos=>resolve({
-        lat:pos.coords.latitude,
-        lon:pos.coords.longitude,
-        accuracy:pos.coords.accuracy
-      }),
-      ()=>resolve(null),
-      {enableHighAccuracy:true,timeout:10000}
-    );
-  });
-}
-
-/* CAMERA */
-async function capturePhoto(){
-  const stream=await navigator.mediaDevices.getUserMedia({video:true});
-  const video=document.createElement("video");
-  video.srcObject=stream;
-  video.play();
-
-  const overlay=document.createElement("div");
-  overlay.style.position="fixed";
-  overlay.style.inset="0";
-  overlay.style.background="#000";
-  overlay.style.zIndex=9999;
-  overlay.appendChild(video);
-
-  const btn=document.createElement("button");
-  btn.innerText="Capture";
-  btn.style.position="absolute";
-  btn.style.bottom="20px";
-  btn.style.left="50%";
-  btn.style.transform="translateX(-50%)";
-
-  overlay.appendChild(btn);
-  document.body.appendChild(overlay);
-
-  btn.onclick=async()=>{
-    const canvas=document.createElement("canvas");
-    canvas.width=video.videoWidth;
-    canvas.height=video.videoHeight;
-    canvas.getContext("2d").drawImage(video,0,0);
-
-    canvas.toBlob(blob=>{
-      selectedFile=new File([blob],"capture.jpg",{type:"image/jpeg"});
-    });
-
-    stream.getTracks().forEach(t=>t.stop());
-    document.body.removeChild(overlay);
-
-    gps=await getDeviceLocation();
-    alert("Photo captured. Now tap Analyze Image.");
-  };
-}
-
-/* PROGRESS */
-function setProgress(p,t){
-  document.getElementById("progress-fill").style.width=p+"%";
-  document.getElementById("status").innerText=t;
-}
-
-/* ANALYZE */
 async function analyzeImage(){
 
-  if(!selectedFile) return alert("Select or capture an image first");
+if(!selectedFile) return alert("Select image");
 
-  document.getElementById("progress-container").style.display="block";
+const form=new FormData();
+form.append("image",selectedFile);
+form.append("metadata",JSON.stringify(metadata));
 
-  setProgress(20,"Preparing...");
+if(!gps) gps=await getDeviceLocation();
+form.append("gps",JSON.stringify(gps));
 
-  let finalGPS=gps||await getDeviceLocation();
+const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+const data=await res.json();
 
-  const form=new FormData();
-  form.append("image",selectedFile);
-  form.append("metadata",JSON.stringify(metadata));
-  form.append("gps",JSON.stringify(finalGPS));
-
-  setProgress(60,"Uploading...");
-
-  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-  const data=await res.json();
-
-  setProgress(100,"Done");
-
-  render(data.result);
+render(data.result);
 }
 
-/* GAUGE */
-function gauge(v,label){
-  const r=50,c=2*Math.PI*r;
-  const o=c-(v/100)*c;
-  const color=v>70?"#22c55e":v>40?"#f59e0b":"#ef4444";
-
-  return `
-  <div>
-    <div class="gauge">
-      <svg width="120" height="120">
-        <circle cx="60" cy="60" r="${r}" stroke="#1e293b" stroke-width="10" fill="none"/>
-        <circle cx="60" cy="60" r="${r}" stroke="${color}" stroke-width="10"
-          stroke-dasharray="${c}" stroke-dashoffset="${o}" fill="none"/>
-      </svg>
-      <div class="gauge-text">${v}</div>
-    </div>
-    <div style="text-align:center">${label}</div>
-  </div>`;
-}
-
-/* RENDER */
 function render(d){
 
 document.getElementById("result").innerHTML=`
+
 <div class="tabs">
-  <div class="tab active" onclick="tab(event,'r')">Results</div>
-  <div class="tab" onclick="tab(event,'mapTab')">Map</div>
+<div class="tab active" onclick="tab(event,'r')">Results</div>
+<div class="tab" onclick="tab(event,'mapTab')">Map</div>
+<div class="tab" onclick="tab(event,'aboutTab')">About</div>
 </div>
 
 <div id="r" class="tab-content active">
-
-<div class="card">
 <h2>${d.analysis}</h2>
 
-<div style="display:flex; gap:30px;">
-${gauge(d.score,"Score")}
-${gauge(d.confidence,"Confidence")}
-</div>
-
 <p>${d.simple_explanation}</p>
-
-<a href="${d.pdf_report}" target="_blank">Download PDF</a>
-</div>
 
 <div class="image-row">
 <div class="image-box"><img src="${URL.createObjectURL(selectedFile)}"></div>
 <div class="image-box"><img src="${d.heatmap}"></div>
 </div>
 
+<a href="${d.pdf_report}" target="_blank">Download PDF</a>
 </div>
 
-<div id="mapTab" class="tab-content">
-<div id="map"></div>
+<div id="mapTab" class="tab-content"><div id="map"></div></div>
+
+<div id="aboutTab" class="tab-content">
+<p>PixelProof - Digital Image Forensics Tool</p>
+<p>Barry Mattison-Off Road Artist Photography</p>
 </div>
 `;
 
 setTimeout(()=>initMap(d.gps),200);
 }
 
-/* MAP */
 function initMap(gps){
-  if(!gps) return;
+if(!gps) return;
 
-  const map=L.map('map').setView([gps.lat,gps.lon],15);
+const map=L.map('map').setView([gps.lat,gps.lon],15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.marker([gps.lat,gps.lon]).addTo(map);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-  L.marker([gps.lat,gps.lon]).addTo(map);
-
-  if(gps.accuracy){
-    L.circle([gps.lat,gps.lon],{
-      radius:gps.accuracy,
-      color:"blue",
-      fillOpacity:0.2
-    }).addTo(map);
-  }
+if(gps.accuracy){
+L.circle([gps.lat,gps.lon],{radius:gps.accuracy}).addTo(map);
+}
 }
 
-/* TABS */
 function tab(e,id){
 document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
 document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
@@ -330,6 +158,8 @@ e.target.classList.add("active");
 }
 
 </script>
+
+<!-- YOUR EXACT FOOTER -->
 <div style="
   margin-top:40px;
   padding-top:15px;
@@ -341,6 +171,6 @@ e.target.classList.add("active");
   PixelProof © 2026 Barry Mattison-Off Road Artist Photography<br>
   Digital Image Forensics Tool
 </div>
-  
+
 </body>
 </html>
