@@ -20,6 +20,7 @@ body { background:#0f172a; color:white; font-family:Arial; }
 
 .image-row { display:flex; gap:10px; flex-wrap:wrap; }
 .image-box { flex:1 1 48%; }
+.image-box img { width:100%; max-height:400px; object-fit:contain; }
 
 #progress-container { display:none; margin-top:20px; }
 
@@ -58,7 +59,7 @@ body { background:#0f172a; color:white; font-family:Arial; }
   <div class="progress-bar">
     <div class="progress-fill"></div>
   </div>
-  <p id="status">Starting...</p>
+  <p id="status">Starting analysis...</p>
 </div>
 
 <div id="result"></div>
@@ -73,15 +74,23 @@ let selectedFile = null;
 let extractedMetadata = {};
 let gpsData = null;
 
+// -----------------------------
+// EXIF EXTRACTION
+// -----------------------------
 file.onchange = function(e){
   selectedFile = e.target.files[0];
 
   EXIF.getData(selectedFile, function(){
     extractedMetadata = EXIF.getAllTags(this);
 
-    if(extractedMetadata.GPSLatitude){
-      let lat = extractedMetadata.GPSLatitude[0] + extractedMetadata.GPSLatitude[1]/60 + extractedMetadata.GPSLatitude[2]/3600;
-      let lon = extractedMetadata.GPSLongitude[0] + extractedMetadata.GPSLongitude[1]/60 + extractedMetadata.GPSLongitude[2]/3600;
+    if(extractedMetadata.GPSLatitude && extractedMetadata.GPSLongitude){
+
+      function convert(coord){
+        return coord[0] + coord[1]/60 + coord[2]/3600;
+      }
+
+      let lat = convert(extractedMetadata.GPSLatitude);
+      let lon = convert(extractedMetadata.GPSLongitude);
 
       if(extractedMetadata.GPSLatitudeRef === "S") lat = -lat;
       if(extractedMetadata.GPSLongitudeRef === "W") lon = -lon;
@@ -91,10 +100,14 @@ file.onchange = function(e){
   });
 };
 
+// -----------------------------
+// RESIZE (analysis only)
+// -----------------------------
 function resizeImage(file){
   return new Promise(resolve=>{
     const img=new Image();
     const reader=new FileReader();
+
     reader.onload=e=>img.src=e.target.result;
     reader.readAsDataURL(file);
 
@@ -110,6 +123,7 @@ function resizeImage(file){
 
       canvas.width=w;
       canvas.height=h;
+
       canvas.getContext("2d").drawImage(img,0,0,w,h);
 
       canvas.toBlob(blob=>{
@@ -119,13 +133,24 @@ function resizeImage(file){
   });
 }
 
+// -----------------------------
+// UPLOAD
+// -----------------------------
 async function upload(){
 
-  if(!selectedFile) return alert("Select file");
+  if(!selectedFile){
+    alert("Select file");
+    return;
+  }
 
-  document.getElementById("progress-container").style.display="block";
-  document.getElementById("analyzeBtn").disabled=true;
-  document.getElementById("status").innerText="Processing image...";
+  const progress = document.getElementById("progress-container");
+  const status = document.getElementById("status");
+  const btn = document.getElementById("analyzeBtn");
+
+  progress.style.display="block";
+  btn.disabled = true;
+
+  status.innerText="Preparing image...";
 
   const resized = await resizeImage(selectedFile);
 
@@ -134,27 +159,111 @@ async function upload(){
   form.append("metadata",JSON.stringify(extractedMetadata));
   form.append("gps",JSON.stringify(gpsData));
 
-  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-  const data=await res.json();
+  try {
 
-  document.getElementById("progress-container").style.display="none";
-  document.getElementById("analyzeBtn").disabled=false;
+    status.innerText="Uploading...";
+    const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
 
-  render(data.result);
+    status.innerText="Analyzing...";
+    const data=await res.json();
+
+    status.innerText="Finalizing...";
+    render(data.result);
+
+  } catch(err){
+    console.error(err);
+    document.getElementById("result").innerHTML="Error occurred";
+  }
+
+  progress.style.display="none";
+  btn.disabled = false;
 }
 
+// -----------------------------
+// RENDER FULL UI
+// -----------------------------
 function render(data){
-document.getElementById("result").innerHTML=`
-<div class="card">
-<h2>${data.analysis}</h2>
-<p>Score: ${data.score}</p>
-<p>Confidence: ${data.confidence}%</p>
-<p>${data.simple_explanation}</p>
-<a href="${data.pdf_report}" target="_blank">Download PDF</a>
+
+document.getElementById("result").innerHTML = `
+
+<h3>Analysis Result</h3>
+
+<div class="tabs">
+  <div class="tab active" onclick="tab(event,'r')">Results</div>
+  <div class="tab" onclick="tab(event,'map')">Map</div>
+  <div class="tab" onclick="tab(event,'meta')">Metadata</div>
 </div>
+
+<div id="r" class="tab-content active">
+
+<div class="card">
+
+<h2>${data.analysis}</h2>
+
+<p><b>Score:</b> ${data.score} / 100</p>
+<p><b>Confidence:</b> ${data.confidence}%</p>
+
+<hr>
+
+<p><b>Summary:</b><br>${data.simple_explanation}</p>
+<p><b>Technical:</b><br>${data.technical_explanation}</p>
+<p><b>Conclusion:</b><br>${data.legal_explanation}</p>
+<p><b>Confidence:</b><br>${data.confidence_note}</p>
+
+<br>
+
+<a href="${data.pdf_report}" target="_blank"
+style="padding:10px;background:#22c55e;color:white;border-radius:6px;">
+Download PDF Report
+</a>
+
+</div>
+
+<div class="image-row">
+  <div class="image-box">
+    <p><b>Original</b></p>
+    <img src="${URL.createObjectURL(selectedFile)}">
+  </div>
+
+  <div class="image-box">
+    <p><b>Heatmap</b></p>
+    <img src="${data.heatmap}">
+  </div>
+</div>
+
+</div>
+
+<div id="map" class="tab-content">
+${
+data.gps
+? `<iframe width="100%" height="400"
+src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed"></iframe>`
+: "<p>No GPS data found</p>"
+}
+</div>
+
+<div id="meta" class="tab-content">
+<div class="card">
+${
+data.metadata?.available
+? Object.entries(data.metadata.all).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")
+: "<p>No metadata found</p>"
+}
+</div>
+</div>
+
 `;
 }
 
+// -----------------------------
+function tab(e,id){
+document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+document.getElementById(id).classList.add("active");
+e.target.classList.add("active");
+}
+
 </script>
+
 </body>
 </html>
