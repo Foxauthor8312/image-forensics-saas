@@ -9,25 +9,83 @@
 body { background:#0f172a; color:white; font-family:system-ui; }
 .container { max-width:1100px; margin:auto; padding:20px; }
 
+/* BUTTON */
+button {
+  padding:10px 16px;
+  background:#3b82f6;
+  border:none;
+  border-radius:6px;
+  color:white;
+  cursor:pointer;
+}
+button:disabled { opacity:0.5; }
+
+/* PROGRESS */
+#progress-container { display:none; margin-top:15px; }
+.progress-bar {
+  width:100%;
+  height:8px;
+  background:#1e293b;
+  border-radius:5px;
+  overflow:hidden;
+}
+.progress-fill {
+  height:100%;
+  background:#3b82f6;
+  animation: progressAnim 2s infinite;
+}
+@keyframes progressAnim {
+  0%{width:0%} 50%{width:70%} 100%{width:100%}
+}
+
+/* TABS */
 .tabs { display:flex; gap:10px; margin-top:20px; }
-.tab { padding:10px; background:#1e293b; cursor:pointer; border-radius:6px; }
+.tab {
+  padding:10px;
+  background:#1e293b;
+  border-radius:6px;
+  cursor:pointer;
+}
 .tab.active { background:#3b82f6; }
 
-.tab-content { display:none; }
+.tab-content { display:none; margin-top:20px; }
 .tab-content.active { display:block; }
 
-.card { background:#020617; padding:20px; border-radius:10px; margin-top:15px; }
+/* CARD */
+.card {
+  background:#020617;
+  padding:18px;
+  border-radius:10px;
+  margin-top:15px;
+}
 
-.image-row { display:flex; gap:15px; flex-wrap:wrap; margin-top:20px; }
-.image-box { flex:1 1 48%; text-align:center; }
+/* IMAGES */
+.image-row {
+  display:flex;
+  gap:15px;
+  flex-wrap:wrap;
+  margin-top:20px;
+}
+.image-box {
+  flex:1 1 48%;
+  text-align:center;
+}
+.image-box img {
+  width:100%;
+  max-height:420px;
+  object-fit:contain;
+  border-radius:8px;
+}
 
-#progress-container { display:none; margin-top:20px; }
-
+/* GAUGE */
 .gauge { width:120px; height:120px; position:relative; }
 .gauge svg { transform:rotate(-90deg); }
 .gauge-text {
-  position:absolute; top:50%; left:50%;
+  position:absolute;
+  top:50%;
+  left:50%;
   transform:translate(-50%,-50%);
+  font-weight:bold;
 }
 </style>
 </head>
@@ -38,10 +96,15 @@ body { background:#0f172a; color:white; font-family:system-ui; }
 
 <h1>PixelProof 🔍</h1>
 
-<input type="file" id="file">
-<button onclick="upload()" id="btn">Analyze</button>
+<input type="file" id="file" accept="image/jpeg">
+<button id="btn" onclick="upload()">Analyze</button>
 
-<div id="progress-container">Analyzing...</div>
+<div id="progress-container">
+  <div class="progress-bar">
+    <div class="progress-fill"></div>
+  </div>
+  <p id="status">Preparing...</p>
+</div>
 
 <div id="result"></div>
 
@@ -55,21 +118,62 @@ let selectedFile=null;
 let metadata={};
 let gps=null;
 
+/* EXIF */
 file.onchange=e=>{
   selectedFile=e.target.files[0];
 
   EXIF.getData(selectedFile,function(){
     metadata=EXIF.getAllTags(this);
+
+    if(metadata.GPSLatitude){
+      let lat = metadata.GPSLatitude[0] + metadata.GPSLatitude[1]/60 + metadata.GPSLatitude[2]/3600;
+      let lon = metadata.GPSLongitude[0] + metadata.GPSLongitude[1]/60 + metadata.GPSLongitude[2]/3600;
+
+      if(metadata.GPSLatitudeRef==="S") lat=-lat;
+      if(metadata.GPSLongitudeRef==="W") lon=-lon;
+
+      gps={lat,lon};
+    }
   });
 };
 
+/* RESIZE */
+function resizeImage(file){
+  return new Promise(resolve=>{
+    const img=new Image();
+    const reader=new FileReader();
+    reader.onload=e=>img.src=e.target.result;
+    reader.readAsDataURL(file);
+
+    img.onload=()=>{
+      const canvas=document.createElement("canvas");
+      let w=img.width,h=img.height;
+      const MAX=1200;
+
+      if(w>MAX||h>MAX){
+        if(w>h){h*=MAX/w;w=MAX;}
+        else{w*=MAX/h;h=MAX;}
+      }
+
+      canvas.width=w;
+      canvas.height=h;
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
+
+      canvas.toBlob(blob=>{
+        resolve(new File([blob],file.name,{type:"image/jpeg"}));
+      },"image/jpeg",0.7);
+    };
+  });
+}
+
+/* GAUGE */
 function createGauge(v,label){
   const r=50,c=2*Math.PI*r;
   const o=c-(v/100)*c;
   const color=v>70?"#22c55e":v>40?"#f59e0b":"#ef4444";
 
   return `
-  <div>
+  <div style="text-align:center">
     <div class="gauge">
       <svg width="120" height="120">
         <circle cx="60" cy="60" r="${r}" stroke="#1e293b" stroke-width="10" fill="none"/>
@@ -78,34 +182,56 @@ function createGauge(v,label){
       </svg>
       <div class="gauge-text">${v}</div>
     </div>
-    <div style="text-align:center">${label}</div>
+    <div style="opacity:0.8">${label}</div>
   </div>`;
 }
 
+/* UPLOAD */
 async function upload(){
 
   if(!selectedFile) return alert("Select file");
 
-  document.getElementById("progress-container").style.display="block";
+  const progress=document.getElementById("progress-container");
+  const status=document.getElementById("status");
+  const btn=document.getElementById("btn");
+
+  progress.style.display="block";
+  btn.disabled=true;
+
+  status.innerText="Preparing image...";
+  const resized=await resizeImage(selectedFile);
 
   const form=new FormData();
-  form.append("image",selectedFile);
+  form.append("image",resized);
   form.append("metadata",JSON.stringify(metadata));
+  form.append("gps",JSON.stringify(gps));
 
-  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-  const data=await res.json();
+  try{
+    status.innerText="Uploading...";
+    const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
 
-  document.getElementById("progress-container").style.display="none";
+    status.innerText="Analyzing...";
+    const data=await res.json();
 
-  render(data.result);
+    status.innerText="Finalizing...";
+    render(data.result);
+
+  }catch(e){
+    document.getElementById("result").innerHTML="Error occurred";
+  }
+
+  progress.style.display="none";
+  btn.disabled=false;
 }
 
+/* RENDER */
 function render(d){
 
 document.getElementById("result").innerHTML=`
 
 <div class="tabs">
   <div class="tab active" onclick="tab(event,'r')">Results</div>
+  <div class="tab" onclick="tab(event,'map')">Map</div>
   <div class="tab" onclick="tab(event,'meta')">Metadata</div>
 </div>
 
@@ -115,36 +241,64 @@ document.getElementById("result").innerHTML=`
 
 <h2>${d.analysis}</h2>
 
-<div style="display:flex; gap:30px;">
-${createGauge(d.score,"Score")}
-${createGauge(d.confidence,"Confidence")}
+<div style="display:flex; gap:30px; flex-wrap:wrap;">
+  ${createGauge(d.score,"Score")}
+  ${createGauge(d.confidence,"Confidence")}
 </div>
 
-<p>${d.simple_explanation}</p>
+<hr>
 
-<a href="${d.pdf_report}" target="_blank">Download PDF</a>
+<p><b>Summary:</b><br>${d.simple_explanation}</p>
+<p><b>Technical:</b><br>${d.technical_explanation}</p>
+<p><b>Conclusion:</b><br>${d.legal_explanation}</p>
+<p><b>Confidence Note:</b><br>${d.confidence_note}</p>
+
+<br>
+
+<a href="${d.pdf_report}" target="_blank"
+style="padding:10px;background:#22c55e;color:white;border-radius:6px;">
+Download PDF Report
+</a>
 
 </div>
 
 <div class="image-row">
-<div class="image-box">
-<img src="${URL.createObjectURL(selectedFile)}">
-</div>
-<div class="image-box">
-<img src="${d.heatmap}">
-</div>
+  <div class="image-box">
+    <p><b>Original</b></p>
+    <img src="${URL.createObjectURL(selectedFile)}">
+  </div>
+
+  <div class="image-box">
+    <p><b>Heatmap</b></p>
+    <img src="${d.heatmap}">
+  </div>
 </div>
 
+</div>
+
+<div id="map" class="tab-content">
+${
+d.gps
+? `<iframe width="100%" height="400"
+src="https://www.google.com/maps?q=${d.gps.lat},${d.gps.lon}&output=embed"></iframe>`
+: "<p>No GPS data</p>"
+}
 </div>
 
 <div id="meta" class="tab-content">
 <div class="card">
-${Object.entries(d.metadata.all).map(([k,v])=>`${k}: ${v}<br>`).join("")}
+${
+d.metadata?.available
+? Object.entries(d.metadata.all).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")
+: "<p>No metadata found</p>"
+}
 </div>
 </div>
+
 `;
 }
 
+/* TAB SWITCH */
 function tab(e,id){
 document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
 document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
