@@ -20,7 +20,28 @@ body { background:#0f172a; color:white; font-family:Arial; }
 
 .image-row { display:flex; gap:10px; flex-wrap:wrap; }
 .image-box { flex:1 1 48%; }
-.image-box img { width:100%; max-height:400px; object-fit:contain; }
+
+#progress-container { display:none; margin-top:20px; }
+
+.progress-bar {
+  width:100%;
+  height:10px;
+  background:#1e293b;
+  border-radius:5px;
+  overflow:hidden;
+}
+
+.progress-fill {
+  height:100%;
+  background:#3b82f6;
+  animation: progressAnim 2s infinite;
+}
+
+@keyframes progressAnim {
+  0% { width:0%; }
+  50% { width:70%; }
+  100% { width:100%; }
+}
 </style>
 </head>
 
@@ -31,7 +52,14 @@ body { background:#0f172a; color:white; font-family:Arial; }
 <h1>PixelProof 🔍</h1>
 
 <input type="file" id="file" accept="image/jpeg">
-<button onclick="upload()">Analyze</button>
+<button id="analyzeBtn" onclick="upload()">Analyze</button>
+
+<div id="progress-container">
+  <div class="progress-bar">
+    <div class="progress-fill"></div>
+  </div>
+  <p id="status">Starting...</p>
+</div>
 
 <div id="result"></div>
 
@@ -45,216 +73,88 @@ let selectedFile = null;
 let extractedMetadata = {};
 let gpsData = null;
 
-// -----------------------------
-// EXTRACT EXIF IN BROWSER
-// -----------------------------
-document.getElementById("file").onchange = function(e){
-
+file.onchange = function(e){
   selectedFile = e.target.files[0];
 
   EXIF.getData(selectedFile, function(){
-
     extractedMetadata = EXIF.getAllTags(this);
 
-    if(extractedMetadata.GPSLatitude && extractedMetadata.GPSLongitude){
-
-      function convert(coord){
-        return coord[0] + coord[1]/60 + coord[2]/3600;
-      }
-
-      let lat = convert(extractedMetadata.GPSLatitude);
-      let lon = convert(extractedMetadata.GPSLongitude);
+    if(extractedMetadata.GPSLatitude){
+      let lat = extractedMetadata.GPSLatitude[0] + extractedMetadata.GPSLatitude[1]/60 + extractedMetadata.GPSLatitude[2]/3600;
+      let lon = extractedMetadata.GPSLongitude[0] + extractedMetadata.GPSLongitude[1]/60 + extractedMetadata.GPSLongitude[2]/3600;
 
       if(extractedMetadata.GPSLatitudeRef === "S") lat = -lat;
       if(extractedMetadata.GPSLongitudeRef === "W") lon = -lon;
 
       gpsData = {lat, lon};
     }
-
-    console.log("EXIF:", extractedMetadata);
   });
 };
 
-// -----------------------------
-// RESIZE FOR ANALYSIS ONLY
-// -----------------------------
 function resizeImage(file){
   return new Promise(resolve=>{
-    const img = new Image();
-    const reader = new FileReader();
-
-    reader.onload = e => img.src = e.target.result;
+    const img=new Image();
+    const reader=new FileReader();
+    reader.onload=e=>img.src=e.target.result;
     reader.readAsDataURL(file);
 
-    img.onload = ()=>{
-      const canvas = document.createElement("canvas");
+    img.onload=()=>{
+      const canvas=document.createElement("canvas");
+      let w=img.width,h=img.height;
+      const MAX=1200;
 
-      let w = img.width;
-      let h = img.height;
-      const MAX = 1200;
-
-      if(w > MAX || h > MAX){
-        if(w > h){
-          h *= MAX / w;
-          w = MAX;
-        } else {
-          w *= MAX / h;
-          h = MAX;
-        }
+      if(w>MAX||h>MAX){
+        if(w>h){h*=MAX/w;w=MAX;}
+        else{w*=MAX/h;h=MAX;}
       }
 
-      canvas.width = w;
-      canvas.height = h;
-
+      canvas.width=w;
+      canvas.height=h;
       canvas.getContext("2d").drawImage(img,0,0,w,h);
 
       canvas.toBlob(blob=>{
-        resolve(new File([blob], file.name, {type:"image/jpeg"}));
-      }, "image/jpeg", 0.7);
+        resolve(new File([blob],file.name,{type:"image/jpeg"}));
+      },"image/jpeg",0.7);
     };
   });
 }
 
-// -----------------------------
-// UPLOAD
-// -----------------------------
 async function upload(){
 
-  if(!selectedFile){
-    alert("Select file");
-    return;
-  }
+  if(!selectedFile) return alert("Select file");
+
+  document.getElementById("progress-container").style.display="block";
+  document.getElementById("analyzeBtn").disabled=true;
+  document.getElementById("status").innerText="Processing image...";
 
   const resized = await resizeImage(selectedFile);
 
-  const form = new FormData();
-  form.append("image", resized);
-  form.append("metadata", JSON.stringify(extractedMetadata));
-  form.append("gps", JSON.stringify(gpsData));
+  const form=new FormData();
+  form.append("image",resized);
+  form.append("metadata",JSON.stringify(extractedMetadata));
+  form.append("gps",JSON.stringify(gpsData));
 
-  const res = await fetch(API + "/api/analyze", {
-    method: "POST",
-    body: form
-  });
+  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+  const data=await res.json();
 
-  const data = await res.json();
+  document.getElementById("progress-container").style.display="none";
+  document.getElementById("analyzeBtn").disabled=false;
 
   render(data.result);
 }
 
-// -----------------------------
-// RENDER UI
-// -----------------------------
 function render(data){
-
-document.getElementById("result").innerHTML = `
-
-<h3>Analysis Result</h3>
-
-<div class="tabs">
-  <div class="tab active" onclick="tab(event,'r')">Results</div>
-  <div class="tab" onclick="tab(event,'map')">Map</div>
-  <div class="tab" onclick="tab(event,'meta')">Metadata</div>
-</div>
-
-<div id="r" class="tab-content active">
-
+document.getElementById("result").innerHTML=`
 <div class="card">
-
 <h2>${data.analysis}</h2>
-
-<p><b>Score:</b> ${data.score} / 100</p>
-<p><b>Confidence:</b> ${data.confidence}%</p>
-
-<p style="margin-top:10px; opacity:0.85;">
-  <b>What this means:</b><br>
-  ${
-    data.score > 70
-      ? "The image contains strong inconsistencies in pixel structure and compression patterns. This level of anomaly is typically associated with deliberate editing or manipulation."
-      : data.score > 40
-      ? "The image shows moderate irregularities. These may result from editing, recompression, or platform processing. Further review is recommended."
-      : "The image appears structurally consistent. No significant indicators of manipulation were detected."
-  }
-</p>
-
-<hr>
-
-<p><b>Summary:</b><br>${data.simple_explanation}</p>
-
-<p><b>Technical Analysis:</b><br>${data.technical_explanation}</p>
-
-<p style="margin-top:10px; opacity:0.85;">
-  <b>How to interpret the heatmap:</b><br>
-  Bright or high-contrast regions indicate areas with unusual compression or pixel variation.
-  Consistent images typically appear darker and uniform, while edited regions often stand out.
-</p>
-
-<p><b>Conclusion:</b><br>${data.legal_explanation}</p>
-
-<p style="margin-top:10px; opacity:0.85;">
-  <b>Confidence Explanation:</b><br>
-  ${data.confidence_note}  
-  ${
-    data.confidence > 70
-      ? " The detected patterns are consistent across multiple regions of the image."
-      : data.confidence > 40
-      ? " The detected anomalies are present but not uniformly distributed."
-      : " The image shows a high level of structural consistency across all regions."
-  }
-</p>
-
-<br>
-
-<a href="${data.pdf_report}" target="_blank"
-style="display:inline-block;padding:10px;background:#22c55e;color:white;border-radius:6px;">
-Download Forensic PDF Report
-</a>
-
+<p>Score: ${data.score}</p>
+<p>Confidence: ${data.confidence}%</p>
+<p>${data.simple_explanation}</p>
+<a href="${data.pdf_report}" target="_blank">Download PDF</a>
 </div>
-<div class="image-row">
-  <div class="image-box">
-    <p><b>Original</b></p>
-    <img src="${URL.createObjectURL(selectedFile)}">
-  </div>
-  <div class="image-box">
-    <p><b>Heatmap</b></p>
-    <img src="${data.heatmap}">
-  </div>
-</div>
-
-</div>
-
-<div id="map" class="tab-content">
-${
-data.gps
-? `<iframe width="100%" height="400"
-src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed"></iframe>`
-: "<p>No GPS data found</p>"
-}
-</div>
-
-<div id="meta" class="tab-content">
-<div class="card">
-${
-data.metadata?.available
-? Object.entries(data.metadata.all).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")
-: "<p>No metadata found</p>"
-}
-</div>
-</div>
-
 `;
 }
 
-// -----------------------------
-function tab(e,id){
-document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-document.getElementById(id).classList.add("active");
-e.target.classList.add("active");
-}
-
 </script>
-
 </body>
 </html>
