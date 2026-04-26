@@ -15,9 +15,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 
-# -----------------------------
-# HASH
-# -----------------------------
 def generate_file_hash(path):
     sha256 = hashlib.sha256()
     with open(path, "rb") as f:
@@ -25,35 +22,29 @@ def generate_file_hash(path):
             sha256.update(chunk)
     return sha256.hexdigest()
 
-# -----------------------------
-# EXPLANATIONS
-# -----------------------------
 def explain(score):
     if score > 70:
         return {
             "simple": "Strong signs of manipulation detected.",
-            "technical": "High pixel inconsistency and compression anomalies detected across multiple regions.",
-            "legal": "Significant irregularities in pixel structure indicate likely digital alteration.",
+            "technical": "High pixel inconsistency and compression anomalies detected.",
+            "legal": "Significant irregularities indicate likely digital alteration.",
             "confidence_note": "High confidence due to consistent anomaly patterns."
         }
     elif score > 40:
         return {
             "simple": "Possible editing detected.",
-            "technical": "Moderate inconsistencies in compression and pixel distribution.",
-            "legal": "Moderate anomalies suggest possible recompression or partial editing.",
-            "confidence_note": "Moderate confidence due to uneven anomaly distribution."
+            "technical": "Moderate inconsistencies detected.",
+            "legal": "Possible recompression or partial editing.",
+            "confidence_note": "Moderate confidence."
         }
     else:
         return {
             "simple": "Image appears original.",
-            "technical": "Pixel structure and compression patterns are consistent.",
-            "legal": "No material irregularities detected. Image appears consistent with original capture.",
+            "technical": "Pixel structure is consistent.",
+            "legal": "No significant irregularities detected.",
             "confidence_note": "High confidence in authenticity."
         }
 
-# -----------------------------
-# ANALYSIS
-# -----------------------------
 def analyze_image(path, job_id):
     image = Image.open(path).convert("RGB")
 
@@ -65,17 +56,10 @@ def analyze_image(path, job_id):
 
     gray = ela.convert("L")
     pixels = list(gray.getdata())
-    mean_val = sum(pixels) / len(pixels)
-
-    score = int((mean_val / 255) * 100)
+    score = int((sum(pixels)/len(pixels)/255)*100)
     confidence = score
 
-    result = (
-        "Likely edited" if score > 70 else
-        "Possibly edited" if score > 40 else
-        "Likely original"
-    )
-
+    result = "Likely edited" if score>70 else "Possibly edited" if score>40 else "Likely original"
     exp = explain(score)
 
     heat = ela.convert("RGB")
@@ -87,9 +71,6 @@ def analyze_image(path, job_id):
 
     return score, confidence, result, exp, heat_file
 
-# -----------------------------
-# FULL FORENSIC PDF
-# -----------------------------
 def generate_pdf(job_id, data):
     path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
 
@@ -97,99 +78,34 @@ def generate_pdf(job_id, data):
     styles = getSampleStyleSheet()
     content = []
 
-    content.append(Paragraph("Digital Image Forensic Analysis Report", styles["Title"]))
-    content.append(Spacer(1, 12))
+    content.append(Paragraph("Digital Image Forensic Report", styles["Title"]))
+    content.append(Spacer(1,12))
 
-    # 1 Summary
-    content.append(Paragraph("<b>1. Analysis Summary</b>", styles["Heading2"]))
     content.append(Paragraph(f"Result: {data['analysis']}", styles["Normal"]))
-    content.append(Paragraph(f"Score: {data['score']} / 100", styles["Normal"]))
+    content.append(Paragraph(f"Score: {data['score']}", styles["Normal"]))
     content.append(Paragraph(f"Confidence: {data['confidence']}%", styles["Normal"]))
-    content.append(Spacer(1, 12))
+    content.append(Spacer(1,12))
 
-    # 2 Score Interpretation
-    content.append(Paragraph("<b>2. Score Interpretation</b>", styles["Heading2"]))
-
-    if data["score"] > 70:
-        txt = "High irregularity indicating likely manipulation or editing."
-    elif data["score"] > 40:
-        txt = "Moderate irregularities—possible editing or recompression."
-    else:
-        txt = "High consistency—no meaningful signs of manipulation detected."
-
-    content.append(Paragraph(txt, styles["Normal"]))
-    content.append(Spacer(1, 12))
-
-    # 3 Methodology
-    content.append(Paragraph("<b>3. Methodology (ELA)</b>", styles["Heading2"]))
-    content.append(Paragraph(
-        "Error Level Analysis evaluates how uniformly an image responds to recompression. "
-        "Edited regions typically show inconsistent compression behavior.",
-        styles["Normal"]
-    ))
-    content.append(Spacer(1, 12))
-
-    # 4 Technical
-    content.append(Paragraph("<b>4. Technical Findings</b>", styles["Heading2"]))
     content.append(Paragraph(data["technical_explanation"], styles["Normal"]))
-    content.append(Spacer(1, 12))
+    content.append(Spacer(1,12))
 
-    # 5 Confidence
-    content.append(Paragraph("<b>5. Confidence</b>", styles["Heading2"]))
-    content.append(Paragraph(data["confidence_note"], styles["Normal"]))
-    content.append(Spacer(1, 12))
-
-    # 6 Metadata
-    content.append(Paragraph("<b>6. Metadata</b>", styles["Heading2"]))
-    if data["metadata"]["available"]:
-        for k, v in list(data["metadata"]["all"].items())[:15]:
-            content.append(Paragraph(f"{k}: {v}", styles["Normal"]))
-    else:
-        content.append(Paragraph("No metadata available.", styles["Normal"]))
-    content.append(Spacer(1, 12))
-
-    # 7 GPS
-    content.append(Paragraph("<b>7. GPS</b>", styles["Heading2"]))
-    if data["gps"]:
-        content.append(Paragraph(f"Lat: {data['gps']['lat']}", styles["Normal"]))
-        content.append(Paragraph(f"Lon: {data['gps']['lon']}", styles["Normal"]))
-    else:
-        content.append(Paragraph("No GPS data available.", styles["Normal"]))
-    content.append(Spacer(1, 12))
-
-    # 8 Limitations
-    content.append(Paragraph("<b>8. Limitations</b>", styles["Heading2"]))
-    content.append(Paragraph(
-        "Recompression, resizing, and platform processing can introduce artifacts that resemble editing.",
-        styles["Normal"]
-    ))
-    content.append(Spacer(1, 12))
-
-    # 9 Integrity
-    content.append(Paragraph("<b>9. Forensic Integrity</b>", styles["Heading2"]))
-    content.append(Paragraph(f"Timestamp: {data['integrity']['timestamp']}", styles["Normal"]))
-    content.append(Paragraph(f"Dimensions: {data['integrity']['width']} x {data['integrity']['height']}", styles["Normal"]))
-    content.append(Paragraph(f"File Size: {data['integrity']['file_size']}", styles["Normal"]))
-    content.append(Paragraph(f"SHA-256: {data['integrity']['hash']}", styles["Normal"]))
-    content.append(Spacer(1, 12))
-
-    # 10 Conclusion
-    content.append(Paragraph("<b>10. Conclusion</b>", styles["Heading2"]))
     content.append(Paragraph(data["legal_explanation"], styles["Normal"]))
+    content.append(Spacer(1,12))
+
+    content.append(Paragraph("Forensic Integrity", styles["Heading2"]))
+    content.append(Paragraph(f"Hash: {data['integrity']['hash']}", styles["Normal"]))
+    content.append(Spacer(1,12))
+
+    content.append(Paragraph("Generated by PixelProof", styles["Normal"]))
+    content.append(Paragraph("Barry Mattison-Off Road Artist Photography", styles["Normal"]))
 
     doc.build(content)
+
     return f"{BASE_URL}/files/{job_id}_report.pdf"
 
-# -----------------------------
-# API
-# -----------------------------
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
-
     file = request.files.get("image")
-    if not file:
-        return {"error":"No file"},400
-
     metadata = json.loads(request.form.get("metadata","{}"))
     gps = json.loads(request.form.get("gps","null"))
 
@@ -197,12 +113,9 @@ def analyze():
     path = os.path.join(UPLOAD_FOLDER, job_id+".jpg")
     file.save(path)
 
-    # Integrity
     file_hash = generate_file_hash(path)
     image = Image.open(path)
     width, height = image.size
-    file_size = os.path.getsize(path)
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
     score, confidence, result, exp, heatmap = analyze_image(path, job_id)
 
@@ -217,13 +130,7 @@ def analyze():
         "metadata": {"available": bool(metadata), "all": metadata},
         "gps": gps,
         "heatmap": f"{BASE_URL}/files/{heatmap}",
-        "integrity": {
-            "hash": file_hash,
-            "timestamp": timestamp,
-            "width": width,
-            "height": height,
-            "file_size": file_size
-        }
+        "integrity": {"hash": file_hash, "width": width, "height": height}
     }
 
     result_data["pdf_report"] = generate_pdf(job_id, result_data)
@@ -233,7 +140,3 @@ def analyze():
 @app.route("/files/<filename>")
 def files(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
-
-@app.route("/health")
-def health():
-    return {"status":"ok"}
