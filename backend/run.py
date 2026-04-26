@@ -4,7 +4,6 @@ import os, uuid, json, hashlib
 from datetime import datetime
 
 from PIL import Image, ImageChops, ImageEnhance
-
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
@@ -16,9 +15,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 
-# -----------------------------
-# HASH
-# -----------------------------
 def generate_file_hash(path):
     sha256 = hashlib.sha256()
     with open(path, "rb") as f:
@@ -26,35 +22,29 @@ def generate_file_hash(path):
             sha256.update(chunk)
     return sha256.hexdigest()
 
-# -----------------------------
-# EXPLANATIONS
-# -----------------------------
 def explain(score):
     if score > 70:
         return {
             "simple": "Strong signs of manipulation detected.",
-            "technical": "High pixel inconsistency and compression anomalies detected.",
-            "legal": "Significant irregularities indicate likely digital alteration.",
+            "technical": "High pixel inconsistency and compression anomalies detected across multiple regions.",
+            "legal": "Significant irregularities in pixel structure indicate likely digital alteration.",
             "confidence_note": "High confidence due to consistent anomaly patterns."
         }
     elif score > 40:
         return {
             "simple": "Possible editing detected.",
-            "technical": "Moderate inconsistencies in compression.",
-            "legal": "Moderate anomalies suggest possible editing.",
-            "confidence_note": "Moderate confidence."
+            "technical": "Moderate inconsistencies in compression and pixel distribution.",
+            "legal": "Moderate anomalies suggest possible recompression or partial editing.",
+            "confidence_note": "Moderate confidence due to uneven anomaly distribution."
         }
     else:
         return {
             "simple": "Image appears original.",
-            "technical": "Pixel structure is consistent.",
-            "legal": "No significant irregularities detected.",
+            "technical": "Pixel structure and compression patterns are consistent.",
+            "legal": "No material irregularities detected. Image appears consistent with original capture.",
             "confidence_note": "High confidence in authenticity."
         }
 
-# -----------------------------
-# ANALYSIS
-# -----------------------------
 def analyze_image(path, job_id):
     image = Image.open(path).convert("RGB")
 
@@ -88,9 +78,6 @@ def analyze_image(path, job_id):
 
     return score, confidence, result, exp, heat_file
 
-# -----------------------------
-# PDF
-# -----------------------------
 def generate_pdf(job_id, data):
     path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
 
@@ -114,7 +101,6 @@ def generate_pdf(job_id, data):
     content.append(Paragraph(data["legal_explanation"], styles["Normal"]))
     content.append(Spacer(1,12))
 
-    # Integrity
     content.append(Paragraph("Forensic Integrity", styles["Heading2"]))
     content.append(Paragraph(f"Timestamp: {data['integrity']['timestamp']}", styles["Normal"]))
     content.append(Paragraph(f"Dimensions: {data['integrity']['width']} x {data['integrity']['height']}", styles["Normal"]))
@@ -122,12 +108,8 @@ def generate_pdf(job_id, data):
     content.append(Paragraph(f"SHA-256: {data['integrity']['hash']}", styles["Normal"]))
 
     doc.build(content)
-
     return f"{BASE_URL}/files/{job_id}_report.pdf"
 
-# -----------------------------
-# API
-# -----------------------------
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
 
@@ -142,7 +124,6 @@ def analyze():
     path = os.path.join(UPLOAD_FOLDER, job_id+".jpg")
     file.save(path)
 
-    # Integrity
     file_hash = generate_file_hash(path)
     image = Image.open(path)
     width, height = image.size
