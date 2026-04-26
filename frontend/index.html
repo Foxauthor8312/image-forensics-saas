@@ -9,7 +9,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
 
-<!-- LEAFLET -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
@@ -24,7 +23,10 @@ button {
   border-radius:6px;
   color:white;
   margin:5px;
+  cursor:pointer;
 }
+
+#installBtn { display:none; background:#22c55e; }
 
 /* progress */
 #progress-container { display:none; margin-top:15px; }
@@ -38,15 +40,12 @@ button {
 .tab-content { display:none; margin-top:20px; }
 .tab-content.active { display:block; }
 
-/* card */
 .card { background:#020617; padding:18px; border-radius:10px; margin-top:15px; }
 
-/* images */
 .image-row { display:flex; gap:15px; flex-wrap:wrap; }
 .image-box { flex:1 1 48%; }
 .image-box img { width:100%; max-height:420px; object-fit:contain; }
 
-/* gauge */
 .gauge { width:120px; height:120px; position:relative; }
 .gauge svg { transform:rotate(-90deg); }
 .gauge-text {
@@ -54,7 +53,6 @@ button {
   transform:translate(-50%,-50%);
 }
 
-/* map */
 #map { height:400px; border-radius:10px; }
 </style>
 </head>
@@ -65,10 +63,19 @@ button {
 
 <h1>PixelProof 🔍</h1>
 
-<input type="file" id="file">
-<button onclick="upload()">Upload</button>
-<button onclick="capturePhoto()">📷 Capture</button>
+<!-- INSTALL -->
+<button id="installBtn">Install App</button>
+<div id="installHelp" style="opacity:0.8; margin-bottom:10px;"></div>
 
+<!-- INPUTS -->
+<input type="file" id="file" accept="image/*">
+
+<br>
+
+<button onclick="capturePhoto()">📷 Capture Photo</button>
+<button onclick="analyzeImage()" style="background:#22c55e;">Analyze Image</button>
+
+<!-- PROGRESS -->
 <div id="progress-container">
   <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
   <p id="status">Preparing...</p>
@@ -86,28 +93,66 @@ let selectedFile=null;
 let metadata={};
 let gps=null;
 
-/* EXIF */
+/* INSTALL LOGIC */
+let deferredPrompt;
+const installBtn=document.getElementById("installBtn");
+
+window.addEventListener('beforeinstallprompt', e=>{
+  e.preventDefault();
+  deferredPrompt=e;
+  installBtn.style.display="inline-block";
+});
+
+installBtn.onclick=async()=>{
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  installBtn.style.display="none";
+};
+
+function isIOS(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function showInstallHelp(){
+  const el=document.getElementById("installHelp");
+
+  if(isIOS()){
+    el.innerHTML="📱 Tap Share → Add to Home Screen";
+  } else {
+    el.innerHTML="📱 Tap Install App button or browser menu";
+  }
+}
+showInstallHelp();
+
+/* SERVICE WORKER */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js');
+}
+
+/* FILE INPUT */
+file.onchange=e=>{
+  selectedFile=e.target.files[0];
+
+  EXIF.getData(selectedFile,function(){
+    metadata=EXIF.getAllTags(this);
+    gps=extractGPS(metadata);
+  });
+};
+
+/* EXIF GPS */
 function extractGPS(meta){
   if(!meta.GPSLatitude) return null;
 
-  const conv=c=>c[0]+c[1]/60+c[2]/3600;
+  const c=x=>x[0]+x[1]/60+x[2]/3600;
 
-  let lat=conv(meta.GPSLatitude);
-  let lon=conv(meta.GPSLongitude);
+  let lat=c(meta.GPSLatitude);
+  let lon=c(meta.GPSLongitude);
 
   if(meta.GPSLatitudeRef==="S") lat=-lat;
   if(meta.GPSLongitudeRef==="W") lon=-lon;
 
   return {lat,lon};
 }
-
-file.onchange=e=>{
-  selectedFile=e.target.files[0];
-  EXIF.getData(selectedFile,function(){
-    metadata=EXIF.getAllTags(this);
-    gps=extractGPS(metadata);
-  });
-};
 
 /* DEVICE GPS */
 function getDeviceLocation(){
@@ -162,6 +207,7 @@ async function capturePhoto(){
     document.body.removeChild(overlay);
 
     gps=await getDeviceLocation();
+    alert("Photo captured. Now tap Analyze Image.");
   };
 }
 
@@ -171,40 +217,10 @@ function setProgress(p,t){
   document.getElementById("status").innerText=t;
 }
 
-/* GAUGE */
-function gauge(v,label){
-  const r=50,c=2*Math.PI*r;
-  const o=c-(v/100)*c;
-  const color=v>70?"#22c55e":v>40?"#f59e0b":"#ef4444";
+/* ANALYZE */
+async function analyzeImage(){
 
-  return `
-  <div>
-    <div class="gauge">
-      <svg width="120" height="120">
-        <circle cx="60" cy="60" r="${r}" stroke="#1e293b" stroke-width="10" fill="none"/>
-        <circle cx="60" cy="60" r="${r}" stroke="${color}" stroke-width="10"
-          stroke-dasharray="${c}" stroke-dashoffset="${o}" fill="none"/>
-      </svg>
-      <div class="gauge-text">${v}</div>
-    </div>
-    <div style="text-align:center">${label}</div>
-  </div>`;
-}
-
-/* EXPLANATIONS */
-function explain(d){
-  return `
-  <hr>
-  <p><b>Summary:</b><br>${d.simple_explanation}</p>
-  <p><b>Technical:</b><br>${d.technical_explanation}</p>
-  <p><b>Conclusion:</b><br>${d.legal_explanation}</p>
-  `;
-}
-
-/* UPLOAD */
-async function upload(){
-
-  if(!selectedFile) return alert("Select or capture image");
+  if(!selectedFile) return alert("Select or capture an image first");
 
   document.getElementById("progress-container").style.display="block";
 
@@ -227,11 +243,30 @@ async function upload(){
   render(data.result);
 }
 
+/* GAUGE */
+function gauge(v,label){
+  const r=50,c=2*Math.PI*r;
+  const o=c-(v/100)*c;
+  const color=v>70?"#22c55e":v>40?"#f59e0b":"#ef4444";
+
+  return `
+  <div>
+    <div class="gauge">
+      <svg width="120" height="120">
+        <circle cx="60" cy="60" r="${r}" stroke="#1e293b" stroke-width="10" fill="none"/>
+        <circle cx="60" cy="60" r="${r}" stroke="${color}" stroke-width="10"
+          stroke-dasharray="${c}" stroke-dashoffset="${o}" fill="none"/>
+      </svg>
+      <div class="gauge-text">${v}</div>
+    </div>
+    <div style="text-align:center">${label}</div>
+  </div>`;
+}
+
 /* RENDER */
 function render(d){
 
 document.getElementById("result").innerHTML=`
-
 <div class="tabs">
   <div class="tab active" onclick="tab(event,'r')">Results</div>
   <div class="tab" onclick="tab(event,'mapTab')">Map</div>
@@ -240,7 +275,6 @@ document.getElementById("result").innerHTML=`
 <div id="r" class="tab-content active">
 
 <div class="card">
-
 <h2>${d.analysis}</h2>
 
 <div style="display:flex; gap:30px;">
@@ -248,10 +282,9 @@ ${gauge(d.score,"Score")}
 ${gauge(d.confidence,"Confidence")}
 </div>
 
-${explain(d)}
+<p>${d.simple_explanation}</p>
 
 <a href="${d.pdf_report}" target="_blank">Download PDF</a>
-
 </div>
 
 <div class="image-row">
@@ -269,9 +302,8 @@ ${explain(d)}
 setTimeout(()=>initMap(d.gps),200);
 }
 
-/* MAP WITH ACCURACY */
+/* MAP */
 function initMap(gps){
-
   if(!gps) return;
 
   const map=L.map('map').setView([gps.lat,gps.lon],15);
@@ -298,5 +330,6 @@ e.target.classList.add("active");
 }
 
 </script>
+
 </body>
 </html>
