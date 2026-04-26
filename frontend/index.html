@@ -160,17 +160,48 @@ document.getElementById("result").innerHTML = `
 <div id="r" class="tab-content active">
 
 <div class="card">
+
 <h2>${data.analysis}</h2>
 
-<p><b>Score:</b> ${data.score}</p>
+<p><b>Score:</b> ${data.score} / 100</p>
 <p><b>Confidence:</b> ${data.confidence}%</p>
+
+<p style="margin-top:10px; opacity:0.85;">
+  <b>What this means:</b><br>
+  ${
+    data.score > 70
+      ? "The image contains strong inconsistencies in pixel structure and compression patterns. This level of anomaly is typically associated with deliberate editing or manipulation."
+      : data.score > 40
+      ? "The image shows moderate irregularities. These may result from editing, recompression, or platform processing. Further review is recommended."
+      : "The image appears structurally consistent. No significant indicators of manipulation were detected."
+  }
+</p>
 
 <hr>
 
 <p><b>Summary:</b><br>${data.simple_explanation}</p>
-<p><b>Technical:</b><br>${data.technical_explanation}</p>
+
+<p><b>Technical Analysis:</b><br>${data.technical_explanation}</p>
+
+<p style="margin-top:10px; opacity:0.85;">
+  <b>How to interpret the heatmap:</b><br>
+  Bright or high-contrast regions indicate areas with unusual compression or pixel variation.
+  Consistent images typically appear darker and uniform, while edited regions often stand out.
+</p>
+
 <p><b>Conclusion:</b><br>${data.legal_explanation}</p>
-<p><b>Confidence Note:</b><br>${data.confidence_note}</p>
+
+<p style="margin-top:10px; opacity:0.85;">
+  <b>Confidence Explanation:</b><br>
+  ${data.confidence_note}  
+  ${
+    data.confidence > 70
+      ? " The detected patterns are consistent across multiple regions of the image."
+      : data.confidence > 40
+      ? " The detected anomalies are present but not uniformly distributed."
+      : " The image shows a high level of structural consistency across all regions."
+  }
+</p>
 
 <br>
 
@@ -180,7 +211,6 @@ Download Forensic PDF Report
 </a>
 
 </div>
-
 <div class="image-row">
   <div class="image-box">
     <p><b>Original</b></p>
