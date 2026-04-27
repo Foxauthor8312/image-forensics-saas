@@ -311,11 +311,45 @@ ${Object.entries(d.signals||{}).map(([k,v])=>`
 
 ${
 d.metadata?.available
-? Object.entries(d.metadata.all)
-    .slice(0,50)
-    .map(([k,v])=>`
-      <p><b>${k}:</b> ${String(v)}</p>
+? (() => {
+
+  const meta = d.metadata.all || {};
+
+  const importantKeys = [
+    "Make","Model","DateTime","Software",
+    "GPSLatitude","GPSLongitude"
+  ];
+
+  const important = Object.entries(meta)
+    .filter(([k]) => importantKeys.includes(k));
+
+  const others = Object.entries(meta)
+    .filter(([k]) => !importantKeys.includes(k));
+
+  return `
+
+  <h3>Key Metadata</h3>
+
+  ${
+    important.length
+    ? important.map(([k,v])=>`
+        <p><b>${k}:</b> ${String(v)}</p>
+      `).join("")
+    : "<p>No key metadata found</p>"
+  }
+
+  <hr>
+
+  <h3>Full Metadata</h3>
+
+  ${
+    others.slice(0,50).map(([k,v])=>`
+      <p>${k}: ${String(v)}</p>
     `).join("")
+  }
+
+  `;
+})()
 : "<p>No metadata found</p>"
 }
 
