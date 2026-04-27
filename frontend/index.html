@@ -94,79 +94,91 @@ const API="https://pixelproof-backend-v2.onrender.com";
 let selectedFile=null;
 let metadata={};
 let gps=null;
+let mapInstance=null;
 
 /* =========================
-   EXIF GPS EXTRACTION
+   RESIZE IMAGE (FIXES UPLOAD ERRORS)
+========================= */
+async function resizeImage(file){
+  return new Promise(resolve => {
+    const img=new Image();
+    const reader=new FileReader();
+
+    reader.onload=e=>img.src=e.target.result;
+
+    img.onload=()=>{
+      const canvas=document.createElement("canvas");
+
+      const MAX=1280;
+      let w=img.width, h=img.height;
+
+      if(w>h && w>MAX){ h*=MAX/w; w=MAX; }
+      else if(h>MAX){ w*=MAX/h; h=MAX; }
+
+      canvas.width=w;
+      canvas.height=h;
+
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
+
+      canvas.toBlob(blob=>{
+        resolve(new File([blob],"resized.jpg",{type:"image/jpeg"}));
+      },"image/jpeg",0.85);
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+/* =========================
+   EXIF GPS
 ========================= */
 function extractGPS(meta){
-
   if(!meta.GPSLatitude || !meta.GPSLongitude) return null;
 
-  const toDecimal = coord =>
-    coord[0] + coord[1]/60 + coord[2]/3600;
+  const toDecimal = c => c[0] + c[1]/60 + c[2]/3600;
 
-  let lat = toDecimal(meta.GPSLatitude);
-  let lon = toDecimal(meta.GPSLongitude);
+  let lat=toDecimal(meta.GPSLatitude);
+  let lon=toDecimal(meta.GPSLongitude);
 
-  if(meta.GPSLatitudeRef === "S") lat = -lat;
-  if(meta.GPSLongitudeRef === "W") lon = -lon;
+  if(meta.GPSLatitudeRef==="S") lat=-lat;
+  if(meta.GPSLongitudeRef==="W") lon=-lon;
 
-  return { lat, lon, source:"EXIF" };
+  return {lat,lon,source:"EXIF"};
 }
 
 /* =========================
    FILE INPUT
 ========================= */
-file.onchange = async (e) => {
+file.onchange = async e => {
 
-  selectedFile = e.target.files[0];
-  metadata = {};
-  gps = null;
+  selectedFile=e.target.files[0];
+  metadata={};
+  gps=null;
 
-  await new Promise(resolve => {
-    EXIF.getData(selectedFile, function(){
-
-      try{
-        metadata = EXIF.getAllTags(this) || {};
-      }catch{
-        metadata = {};
-      }
-
-      gps = extractGPS(metadata);
-
-      console.log("METADATA:", metadata);
-      console.log("GPS FROM EXIF:", gps);
-
+  await new Promise(resolve=>{
+    EXIF.getData(selectedFile,function(){
+      metadata=EXIF.getAllTags(this)||{};
+      gps=extractGPS(metadata);
       resolve();
     });
   });
+
 };
 
 /* =========================
    DEVICE GPS
 ========================= */
 function getDeviceLocation(){
-  return new Promise(resolve => {
-
-    if(!navigator.geolocation){
-      return resolve(null);
-    }
-
+  return new Promise(resolve=>{
     navigator.geolocation.getCurrentPosition(
-      pos => {
-        resolve({
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          source:"Device"
-        });
-      },
-      () => resolve(null),
-      {
-        enableHighAccuracy:true,
-        timeout:10000,
-        maximumAge:0
-      }
+      pos=>resolve({
+        lat:pos.coords.latitude,
+        lon:pos.coords.longitude,
+        accuracy:pos.coords.accuracy,
+        source:"Device"
+      }),
+      ()=>resolve(null),
+      {enableHighAccuracy:true,timeout:10000}
     );
   });
 }
@@ -176,51 +188,42 @@ function getDeviceLocation(){
 ========================= */
 async function capturePhoto(){
 
-  try{
-    const stream = await navigator.mediaDevices.getUserMedia({video:true});
-    const video = document.createElement("video");
-    video.srcObject = stream;
-    video.play();
+  const stream=await navigator.mediaDevices.getUserMedia({video:true});
+  const video=document.createElement("video");
+  video.srcObject=stream;
+  video.play();
 
-    const overlay = document.createElement("div");
-    overlay.style.position="fixed";
-    overlay.style.inset="0";
-    overlay.style.background="#000";
-    overlay.style.zIndex=9999;
-    overlay.appendChild(video);
+  const overlay=document.createElement("div");
+  overlay.style.position="fixed";
+  overlay.style.inset="0";
+  overlay.style.background="#000";
+  overlay.style.zIndex=9999;
+  overlay.appendChild(video);
 
-    const btn=document.createElement("button");
-    btn.innerText="Capture";
-    btn.style.position="absolute";
-    btn.style.bottom="20px";
-    btn.style.left="50%";
-    btn.style.transform="translateX(-50%)";
+  const btn=document.createElement("button");
+  btn.innerText="Capture";
+  btn.style.position="absolute";
+  btn.style.bottom="20px";
+  btn.style.left="50%";
+  btn.style.transform="translateX(-50%)";
 
-    overlay.appendChild(btn);
-    document.body.appendChild(overlay);
+  overlay.appendChild(btn);
+  document.body.appendChild(overlay);
 
-    btn.onclick = async () => {
+  btn.onclick=async()=>{
+    const canvas=document.createElement("canvas");
+    canvas.width=video.videoWidth;
+    canvas.height=video.videoHeight;
+    canvas.getContext("2d").drawImage(video,0,0);
 
-      const canvas=document.createElement("canvas");
-      canvas.width=video.videoWidth;
-      canvas.height=video.videoHeight;
-      canvas.getContext("2d").drawImage(video,0,0);
+    canvas.toBlob(async blob=>{
+      selectedFile=new File([blob],"capture.jpg",{type:"image/jpeg"});
+      gps=await getDeviceLocation();
+    });
 
-      canvas.toBlob(async blob=>{
-        selectedFile=new File([blob],"capture.jpg",{type:"image/jpeg"});
-      });
-
-      stream.getTracks().forEach(t=>t.stop());
-      document.body.removeChild(overlay);
-
-      gps = await getDeviceLocation();
-
-      alert("Photo captured. Tap Analyze Image.");
-    };
-
-  }catch{
-    alert("Camera unavailable");
-  }
+    stream.getTracks().forEach(t=>t.stop());
+    document.body.removeChild(overlay);
+  };
 }
 
 /* =========================
@@ -232,61 +235,35 @@ function setProgress(p,t){
 }
 
 /* =========================
-   GAUGE
-========================= */
-function gauge(v,label){
-  const r=50,c=2*Math.PI*r;
-  const o=c-(v/100)*c;
-  const color=v>70?"#22c55e":v>40?"#f59e0b":"#ef4444";
-
-  return `
-  <div style="text-align:center">
-    <div class="gauge">
-      <svg width="120" height="120">
-        <circle cx="60" cy="60" r="${r}" stroke="#1e293b" stroke-width="10" fill="none"/>
-        <circle cx="60" cy="60" r="${r}" stroke="${color}" stroke-width="10"
-          stroke-dasharray="${c}" stroke-dashoffset="${o}" fill="none"/>
-      </svg>
-      <div class="gauge-text">${v}</div>
-    </div>
-    <div>${label}</div>
-  </div>`;
-}
-
-/* =========================
    ANALYZE
 ========================= */
 async function analyzeImage(){
 
-  if(!selectedFile) return alert("Select or capture an image");
+  if(!selectedFile) return alert("Select image");
 
   document.getElementById("progress-container").style.display="block";
 
   setProgress(20,"Preparing...");
 
-  let finalGPS = gps;
+  const resized=await resizeImage(selectedFile);
 
-  if(!finalGPS){
-    setProgress(40,"Getting device location...");
-    finalGPS = await getDeviceLocation();
-  }
-
-  if(!metadata || Object.keys(metadata).length === 0){
-  console.log("No EXIF metadata found or stripped");
-}
-
-  if(finalGPS && (isNaN(finalGPS.lat) || isNaN(finalGPS.lon))){
-    finalGPS = null;
-  }
+  let finalGPS=gps || await getDeviceLocation();
 
   const form=new FormData();
-  form.append("image",selectedFile);
+  form.append("image",resized);
   form.append("metadata",JSON.stringify(metadata));
   form.append("gps",JSON.stringify(finalGPS));
 
   setProgress(70,"Uploading...");
 
-  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+  let res;
+  try{
+    res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+  }catch{
+    alert("Upload failed. Try smaller image.");
+    return;
+  }
+
   const data=await res.json();
 
   setProgress(100,"Done");
@@ -295,28 +272,50 @@ async function analyzeImage(){
 }
 
 /* =========================
+   GAUGE
+========================= */
+function gauge(v,label){
+  const r=50,c=2*Math.PI*r;
+  const o=c-(v/100)*c;
+  const color=v>70?"#22c55e":v>40?"#f59e0b":"#ef4444";
+
+  return `<div>
+  <div class="gauge">
+    <svg width="120" height="120">
+      <circle cx="60" cy="60" r="${r}" stroke="#1e293b" stroke-width="10" fill="none"/>
+      <circle cx="60" cy="60" r="${r}" stroke="${color}" stroke-width="10"
+        stroke-dasharray="${c}" stroke-dashoffset="${o}" fill="none"/>
+    </svg>
+    <div class="gauge-text">${v}</div>
+  </div>
+  <div>${label}</div>
+  </div>`;
+}
+
+/* =========================
    RENDER
 ========================= */
 function render(d){
 
+window.lastGPS=d.gps;
+
 document.getElementById("result").innerHTML=`
 
 <div class="tabs">
-  <div class="tab active" onclick="tab(event,'r')">Results</div>
-  <div class="tab" onclick="tab(event,'mapTab')">Map</div>
-  <div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
-  <div class="tab" onclick="tab(event,'aboutTab')">About</div>
+<div class="tab active" onclick="tab(event,'r')">Results</div>
+<div class="tab" onclick="tab(event,'mapTab')">Map</div>
+<div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
+<div class="tab" onclick="tab(event,'aboutTab')">About</div>
 </div>
 
 <div id="r" class="tab-content active">
-
 <div class="card">
 
 <h2>${d.analysis}</h2>
 
-<div style="display:flex; gap:30px; flex-wrap:wrap;">
-  ${gauge(d.score,"Score")}
-  ${gauge(d.confidence,"Confidence")}
+<div style="display:flex; gap:30px;">
+${gauge(d.score,"Score")}
+${gauge(d.confidence,"Confidence")}
 </div>
 
 <hr>
@@ -339,19 +338,13 @@ document.getElementById("result").innerHTML=`
 
 </div>
 
-<div id="mapTab" class="tab-content">
-<div id="map"></div>
-</div>
+<div id="mapTab" class="tab-content"><div id="map"></div></div>
 
 <div id="metaTab" class="tab-content">
 <div class="card">
-${
-d.metadata?.available
-? Object.entries(d.metadata.all)
-  .slice(0,20)
-  .map(([k,v])=>`<p>${k}: ${v}</p>`).join("")
-: "<p>No metadata found</p>"
-}
+${d.metadata?.available
+? Object.entries(d.metadata.all).slice(0,20).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")
+: "<p>No metadata found</p>"}
 </div>
 </div>
 
@@ -362,63 +355,43 @@ d.metadata?.available
 </div>
 </div>
 `;
-
-  window.lastGPS = d.gps;
-setTimeout(()=>initMap(d.gps),200);
 }
 
 /* =========================
-   MAP
+   MAP (FIXED)
 ========================= */
-let mapInstance = null;
-
 function initMap(gps){
 
-  const mapContainer = document.getElementById("map");
+  const mapDiv=document.getElementById("map");
 
-  // clear previous map
   if(mapInstance){
     mapInstance.remove();
-    mapInstance = null;
+    mapInstance=null;
   }
 
-  // validate GPS
-  if(!gps || typeof gps.lat !== "number" || typeof gps.lon !== "number"){
-    mapContainer.innerHTML = "<p>No valid location data</p>";
+  if(!gps || !gps.lat || !gps.lon){
+    mapDiv.innerHTML="<p>No valid location data</p>";
     return;
   }
 
-  // create map AFTER visible
-  mapInstance = L.map('map', {
-    zoomControl: true
-  }).setView([gps.lat, gps.lon], 15);
+  mapInstance=L.map('map').setView([gps.lat,gps.lon],15);
 
-L.tileLayer(
-  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  {
-    attribution: 'Tiles © Esri'
-  }
-).addTo(mapInstance);
+  L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution:'Tiles © Esri' }
+  ).addTo(mapInstance);
 
-  
-  L.marker([gps.lat, gps.lon])
-    .addTo(mapInstance)
-    .bindPopup(gps.source || "Location")
-    .openPopup();
+  L.marker([gps.lat,gps.lon]).addTo(mapInstance);
 
-  // accuracy circle
-  if(gps.accuracy && gps.accuracy < 5000){
-    L.circle([gps.lat, gps.lon], {
-      radius: gps.accuracy,
-      color: "#3b82f6",
-      fillOpacity: 0.15
+  if(gps.accuracy){
+    L.circle([gps.lat,gps.lon],{
+      radius:gps.accuracy,
+      color:"blue",
+      fillOpacity:0.2
     }).addTo(mapInstance);
   }
 
-  // critical fix: force resize
-  setTimeout(() => {
-    mapInstance.invalidateSize();
-  }, 200);
+  setTimeout(()=>mapInstance.invalidateSize(),200);
 }
 
 /* =========================
@@ -426,25 +399,20 @@ L.tileLayer(
 ========================= */
 function tab(e,id){
 
-  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
 
-  document.getElementById(id).classList.add("active");
-  e.target.classList.add("active");
+document.getElementById(id).classList.add("active");
+e.target.classList.add("active");
 
-  // 🔥 FIX: initialize map ONLY when tab is opened
-  if(id === "mapTab"){
-    setTimeout(() => {
-      if(window.lastGPS){
-        initMap(window.lastGPS);
-      }
-    }, 100);
-  }
+if(id==="mapTab"){
+  setTimeout(()=>initMap(window.lastGPS),100);
+}
 }
 
 </script>
 
-<!-- FOOTER (YOUR EXACT VERSION) -->
+<!-- FOOTER -->
 <div style="
   margin-top:40px;
   padding-top:15px;
@@ -454,7 +422,7 @@ function tab(e,id){
   text-align:center;
 ">
   PixelProof © 2026 Barry Mattison-Off Road Artist Photography<br>
-  A Digital Image Forensics Tool
+  Digital Image Forensics Tool
 </div>
 
 </body>
