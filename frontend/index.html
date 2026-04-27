@@ -28,7 +28,7 @@ button { padding:10px; background:#3b82f6; border:none; color:white; border-radi
 .image-box { flex:1 1 48%; position:relative; }
 .image-box img { width:100%; max-height:400px; object-fit:contain; }
 
-.overlay { position:absolute; inset:0; opacity:0; }
+.overlay { position:absolute; inset:0; opacity:0; transition:.2s; }
 
 #map { height:400px; border-radius:12px; }
 
@@ -67,7 +67,11 @@ button { padding:10px; background:#3b82f6; border:none; color:white; border-radi
 <h1>PixelProof 🔍</h1>
 
 <input type="file" id="file" accept="image/*">
-<button onclick="analyzeImage()">Analyze</button>
+<button onclick="document.getElementById('rear').click()">📷 Rear</button>
+<button onclick="document.getElementById('front').click()">🤳 Front</button>
+
+<input id="rear" type="file" accept="image/*" capture="environment" hidden>
+<input id="front" type="file" accept="image/*" capture="user" hidden>
 
 <div id="result"></div>
 </div>
@@ -87,51 +91,56 @@ function setProgress(p,t){
   progressText.innerText=t;
 }
 
-/* FILE LOAD */
-file.onchange=async e=>{
-  selectedFile=e.target.files[0];
-  previewURL=URL.createObjectURL(selectedFile);
+/* FILE HANDLER (ALL SOURCES) */
+file.onchange=handleFile;
+rear.onchange=handleFile;
+front.onchange=handleFile;
+
+async function handleFile(e){
+  const f=e.target.files[0];
+  if(!f) return;
+
+  selectedFile=f;
+  previewURL=URL.createObjectURL(f);
 
   await new Promise(r=>{
-    EXIF.getData(selectedFile,function(){
+    EXIF.getData(f,function(){
       metadata=EXIF.getAllTags(this)||{};
       gps=extractGPS(metadata);
       r();
     });
   });
-};
+
+  analyzeImage(); // AUTO
+}
 
 /* GPS */
 function extractGPS(meta){
-  if(!meta.GPSLatitude||!meta.GPSLongitude) return null;
+  if(!meta.GPSLatitude||!meta.GPSLongitude)return null;
   const d=c=>c[0]+c[1]/60+c[2]/3600;
   return {lat:d(meta.GPSLatitude),lon:d(meta.GPSLongitude)};
 }
 
 /* ANALYZE */
 async function analyzeImage(){
-  if(!selectedFile) return alert("Select image");
+
+  if(!selectedFile) return;
 
   showProgress();
 
-  // ALWAYS GET GPS FIRST
+  // GPS fallback
   let finalGPS=gps;
   if(!finalGPS){
     try{
       finalGPS=await new Promise(resolve=>{
         navigator.geolocation.getCurrentPosition(
-          p=>resolve({
-            lat:p.coords.latitude,
-            lon:p.coords.longitude,
-            accuracy:p.coords.accuracy
-          }),
+          p=>resolve({lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy}),
           ()=>resolve(null)
         );
       });
     }catch{}
   }
 
-  // OFFLINE MODE
   if(!navigator.onLine){
     render({
       analysis:"Offline Mode",
@@ -154,6 +163,8 @@ async function analyzeImage(){
   form.append("image",selectedFile);
   form.append("metadata",JSON.stringify(metadata));
   form.append("gps",JSON.stringify(finalGPS));
+
+  setProgress(50,"Uploading...");
 
   const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
   const data=await res.json();
@@ -179,9 +190,11 @@ ${!navigator.onLine?`<div class="offline-banner">Offline Mode</div>`:""}
 
 <div id="r" class="tab-content active">
 <div class="card">
+
 <h2>${d.analysis}</h2>
 <p><b>Score:</b> ${d.score}%</p>
 <p><b>Confidence:</b> ${d.confidence}%</p>
+
 <p>${d.simple_explanation}</p>
 
 <h3>Signals</h3>
@@ -189,11 +202,17 @@ ${Object.entries(d.signals||{}).map(([k,v])=>`
 <div>${k}: ${v}%</div>
 <div class="bar"><div class="bar-fill" style="width:${v}%"></div></div>
 `).join("")}
+
+<label>
+<input type="checkbox" id="overlayToggle"> Overlay Heatmap
+</label>
+
 </div>
 
 <div class="image-row">
 <div class="image-box">
-<img src="${previewURL}">
+<img id="orig" src="${previewURL}">
+<img id="overlay" class="overlay" src="${d.heatmap||''}">
 </div>
 <div class="image-box">
 ${d.heatmap?`<img src="${d.heatmap}?t=${Date.now()}">`:""}
@@ -205,20 +224,36 @@ ${d.heatmap?`<img src="${d.heatmap}?t=${Date.now()}">`:""}
 
 <div id="metaTab" class="tab-content">
 <div class="card meta-container">
-${Object.entries(d.metadata?.all||{}).map(([k,v])=>`<p><b>${k}:</b> ${v}</p>`).join("")}
+${Object.entries(d.metadata?.all||{}).map(([k,v])=>`<p><b>${k}</b>: ${v}</p>`).join("")}
 </div>
 </div>
 
 <div id="detailTab" class="tab-content">
 <div class="card">
-<h2>Detailed Analysis</h2>
-<p>Higher score = more anomalies detected</p>
-<p>Confidence reflects agreement between signals</p>
+
+<h2>Detailed Forensic Analysis</h2>
+
+<p>Higher score = more anomalies detected.</p>
+
+<p>Confidence reflects agreement between signals.</p>
+
+${Object.entries(d.signals||{}).map(([k,v])=>`
+<p><b>${k} (${v}%)</b></p>
+`).join("")}
+
 </div>
 </div>
 `;
 
 setTimeout(()=>{if(d.gps)initMap(d.gps);},200);
+
+// overlay toggle
+const t=document.getElementById("overlayToggle");
+if(t){
+  t.onchange=()=>{
+    document.getElementById("overlay").style.opacity=t.checked?0.6:0;
+  }
+}
 }
 
 /* MAP */
