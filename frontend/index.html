@@ -271,6 +271,10 @@ async function analyzeImage(){
     finalGPS = await getDeviceLocation();
   }
 
+  if(!metadata || Object.keys(metadata).length === 0){
+  console.log("No EXIF metadata found or stripped");
+}
+
   if(finalGPS && (isNaN(finalGPS.lat) || isNaN(finalGPS.lon))){
     finalGPS = null;
   }
@@ -389,10 +393,14 @@ function initMap(gps){
     zoomControl: true
   }).setView([gps.lat, gps.lon], 15);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
-  }).addTo(mapInstance);
+L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  {
+    attribution: 'Tiles © Esri'
+  }
+).addTo(mapInstance);
 
+  
   L.marker([gps.lat, gps.lon])
     .addTo(mapInstance)
     .bindPopup(gps.source || "Location")
