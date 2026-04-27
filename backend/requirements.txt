@@ -1,6 +1,7 @@
 flask
 flask-cors
 pillow
-gunicorn
-piexif
 reportlab
+numpy
+torch
+torchvision
