@@ -1,283 +1,231 @@
-from flask import Flask, request, jsonify, send_from_directory
+import os
+import io
+import json
+import base64
+from datetime import datetime
+
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-import os, uuid, json, hashlib
+
 import numpy as np
+import cv2
+from PIL import Image
 
-from PIL import Image, ImageChops, ImageEnhance, ImageFilter
-from PIL.ExifTags import TAGS, GPSTAGS
-
+# PDF
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import letter
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 UPLOAD_FOLDER = "uploads"
+HEATMAP_FOLDER = "heatmaps"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(HEATMAP_FOLDER, exist_ok=True)
 
-BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 
-# =========================
-# HASH
-# =========================
-def generate_file_hash(path):
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            h.update(chunk)
-    return h.hexdigest()
+# -------------------------------
+# IMAGE UTILS
+# -------------------------------
+def load_image_cv(path):
+    img = cv2.imread(path)
+    if img is None:
+        raise ValueError("Invalid image")
+    return img
 
-# =========================
-# EXIF EXTRACTION
-# =========================
-def extract_exif(path):
-    try:
-        img = Image.open(path)
-        exif = img._getexif()
-        if not exif:
-            return {}, None
 
-        meta, gps_data = {}, {}
+def compute_ela(image, quality=90):
+    # convert to JPEG in-memory
+    encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+    _, enc = cv2.imencode(".jpg", image, encode_param)
+    compressed = cv2.imdecode(enc, 1)
 
-        for tag, val in exif.items():
-            name = TAGS.get(tag, tag)
-            meta[name] = val
+    ela = cv2.absdiff(image, compressed)
+    ela = cv2.cvtColor(ela, cv2.COLOR_BGR2GRAY)
+    ela = cv2.normalize(ela, None, 0, 255, cv2.NORM_MINMAX)
+    return ela
 
-            if name == "GPSInfo":
-                for t in val:
-                    gps_data[GPSTAGS.get(t, t)] = val[t]
 
-        def convert(c):
-            return c[0][0]/c[0][1] + c[1][0]/c[1][1]/60 + c[2][0]/c[2][1]/3600
+def compute_noise(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (3, 3), 0)
+    noise = cv2.absdiff(gray, blur)
+    return noise
 
-        gps = None
-        if "GPSLatitude" in gps_data and "GPSLongitude" in gps_data:
-            lat = convert(gps_data["GPSLatitude"])
-            lon = convert(gps_data["GPSLongitude"])
 
-            if gps_data.get("GPSLatitudeRef") == "S":
-                lat = -lat
-            if gps_data.get("GPSLongitudeRef") == "W":
-                lon = -lon
+def compute_edges(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 100, 200)
+    return edges
 
-            gps = {"lat": lat, "lon": lon, "source": "EXIF"}
 
-        return meta, gps
-    except:
-        return {}, None
+def compute_compression(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    lap = cv2.Laplacian(gray, cv2.CV_64F)
+    return np.uint8(np.absolute(lap))
 
-# =========================
-# ANALYSIS
-# =========================
-def ela_score(img, path):
-    temp = path+"_temp.jpg"
-    img.save(temp, "JPEG", quality=90)
-    diff = ImageChops.difference(img, Image.open(temp))
-    ela = ImageEnhance.Brightness(diff).enhance(10)
-    return np.mean(np.array(ela.convert("L")))/255*100, ela
 
-def noise_score(img):
-    g = np.array(img.convert("L"))
-    blur = Image.fromarray(g).filter(ImageFilter.GaussianBlur(3))
-    return np.std(np.abs(g-np.array(blur)))/255*100
+def score_from_map(m):
+    return float(np.mean(m)) / 255 * 100
 
-def edge_score(img):
-    return np.mean(np.array(img.filter(ImageFilter.FIND_EDGES).convert("L")))/255*100
 
-def block_score(img):
-    g = np.array(img.convert("L"))
-    blocks=[np.std(g[y:y+8,x:x+8]) for y in range(0,g.shape[0]-8,8) for x in range(0,g.shape[1]-8,8)]
-    return np.std(blocks)/255*100
+def create_heatmap(base, maps):
+    combined = np.zeros_like(base[:, :, 0], dtype=np.float32)
 
-def metadata_score(meta):
-    txt=str(meta).lower()
-    if "photoshop" in txt or "adobe" in txt: return 80
-    return 30
+    for m in maps:
+        m = cv2.resize(m, (base.shape[1], base.shape[0]))
+        combined += m.astype(np.float32)
 
-def combine(s):
-    w={"ela":0.3,"noise":0.2,"edge":0.2,"block":0.2,"meta":0.1}
-    score=sum(s[k]*w[k] for k in w)
-    conf=100-np.std(list(s.values()))
-    return int(score), int(max(0,min(100,conf)))
+    combined /= len(maps)
+    combined = cv2.normalize(combined, None, 0, 255, cv2.NORM_MINMAX)
+    combined = np.uint8(combined)
 
-# =========================
-# EXPLANATION (FULL STRUCTURE)
-# =========================
-def explain(score):
-    if score > 70:
-        return {
-            "simple": "Strong signs of manipulation detected--> Score > 70.",
-            "technical": "Multiple forensic signals indicate inconsistencies in compression, noise, and structure--> Score > 70.",
-            "legal": "The image demonstrates characteristics consistent with digital alteration--> Score > 70.",
-            "confidence_note": "High confidence due to strong agreement across detection methods."
-        }
-    elif score > 40:
-        return {
-            "simple": "Possible editing detected--> Score > 40 and <70.",
-            "technical": "Moderate inconsistencies detected across several forensic indicators--> Score 0 and < 40.",
-            "legal": "The image may have undergone editing or recompression--> Score 0 and < 40.",
-            "confidence_note": "Moderate confidence; further validation recommended."
-        }
-    else:
-        return {
-            "simple": "Image appears original--> Score 0 and < 40.",
-            "technical": "Forensic signals show consistent compression, noise, and structure--> Score < 40.",
-            "legal": "No indicators of digital manipulation detected--> Score < 40.",
-            "confidence_note": "High confidence in image integrity."
-        }
+    heat = cv2.applyColorMap(combined, cv2.COLORMAP_JET)
+    overlay = cv2.addWeighted(base, 0.6, heat, 0.4, 0)
 
-# =========================
-# PDF (FULL VERSION)
-# =========================
-def generate_pdf(job_id, d):
+    return heat, overlay
 
-    path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
-    doc = SimpleDocTemplate(path)
-    styles = getSampleStyleSheet()
 
-    c = []
+# -------------------------------
+# ANALYSIS ENGINE
+# -------------------------------
+def analyze_image(path):
+    img = load_image_cv(path)
 
-    c.append(Paragraph("Digital Image Forensic Analysis Report", styles["Title"]))
-    c.append(Spacer(1,12))
+    ela = compute_ela(img)
+    noise = compute_noise(img)
+    edges = compute_edges(img)
+    comp = compute_compression(img)
 
-    c.append(Paragraph(f"<b>Result:</b> {d['analysis']}", styles["Normal"]))
-    c.append(Paragraph(f"<b>Score:</b> {d['score']}%", styles["Normal"]))
-    c.append(Paragraph(f"<b>Confidence:</b> {d['confidence']}%", styles["Normal"]))
-    c.append(Spacer(1,12))
+    ela_s = score_from_map(ela)
+    noise_s = score_from_map(noise)
+    edges_s = score_from_map(edges)
+    comp_s = score_from_map(comp)
 
-    # Images
-    orig = os.path.join(UPLOAD_FOLDER, f"{job_id}.jpg")
-    heat = os.path.join(UPLOAD_FOLDER, f"{job_id}_heat.jpg")
+    signals = {
+        "ELA": round(ela_s),
+        "Noise": round(noise_s),
+        "Edges": round(edges_s),
+        "Compression": round(comp_s),
+        "Metadata": 20  # placeholder
+    }
 
-    if os.path.exists(orig):
-        c.append(Paragraph("Original Image", styles["Heading2"]))
-        c.append(RLImage(orig, width=400, height=250))
-        c.append(Spacer(1,10))
+    score = round(np.mean(list(signals.values())))
+    confidence = round(100 - np.std(list(signals.values())))
 
-    if os.path.exists(heat):
-        c.append(Paragraph("Forensic Heatmap", styles["Heading2"]))
-        c.append(RLImage(heat, width=400, height=250))
-        c.append(Spacer(1,10))
+    # heatmap
+    heat, overlay = create_heatmap(img, [ela, noise, edges, comp])
 
-    # Explanations
-    c.append(Paragraph("Summary", styles["Heading2"]))
-    c.append(Paragraph(d["simple_explanation"], styles["Normal"]))
+    fname = f"{datetime.utcnow().timestamp()}.jpg"
+    heat_path = os.path.join(HEATMAP_FOLDER, fname)
+    cv2.imwrite(heat_path, overlay)
 
-    c.append(Paragraph("Technical Analysis", styles["Heading2"]))
-    c.append(Paragraph(d["technical_explanation"], styles["Normal"]))
+    heat_url = f"/api/heatmap/{fname}"
 
-    c.append(Paragraph("Conclusion", styles["Heading2"]))
-    c.append(Paragraph(d["legal_explanation"], styles["Normal"]))
+    return {
+        "analysis": "Analysis Complete",
+        "score": score,
+        "confidence": confidence,
+        "simple_explanation": "Automated signal analysis completed.",
+        "technical_explanation": "ELA, noise, edge, and compression signals evaluated.",
+        "legal_explanation": "Not a definitive forensic conclusion.",
+        "confidence_note": "Confidence reflects signal agreement.",
+        "signals": signals,
+        "heatmap": heat_url
+    }
 
-    c.append(Paragraph("Confidence Explanation", styles["Heading2"]))
-    c.append(Paragraph(d["confidence_note"], styles["Normal"]))
 
-    c.append(Spacer(1,12))
+# -------------------------------
+# ROUTES
+# -------------------------------
+@app.route("/")
+def home():
+    return "PixelProof backend running"
 
-    # Signals
-    c.append(Paragraph("Signal Breakdown", styles["Heading2"]))
-    for k,v in d["signals"].items():
-        c.append(Paragraph(f"{k}: {v}", styles["Normal"]))
 
-    c.append(Spacer(1,12))
+@app.route("/api/heatmap/<filename>")
+def serve_heatmap(filename):
+    path = os.path.join(HEATMAP_FOLDER, filename)
+    return send_file(path, mimetype="image/jpeg")
 
-    # Metadata
-    meta = d["metadata"]["all"]
-    c.append(Paragraph("Metadata", styles["Heading2"]))
-    for k,v in list(meta.items())[:20]:
-        c.append(Paragraph(f"{k}: {v}", styles["Normal"]))
 
-    c.append(Spacer(1,12))
-
-    # GPS
-    gps = d["gps"]
-    c.append(Paragraph("Location Data", styles["Heading2"]))
-    if gps:
-        c.append(Paragraph(f"Lat: {gps.get('lat')}", styles["Normal"]))
-        c.append(Paragraph(f"Lon: {gps.get('lon')}", styles["Normal"]))
-        c.append(Paragraph(f"Source: {gps.get('source')}", styles["Normal"]))
-    else:
-        c.append(Paragraph("No GPS data", styles["Normal"]))
-
-    c.append(Spacer(1,12))
-
-    # Integrity
-    c.append(Paragraph("Forensic Integrity", styles["Heading2"]))
-    c.append(Paragraph(f"Hash: {d['integrity']['hash']}", styles["Normal"]))
-
-    c.append(Spacer(1,20))
-
-    c.append(Paragraph("Generated by PixelProof", styles["Normal"]))
-
-    doc.build(c)
-
-    return f"{BASE_URL}/files/{job_id}_report.pdf"
-
-# =========================
-# ROUTE
-# =========================
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
 
-    file = request.files["image"]
-    fmeta = json.loads(request.form.get("metadata","{}"))
-    fgps = json.loads(request.form.get("gps","null"))
+    if "image" not in request.files:
+        return jsonify({"error": "No image"}), 400
 
-    job = str(uuid.uuid4())
-    path = os.path.join(UPLOAD_FOLDER, job+".jpg")
-    file.save(path)
+    image = request.files["image"]
+    fname = f"{datetime.utcnow().timestamp()}_{image.filename}"
+    path = os.path.join(UPLOAD_FOLDER, fname)
+    image.save(path)
 
-    img = Image.open(path).convert("RGB")
+    metadata_raw = request.form.get("metadata")
+    gps_raw = request.form.get("gps")
 
-    bmeta, bgps = extract_exif(path)
-    meta = {**fmeta, **bmeta}
-    gps = bgps if bgps else fgps
+    try:
+        metadata = json.loads(metadata_raw) if metadata_raw else {}
+    except:
+        metadata = {}
 
-    ela, ela_img = ela_score(img, path)
-    noise = noise_score(img)
-    edge = edge_score(img)
-    block = block_score(img)
-    meta_score = metadata_score(meta)
+    try:
+        gps = json.loads(gps_raw) if gps_raw else None
+    except:
+        gps = None
 
-    final, conf = combine({
-        "ela": ela,
-        "noise": noise,
-        "edge": edge,
-        "block": block,
-        "meta": meta_score
-    })
+    result = analyze_image(path)
 
-    exp = explain(final)
-
-    heatfile = f"{job}_heat.jpg"
-    ela_img.save(os.path.join(UPLOAD_FOLDER, heatfile))
-
-    result = {
-        "analysis": "Likely edited" if final>70 else "Possibly edited" if final>40 else "Likely original",
-        "score": final,
-        "confidence": conf,
-        "simple_explanation": exp["simple"],
-        "technical_explanation": exp["technical"],
-        "legal_explanation": exp["legal"],
-        "confidence_note": exp["confidence_note"],
-        "signals": {
-            "ELA": int(ela),
-            "Noise": int(noise),
-            "Edges": int(edge),
-            "Compression": int(block),
-            "Metadata": int(meta_score)
-        },
-        "metadata": {"available": bool(meta), "all": meta},
-        "gps": gps,
-        "heatmap": f"{BASE_URL}/files/{heatfile}",
-        "integrity": {"hash": generate_file_hash(path)}
-    }
-
-    # ✅ THIS LINE WAS MISSING BEFORE — NOW FIXED
-    result["pdf_report"] = generate_pdf(job, result)
+    result["metadata"] = {"all": metadata}
+    result["gps"] = gps
 
     return jsonify({"result": result})
 
-@app.route("/files/<f>")
-def files(f):
-    return send_from_directory(UPLOAD_FOLDER, f)
+
+# -------------------------------
+# PDF EXPORT
+# -------------------------------
+@app.route("/api/pdf", methods=["POST"])
+def generate_pdf():
+
+    data = request.json
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+
+    content = []
+
+    content.append(Paragraph("PixelProof Report", styles["Title"]))
+    content.append(Spacer(1, 10))
+
+    content.append(Paragraph(f"Score: {data.get('score')}%", styles["Normal"]))
+    content.append(Paragraph(f"Confidence: {data.get('confidence')}%", styles["Normal"]))
+    content.append(Spacer(1, 10))
+
+    for k, v in data.get("signals", {}).items():
+        content.append(Paragraph(f"{k}: {v}%", styles["Normal"]))
+
+    content.append(Spacer(1, 10))
+
+    heatmap_url = data.get("heatmap")
+    if heatmap_url:
+        try:
+            import requests
+            r = requests.get(heatmap_url)
+            img = RLImage(io.BytesIO(r.content), width=300, height=200)
+            content.append(img)
+        except:
+            pass
+
+    doc.build(content)
+    buffer.seek(0)
+
+    return send_file(buffer, as_attachment=True, download_name="report.pdf", mimetype="application/pdf")
+
+
+# -------------------------------
+# START
+# -------------------------------
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
