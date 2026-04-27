@@ -193,6 +193,36 @@ async function analyzeImage(){
   if(!selectedFile) return alert("Select image");
 
   showProgress();
+
+  // 🚫 OFFLINE FIRST CHECK (NEW)
+  if(!navigator.onLine){
+    setProgress(40,"Offline mode");
+
+    const offlineResult = {
+      analysis: "Offline Mode",
+      score: 0,
+      confidence: 0,
+      simple_explanation: "No internet connection. Full analysis unavailable.",
+      technical_explanation: "Backend processing requires network access.",
+      legal_explanation: "This result is not a forensic determination.",
+      confidence_note: "Offline mode provides limited functionality.",
+      signals: {},
+      metadata: { all: metadata },
+      gps: gps,
+      heatmap: null
+    };
+
+    setProgress(100,"Done");
+
+    setTimeout(()=>{
+      hideProgress();
+      render(offlineResult);
+    },300);
+
+    return; // ⛔ STOP HERE (no upload attempt)
+  }
+
+  // ✅ NORMAL FLOW (UNCHANGED)
   setProgress(20,"Preparing...");
 
   const resized = await resizeImage(selectedFile);
@@ -224,6 +254,32 @@ async function analyzeImage(){
       finalGPS = null;
     }
   }
+
+  form.append("gps", JSON.stringify(finalGPS));
+
+  let res;
+  try{
+    res = await fetch(API + "/api/analyze", {
+      method:"POST",
+      body: form
+    });
+  }catch{
+    hideProgress();
+    alert("Server unreachable");
+    return;
+  }
+
+  setProgress(80,"Processing...");
+
+  const data = await res.json();
+
+  setProgress(100,"Done");
+
+  setTimeout(()=>{
+    hideProgress();
+    render(data.result);
+  },300);
+}
 
   form.append("gps", JSON.stringify(finalGPS));
 
