@@ -306,6 +306,7 @@ document.getElementById("result").innerHTML=`
 <div class="tab" onclick="tab(event,'mapTab')">Map</div>
 <div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
 <div class="tab" onclick="tab(event,'aboutTab')">About</div>
+<div class="tab" onclick="tab(event,'detailTab')">Detailed Analysis</div>
 </div>
 
 <div id="r" class="tab-content active">
@@ -372,6 +373,45 @@ ${d.metadata?.available
 `;
 }
 
+  <div id="detailTab" class="tab-content">
+<div class="card">
+
+<h2>Detailed Analysis</h2>
+
+<p>This forensic score is calculated using multiple detection methods:</p>
+
+<ul>
+<li><b>ELA:</b> Compression inconsistencies</li>
+<li><b>Noise:</b> Texture differences</li>
+<li><b>Edges:</b> Unnatural transitions</li>
+<li><b>Compression:</b> Block artifacts</li>
+<li><b>Metadata:</b> Editing indicators</li>
+</ul>
+
+<p>
+Each method contributes to the final score using weighted importance.
+Higher scores indicate stronger evidence of manipulation.
+</p>
+
+<p>
+<b>Confidence</b> reflects how consistently these methods agree.
+</p>
+
+<h3>Your Signal Breakdown</h3>
+
+${
+Object.entries(d.signals || {}).map(([k,v])=>`
+  <div style="margin-bottom:10px;">
+    <div>${k}: ${v}</div>
+    <div style="background:#1e293b;height:8px;border-radius:4px;">
+      <div style="width:${v}%;height:8px;background:#3b82f6;border-radius:4px;"></div>
+    </div>
+  </div>
+`).join("")
+}
+
+</div>
+</div>
 /* =========================
    MAP (FIXED)
 ========================= */
