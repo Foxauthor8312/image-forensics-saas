@@ -11,551 +11,176 @@
 <style>
 body { background:#0f172a; color:white; font-family:system-ui; margin:0; }
 .container { max-width:1100px; margin:auto; padding:20px; }
-
 button { padding:10px; background:#3b82f6; border:none; color:white; border-radius:8px; margin:5px; cursor:pointer; }
 #analyzeBtn { background:#22c55e; }
-
 .tabs { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
 .tab { padding:10px; background:#1e293b; border-radius:8px; cursor:pointer; }
 .tab.active { background:#3b82f6; }
-
 .tab-content { display:none; margin-top:20px; }
 .tab-content.active { display:block; }
-
 .card { background:#020617; padding:18px; border-radius:12px; }
-
 .image-row { display:flex; gap:15px; flex-wrap:wrap; margin-top:20px; }
 .image-box { flex:1 1 48%; position:relative; }
-.image-box img { width:100%; max-height:400px; object-fit:contain; display:block; }
-
-.overlay {
-  position:absolute; inset:0;
-  pointer-events:none;
-  opacity:0; transition:opacity .2s ease;
-}
-
+.image-box img { width:100%; max-height:400px; object-fit:contain; }
+.overlay { position:absolute; inset:0; opacity:0; }
 #map { height:400px; border-radius:12px; }
-
 .meta-container { max-height:400px; overflow-y:auto; }
-
-.sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:9000;}
-.sheet{position:fixed;left:0;right:0;bottom:-300px;background:#020617;border-radius:16px 16px 0 0;padding:16px;z-index:9001;transition:bottom .25s;}
-.sheet.open{bottom:0;}
-.option{padding:12px;background:#1e293b;border-radius:8px;margin-top:8px;cursor:pointer;}
-
-.bar{height:8px;background:#1e293b;border-radius:6px;margin-bottom:8px;overflow:hidden;}
-.bar-fill{height:8px;background:#3b82f6;border-radius:6px;}
-
-.badge{padding:6px 12px;border-radius:20px;font-weight:bold;display:inline-block;margin-top:10px;}
-
-.row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-.small { font-size:12px; opacity:.8; }
-
-.toggle {
-  display:inline-flex; align-items:center; gap:8px; cursor:pointer;
-  background:#1e293b; padding:6px 10px; border-radius:10px;
-}
-.toggle input { cursor:pointer; }
-
-.hr { height:1px; background:#1e293b; margin:14px 0; }
-
-.pill {
-  display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px;
-  background:#1e293b;
-}
-/* OFFLINE BANNER */
-.offline-banner{
-  position:sticky;
-  top:0;
-  z-index:999;
-  background:#7c2d12;
-  color:#fff;
-  padding:10px 14px;
-  border-radius:10px;
-  margin-bottom:10px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  animation:slideDown .3s ease;
-}
-
-.offline-banner span{
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-
-.offline-banner button{
-  background:none;
-  border:none;
-  color:#fff;
-  font-size:16px;
-  cursor:pointer;
-}
-
-@keyframes slideDown{
-  from{transform:translateY(-10px); opacity:0;}
-  to{transform:translateY(0); opacity:1;}
-}
-  
+.bar{height:8px;background:#1e293b;border-radius:6px;margin-bottom:8px;}
+.bar-fill{height:8px;background:#3b82f6;}
+.offline-banner{position:sticky;top:0;background:#7c2d12;padding:10px;border-radius:10px;margin-bottom:10px;display:flex;justify-content:space-between;}
 </style>
 </head>
 
 <body>
 
-<!-- PROGRESS -->
 <div id="progressOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;">
-  <div style="width:300px;background:#020617;padding:20px;border-radius:12px;text-align:center;">
-    <h3>Analyzing Image</h3>
-    <div style="background:#1e293b;height:10px;border-radius:6px;margin:15px 0;">
-      <div id="progressBar" style="height:10px;width:0%;background:#3b82f6;border-radius:6px;"></div>
-    </div>
-    <div id="progressPercent">0%</div>
-    <div id="progressText">Starting...</div>
-  </div>
+<div style="width:300px;background:#020617;padding:20px;border-radius:12px;text-align:center;">
+<h3>Analyzing Image</h3>
+<div style="background:#1e293b;height:10px;border-radius:6px;">
+<div id="progressBar" style="height:10px;width:0%;background:#3b82f6;"></div>
+</div>
+<div id="progressPercent">0%</div>
+<div id="progressText">Starting...</div>
+</div>
 </div>
 
 <div class="container">
-
 <h1>PixelProof 🔍</h1>
-
 <input type="file" id="file" accept="image/*">
-<button onclick="openSheet()">📷 Take Photo</button>
-<button id="analyzeBtn" onclick="analyzeImage()">Analyze</button>
-
+<button onclick="analyzeImage()">Analyze</button>
 <div id="result"></div>
-
-</div>
-
-<!-- CAMERA -->
-<div id="sheetBackdrop" class="sheet-backdrop" onclick="closeSheet()"></div>
-<div id="cameraSheet" class="sheet">
-<label class="option">📷 Rear Camera<input type="file" id="cameraRear" accept="image/*" capture="environment" hidden></label>
-<label class="option">🤳 Front Camera<input type="file" id="cameraFront" accept="image/*" capture="user" hidden></label>
 </div>
 
 <script>
 
 const API="https://pixelproof-backend-v2.onrender.com";
-
 let selectedFile=null, previewURL=null, metadata={}, gps=null, mapInstance=null;
 
 /* PROGRESS */
 function showProgress(){progressOverlay.style.display="flex";}
 function hideProgress(){progressOverlay.style.display="none";}
-function setProgress(p,t){
-  progressBar.style.width=p+"%";
-  progressPercent.innerText=p+"%";
-  progressText.innerText=t;
-}
-
-/* CAMERA */
-function openSheet(){sheetBackdrop.style.display="block";cameraSheet.classList.add("open");}
-function closeSheet(){sheetBackdrop.style.display="none";cameraSheet.classList.remove("open");}
+function setProgress(p,t){progressBar.style.width=p+"%";progressPercent.innerText=p+"%";progressText.innerText=t;}
 
 /* FILE */
-async function processFile(file){
-  selectedFile=file;
-  previewURL=URL.createObjectURL(file);
-
+file.onchange=async e=>{
+  selectedFile=e.target.files[0];
+  previewURL=URL.createObjectURL(selectedFile);
   await new Promise(r=>{
-    EXIF.getData(file,function(){
+    EXIF.getData(selectedFile,function(){
       metadata=EXIF.getAllTags(this)||{};
       gps=extractGPS(metadata);
       r();
     });
   });
-}
-
-file.onchange=e=>processFile(e.target.files[0]);
-
-cameraRear.onchange = async e => {
-  await processFile(e.target.files[0]);
-  closeSheet();
-  analyzeImage();
-};
-
-cameraFront.onchange = async e => {
-  await processFile(e.target.files[0]);
-  closeSheet();
-  analyzeImage();
 };
 
 /* GPS */
 function extractGPS(meta){
-  if(!meta.GPSLatitude||!meta.GPSLongitude) return null;
+  if(!meta.GPSLatitude||!meta.GPSLongitude)return null;
   const d=c=>c[0]+c[1]/60+c[2]/3600;
-  let lat=d(meta.GPSLatitude),lon=d(meta.GPSLongitude);
-  if(meta.GPSLatitudeRef==="S")lat=-lat;
-  if(meta.GPSLongitudeRef==="W")lon=-lon;
-  return {lat,lon};
-}
-
-/* REVERSE GEOCODE */
-async function reverseGeocode(lat,lon){
-  try{
-    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
-    const d=await r.json();
-    return d.display_name;
-  }catch{return null;}
-}
-
-/* RESIZE */
-async function resizeImage(file){
-  return new Promise(resolve=>{
-    const img=new Image(),reader=new FileReader();
-    reader.onload=e=>img.src=e.target.result;
-    img.onload=()=>{
-      try{
-        const canvas=document.createElement("canvas");
-        let w=img.width,h=img.height,MAX=1280;
-        if(w>MAX){h*=MAX/w;w=MAX;}
-        canvas.width=w;canvas.height=h;
-        canvas.getContext("2d").drawImage(img,0,0,w,h);
-        canvas.toBlob(b=>resolve(b?new File([b],"resized.jpg",{type:"image/jpeg"}):file));
-      }catch{resolve(file);}
-    };
-    img.onerror=()=>resolve(file);
-    reader.readAsDataURL(file);
-  });
+  return {lat:d(meta.GPSLatitude),lon:d(meta.GPSLongitude)};
 }
 
 /* ANALYZE */
 async function analyzeImage(){
-  if(!selectedFile) return alert("Select image");
+  if(!selectedFile)return alert("Select image");
 
   showProgress();
 
-  // OFFLINE → return immediately
-  if(!navigator.onLine){
-    setProgress(40,"Offline mode");
-
-    const offlineResult = {
-      analysis: "Offline Mode",
-      score: 0,
-      confidence: 0,
-      simple_explanation: "No internet connection. Full analysis unavailable.",
-      technical_explanation: "Backend processing requires network access.",
-      legal_explanation: "This result is not a forensic determination.",
-      confidence_note: "Offline mode provides limited functionality.",
-      signals: {},
-      metadata: { all: metadata },
-      gps: gps,
-      heatmap: null
-    };
-
-    setProgress(100,"Done");
-
-    setTimeout(()=>{
-      hideProgress();
-      render(offlineResult);
-    },300);
-
-    return;
-  }
-
-  // ONLINE FLOW
-  setProgress(20,"Preparing...");
-
-  const resized = await resizeImage(selectedFile);
-
-  setProgress(40,"Uploading...");
-
-  const form = new FormData();
-  form.append("image", resized);
-  form.append("metadata", JSON.stringify(metadata));
-
-  let finalGPS = gps;
-
+  // 🔵 ALWAYS GET GPS FIRST
+  let finalGPS=gps;
   if(!finalGPS){
     try{
-      setProgress(30,"Getting location...");
-      finalGPS = await new Promise(resolve=>{
-        navigator.geolocation?.getCurrentPosition(
-          p=>resolve({
-            lat:p.coords.latitude,
-            lon:p.coords.longitude,
-            accuracy:p.coords.accuracy,
-            source:"device"
-          }),
-          ()=>resolve(null),
-          { enableHighAccuracy:true, timeout:5000 }
+      finalGPS=await new Promise(resolve=>{
+        navigator.geolocation.getCurrentPosition(
+          p=>resolve({lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy}),
+          ()=>resolve(null)
         );
       });
-    }catch{
-      finalGPS = null;
-    }
+    }catch{}
   }
 
-  form.append("gps", JSON.stringify(finalGPS));
-
-  let res;
-  try{
-    res = await fetch(API+"/api/analyze",{
-      method:"POST",
-      body:form
+  // OFFLINE
+  if(!navigator.onLine){
+    render({
+      analysis:"Offline Mode",
+      score:0,
+      confidence:0,
+      simple_explanation:"Offline - limited analysis",
+      technical_explanation:"",
+      legal_explanation:"",
+      confidence_note:"",
+      signals:{},
+      metadata:{all:metadata},
+      gps:finalGPS
     });
-  }catch{
     hideProgress();
-    alert("Server unreachable");
     return;
   }
 
-  setProgress(80,"Processing...");
+  const form=new FormData();
+  form.append("image",selectedFile);
+  form.append("metadata",JSON.stringify(metadata));
+  form.append("gps",JSON.stringify(finalGPS));
 
-  const data = await res.json();
+  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+  const data=await res.json();
 
-  setProgress(100,"Done");
-
-  setTimeout(()=>{
-    hideProgress();
-    render(data.result);
-  },300);
-}
-
-/* GAUGE */
-function advancedGauge(v,label){
-  const r=50,c=2*Math.PI*r,o=c-(v/100)*c;
-  const col=v>70?"#ef4444":v>40?"#f59e0b":"#22c55e";
-  return `<div style="text-align:center">
-    <svg width="120" height="120" style="transform:rotate(-90deg)">
-      <circle cx="60" cy="60" r="${r}" stroke="#1e293b" stroke-width="10" fill="none"/>
-      <circle cx="60" cy="60" r="${r}" stroke="${col}" stroke-width="10"
-        stroke-dasharray="${c}" stroke-dashoffset="${o}" fill="none"/>
-    </svg>
-    <div style="margin-top:-70px;font-weight:bold;">${v}%</div>
-    <div style="margin-top:40px;">${label}</div>
-  </div>`;
-}
-
-/* HELPERS */
-function topSignal(signals){
-  let best={k:null,v:-1};
-  for(const [k,v] of Object.entries(signals||{})){
-    if(v>best.v) best={k,v};
-  }
-  return best;
-}
-
-function confidenceAgreementBar(conf){
-  const col=conf>70?"#22c55e":conf>40?"#f59e0b":"#ef4444";
-  return `
-    <div class="small">Signal agreement</div>
-    <div class="bar"><div class="bar-fill" style="width:${conf}%; background:${col};"></div></div>
-  `;
+  hideProgress();
+  render(data.result);
 }
 
 /* RENDER */
-async function render(d){
+function render(d){
 
-  window.lastGPS = d.gps;
+window.lastGPS=d.gps;
 
-  let addr="";
-  if(d.gps){
-    const a = await reverseGeocode(d.gps.lat,d.gps.lon);
-    if(a) addr = `<p><b>Location:</b> ${a}</p>`;
-  }
+result.innerHTML=`
+${!navigator.onLine?`<div class="offline-banner">Offline Mode</div>`:""}
 
-  const verdictColor = d.score>70?"#ef4444":d.score>40?"#f59e0b":"#22c55e";
-  const verdictText = d.score>70?"Likely Edited":d.score>40?"Possibly Edited":"Likely Original";
-
-  const best = topSignal(d.signals);
-
-  result.innerHTML=`
-
-  ${!navigator.onLine ? `
-    <div class="offline-banner" id="offlineBanner">
-      <span>⚠️ Offline Mode — limited analysis</span>
-      <button onclick="dismissBanner()">✖</button>
-    </div>
-  ` : ""}
-
-  <div class="tabs">
-    <div class="tab active" onclick="tab(event,'r')">Results</div>
-    <div class="tab" onclick="tab(event,'mapTab')">Map</div>
-    <div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
-    <div class="tab" onclick="tab(event,'detailTab')">Detailed</div>
-  </div>
-
-  <!-- RESULTS -->
-  <div id="r" class="tab-content active">
-    <div class="card">
-
-      <h2>${d.analysis}</h2>
-
-      <div class="badge" style="background:${verdictColor}">
-        ${verdictText}
-      </div>
-
-      <div class="row" style="margin-top:12px;">
-        ${advancedGauge(d.score,"Score")}
-        ${advancedGauge(d.confidence,"Confidence")}
-      </div>
-
-      ${addr}
-
-      <p><b>Summary:</b> ${d.simple_explanation}</p>
-      <p><b>Technical:</b> ${d.technical_explanation}</p>
-      <p><b>Conclusion:</b> ${d.legal_explanation}</p>
-      <p><b>Confidence:</b> ${d.confidence_note}</p>
-
-      ${confidenceAgreementBar(d.confidence)}
-
-      <div class="hr"></div>
-
-      <h3>Signals</h3>
-      ${best.k ? `<div class="pill">Top signal: <b>${best.k}</b> (${best.v}%)</div>` : ""}
-
-      ${Object.entries(d.signals||{}).map(([k,v])=>`
-        <div>${k}: ${v}%</div>
-        <div class="bar"><div class="bar-fill" style="width:${v}%"></div></div>
-      `).join("")}
-
-    </div>
-
-    <div class="image-row">
-      <div class="image-box">
-        <img id="origImg" src="${previewURL}">
-        <img id="overlayImg" class="overlay" src="${d.heatmap}?t=${Date.now()}">
-      </div>
-      <div class="image-box">
-        <img src="${d.heatmap}?t=${Date.now()}">
-      </div>
-    </div>
-  </div>
-
-  <!-- MAP -->
-  <div id="mapTab" class="tab-content">
-    <div id="map"></div>
-  </div>
-
-  <!-- METADATA -->
-  <div id="metaTab" class="tab-content">
-    <div class="card meta-container">
-      ${Object.entries(d.metadata?.all||{}).map(([k,v])=>`
-        <p><b>${k}:</b> ${v}</p>
-      `).join("")}
-    </div>
-  </div>
-
-  <!-- DETAILED -->
- <div id="detailTab" class="tab-content">
-  <div class="card">
-
-    <h2>Detailed Forensic Analysis</h2>
-
-    <p>
-      This system evaluates multiple independent signals to assess image integrity.
-      Each signal looks for inconsistencies commonly introduced by editing, recompression, or synthetic generation.
-    </p>
-
-    <div class="hr"></div>
-
-    <h3>How the Score is Calculated (${d.score}%)</h3>
-    <ul>
-      <li><b>ELA</b> – compression inconsistencies</li>
-      <li><b>Noise</b> – irregular texture/grain</li>
-      <li><b>Edges</b> – unnatural boundaries</li>
-      <li><b>Compression</b> – JPEG block artifacts</li>
-      <li><b>Metadata</b> – editing traces / missing data</li>
-    </ul>
-
-    <p>
-      The score represents the **strength and number of anomalies detected**.
-      Higher scores indicate more inconsistencies typically associated with image manipulation.
-    </p>
-
-    <div class="hr"></div>
-
-    <h3>Score Interpretation</h3>
-    <p>
-      <span style="color:#22c55e;">0–40 → Likely original</span><br>
-      <span style="color:#f59e0b;">40–70 → Possible editing</span><br>
-      <span style="color:#ef4444;">70–100 → Likely edited</span>
-    </p>
-
-    <div class="hr"></div>
-
-    <h3>Confidence Explained (${d.confidence}%)</h3>
-
-    <p>
-      Confidence measures how strongly the different detection signals agree:
-    </p>
-
-    <ul>
-      <li><b>High confidence</b>: multiple signals point to the same conclusion</li>
-      <li><b>Moderate confidence</b>: some agreement, some uncertainty</li>
-      <li><b>Low confidence</b>: mixed or conflicting signals</li>
-    </ul>
-
-    ${confidenceAgreementBar(d.confidence)}
-
-    <div class="hr"></div>
-
-    <h3>Signal Breakdown</h3>
-
-    ${Object.entries(d.signals||{}).map(([k,v])=>`
-      <p><b>${k} (${v}%)</b><br>
-      ${
-        k==="ELA" ? "Highlights compression differences that may indicate localized edits." :
-        k==="Noise" ? "Detects unnatural variations in texture and grain patterns." :
-        k==="Edges" ? "Identifies sharp or inconsistent boundaries introduced by editing." :
-        k==="Compression" ? "Looks for irregular JPEG block patterns caused by recompression." :
-        k==="Metadata" ? "Checks for missing, altered, or suspicious metadata fields." :
-        "General anomaly detection signal."
-      }
-      </p>
-    `).join("")}
-
-    <div class="hr"></div>
-
-    <h3>Important Notes</h3>
-
-    <p class="small">
-      Image compression, resizing, and platform uploads (social media, messaging apps)
-      can introduce artifacts that may influence results.
-    </p>
-
-    <p class="small">
-      This tool identifies patterns consistent with manipulation but does not determine intent
-      or provide legal proof on its own.
-    </p>
-
-  </div>
+<div class="tabs">
+<div class="tab active" onclick="tab(event,'r')">Results</div>
+<div class="tab" onclick="tab(event,'mapTab')">Map</div>
+<div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
+<div class="tab" onclick="tab(event,'detailTab')">Detailed</div>
 </div>
-  // overlay toggle
-  const toggle = document.getElementById("overlayToggle");
-  if(toggle){
-    const overlay = document.getElementById("overlayImg");
-    toggle.addEventListener("change", ()=>{
-      overlay.style.opacity = toggle.checked ? 0.6 : 0;
-    });
-  }
+
+<div id="r" class="tab-content active">
+<div class="card">
+<h2>${d.analysis}</h2>
+<p>${d.simple_explanation}</p>
+</div>
+</div>
+
+<div id="mapTab" class="tab-content"><div id="map"></div></div>
+
+<div id="metaTab" class="tab-content">
+<div class="card meta-container">
+${Object.entries(d.metadata?.all||{}).map(([k,v])=>`<p><b>${k}</b>: ${v}</p>`).join("")}
+</div>
+</div>
+
+<div id="detailTab" class="tab-content">
+<div class="card">
+<h3>Detailed Analysis</h3>
+<p>Score: ${d.score}%</p>
+<p>Confidence: ${d.confidence}%</p>
+</div>
+</div>
+`;
+
+setTimeout(()=>{if(d.gps)initMap(d.gps);},200);
 }
 
 /* MAP */
 function initMap(gps){
-  if(!gps) return;
-
-  if(mapInstance){
-    mapInstance.remove();
-  }
-
-  mapInstance = L.map('map').setView([gps.lat, gps.lon], 15);
-
-  L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-  ).addTo(mapInstance);
-
-  L.marker([gps.lat, gps.lon]).addTo(mapInstance);
-
+  if(!gps)return;
+  if(mapInstance)mapInstance.remove();
+  mapInstance=L.map('map').setView([gps.lat,gps.lon],15);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(mapInstance);
+  L.marker([gps.lat,gps.lon]).addTo(mapInstance);
   if(gps.accuracy){
-    L.circle([gps.lat, gps.lon], {
-      radius: gps.accuracy,
-      color:"#3b82f6",
-      fillColor:"#3b82f6",
-      fillOpacity:0.2
-    }).addTo(mapInstance);
+    L.circle([gps.lat,gps.lon],{radius:gps.accuracy}).addTo(mapInstance);
   }
 }
 
@@ -565,15 +190,9 @@ function tab(e,id){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.getElementById(id).classList.add("active");
   e.target.classList.add("active");
-  if(id==="mapTab"){setTimeout(()=>initMap(window.lastGPS),100);}
-}
-
-function dismissBanner(){
-  const b = document.getElementById("offlineBanner");
-  if(b) b.style.display="none";
+  if(id==="mapTab")setTimeout(()=>initMap(window.lastGPS),100);
 }
 
 </script>
-
 </body>
 </html>
