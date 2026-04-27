@@ -223,6 +223,32 @@ function render(d){
         ${gauge(d.score,"Score")}
         ${gauge(d.confidence,"Confidence")}
       </div>
+      <div style="margin-top:15px; padding:12px; background:#020617; border-radius:8px; font-size:14px; line-height:1.5;">
+
+  <b>How to Read These Results</b>
+
+  <p style="margin-top:8px;">
+    <b>Manipulation Score:</b> This score estimates how likely the image has been altered.
+    <br>
+    • <span style="color:#22c55e;">0–40 → Likely original (low anomaly)</span><br>
+    • <span style="color:#f59e0b;">40–70 → Possible editing</span><br>
+    • <span style="color:#ef4444;">70–100 → Likely edited</span>
+  </p>
+
+  <p>
+    A <b>lower score is better</b> because it means the image behaves like a normal,
+    unedited photograph with consistent compression and structure.
+    A higher score means the system detected unusual patterns.
+  </p>
+
+  <p>
+    <b>Confidence:</b> Indicates how strongly the detection methods agree with each other.
+    <br>
+    • High confidence → signals agree<br>
+    • Low confidence → mixed or inconclusive results
+  </p>
+
+</div>
 
       <!-- ✅ EXPLANATIONS (LOCKED) -->
       <p><b>Summary:</b><br>${d.simple_explanation || "N/A"}</p>
