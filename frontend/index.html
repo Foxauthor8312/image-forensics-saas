@@ -4,7 +4,6 @@
 <title>PixelProof</title>
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0f172a">
 
 <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
@@ -14,20 +13,8 @@
 body { background:#0f172a; color:white; font-family:system-ui; margin:0; }
 .container { max-width:1100px; margin:auto; padding:20px; }
 
-button {
-  padding:10px 16px;
-  background:#3b82f6;
-  border:none;
-  border-radius:6px;
-  color:white;
-  margin:5px;
-  cursor:pointer;
-}
+button { padding:10px; background:#3b82f6; border:none; color:white; border-radius:6px; margin:5px; cursor:pointer; }
 #analyzeBtn { background:#22c55e; }
-
-#progress-container { display:none; margin-top:15px; }
-.progress-bar { height:8px; background:#1e293b; }
-.progress-fill { height:8px; width:0%; background:#3b82f6; }
 
 .tabs { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
 .tab { padding:10px; background:#1e293b; border-radius:6px; cursor:pointer; }
@@ -44,14 +31,8 @@ button {
 
 #map { height:400px; border-radius:10px; }
 
-.card p {
-  word-break: break-word;
-}
-
-.meta-container {
-  max-height:400px;
-  overflow-y:auto;
-}
+.meta-container { max-height:400px; overflow-y:auto; }
+.card p { word-break:break-word; }
 </style>
 </head>
 
@@ -61,19 +42,10 @@ button {
 
 <h1>PixelProof 🔍</h1>
 
-<input type="file" id="file">
-
-<br>
+<input type="file" id="file"><br>
 
 <button onclick="capturePhoto()">📷 Capture</button>
 <button id="analyzeBtn" onclick="analyzeImage()">Analyze</button>
-
-<div id="progress-container">
-  <div class="progress-bar">
-    <div id="progress-fill" class="progress-fill"></div>
-  </div>
-  <p id="status">Preparing...</p>
-</div>
 
 <div id="result"></div>
 
@@ -83,18 +55,12 @@ button {
 
 const API="https://pixelproof-backend-v2.onrender.com";
 
-let selectedFile=null;
-let previewURL=null;
-let metadata={};
-let gps=null;
-let mapInstance=null;
+let selectedFile=null, previewURL=null, metadata={}, gps=null, mapInstance=null;
 
-/* IMAGE RESIZE */
+/* ================= IMAGE RESIZE ================= */
 async function resizeImage(file){
   return new Promise(resolve=>{
-    const img=new Image();
-    const reader=new FileReader();
-
+    const img=new Image(), reader=new FileReader();
     reader.onload=e=>img.src=e.target.result;
 
     img.onload=()=>{
@@ -105,8 +71,7 @@ async function resizeImage(file){
       if(w>h && w>MAX){h*=MAX/w;w=MAX;}
       else if(h>MAX){w*=MAX/h;h=MAX;}
 
-      canvas.width=w;canvas.height=h;
-
+      canvas.width=w; canvas.height=h;
       canvas.getContext("2d").drawImage(img,0,0,w,h);
 
       canvas.toBlob(blob=>{
@@ -118,25 +83,19 @@ async function resizeImage(file){
   });
 }
 
-/* EXIF */
+/* ================= EXIF ================= */
 function extractGPS(meta){
   if(!meta.GPSLatitude || !meta.GPSLongitude) return null;
-
   const d=c=>c[0]+c[1]/60+c[2]/3600;
-
-  let lat=d(meta.GPSLatitude);
-  let lon=d(meta.GPSLongitude);
-
+  let lat=d(meta.GPSLatitude), lon=d(meta.GPSLongitude);
   if(meta.GPSLatitudeRef==="S") lat=-lat;
   if(meta.GPSLongitudeRef==="W") lon=-lon;
-
   return {lat,lon,source:"EXIF"};
 }
 
 file.onchange=async e=>{
   selectedFile=e.target.files[0];
   previewURL=URL.createObjectURL(selectedFile);
-  metadata={}; gps=null;
 
   await new Promise(resolve=>{
     EXIF.getData(selectedFile,function(){
@@ -147,7 +106,7 @@ file.onchange=async e=>{
   });
 };
 
-/* GPS */
+/* ================= GPS ================= */
 function getDeviceLocation(){
   return new Promise(resolve=>{
     navigator.geolocation.getCurrentPosition(
@@ -162,26 +121,19 @@ function getDeviceLocation(){
   });
 }
 
-/* CAMERA */
+/* ================= CAMERA ================= */
 async function capturePhoto(){
   const stream=await navigator.mediaDevices.getUserMedia({video:true});
   const video=document.createElement("video");
-  video.srcObject=stream;
-  video.play();
+  video.srcObject=stream; video.play();
 
   const overlay=document.createElement("div");
-  overlay.style.position="fixed";
-  overlay.style.inset="0";
-  overlay.style.background="#000";
+  overlay.style="position:fixed;inset:0;background:#000;z-index:9999;";
   overlay.appendChild(video);
 
   const btn=document.createElement("button");
   btn.innerText="Capture";
-  btn.style.position="absolute";
-  btn.style.bottom="20px";
-  btn.style.left="50%";
-  btn.style.transform="translateX(-50%)";
-
+  btn.style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%)";
   overlay.appendChild(btn);
   document.body.appendChild(overlay);
 
@@ -202,25 +154,12 @@ async function capturePhoto(){
   };
 }
 
-/* PROGRESS */
-function setProgress(p,t){
-  document.getElementById("progress-fill").style.width=p+"%";
-  document.getElementById("status").innerText=t;
-}
-
-/* ANALYZE */
+/* ================= ANALYZE ================= */
 async function analyzeImage(){
 
-  if(!selectedFile){
-    alert("Select image");
-    return;
-  }
-
-  document.getElementById("progress-container").style.display="block";
-  setProgress(20,"Preparing...");
+  if(!selectedFile) return alert("Select image");
 
   const resized=await resizeImage(selectedFile);
-
   let finalGPS=gps || await getDeviceLocation();
 
   const form=new FormData();
@@ -228,10 +167,7 @@ async function analyzeImage(){
   form.append("metadata",JSON.stringify(metadata));
   form.append("gps",JSON.stringify(finalGPS));
 
-  setProgress(70,"Uploading...");
-
   let res;
-
   try{
     res=await fetch(API+"/api/analyze",{method:"POST",body:form});
   }catch{
@@ -240,13 +176,28 @@ async function analyzeImage(){
   }
 
   const data=await res.json();
-
-  setProgress(100,"Done");
-
   render(data.result);
 }
 
-/* RENDER */
+/* ================= GAUGE ================= */
+function gauge(v,label){
+  const r=50,c=2*Math.PI*r;
+  const o=c-(v/100)*c;
+  const color=v>70?"#22c55e":v>40?"#f59e0b":"#ef4444";
+
+  return `
+  <div style="text-align:center">
+    <svg width="120" height="120" style="transform:rotate(-90deg)">
+      <circle cx="60" cy="60" r="${r}" stroke="#1e293b" stroke-width="10" fill="none"/>
+      <circle cx="60" cy="60" r="${r}" stroke="${color}" stroke-width="10"
+        stroke-dasharray="${c}" stroke-dashoffset="${o}" fill="none"/>
+    </svg>
+    <div style="margin-top:-70px;font-weight:bold;">${v}%</div>
+    <div style="margin-top:40px;">${label}</div>
+  </div>`;
+}
+
+/* ================= RENDER ================= */
 function render(d){
 
 window.lastGPS=d.gps;
@@ -266,20 +217,22 @@ document.getElementById("result").innerHTML=`
 
 <h2>${d.analysis}</h2>
 
-<p><b>Summary:</b><br>${d.simple_explanation}</p>
-<p><b>Technical:</b><br>${d.technical_explanation}</p>
-<p><b>Conclusion:</b><br>${d.legal_explanation}</p>
-<p><b>Confidence:</b><br>${d.confidence_note}</p>
+<div style="display:flex;gap:30px;flex-wrap:wrap;">
+${gauge(d.score,"Score")}
+${gauge(d.confidence,"Confidence")}
+</div>
 
-<h3>Signal Breakdown</h3>
+<p><b>Summary:</b> ${d.simple_explanation}</p>
+<p><b>Technical:</b> ${d.technical_explanation}</p>
+<p><b>Conclusion:</b> ${d.legal_explanation}</p>
+<p><b>Confidence:</b> ${d.confidence_note}</p>
+
+<h3>Signals</h3>
 ${Object.entries(d.signals||{}).map(([k,v])=>`
 <div>${k}: ${v}</div>
 <div style="background:#1e293b;height:8px;margin-bottom:10px;">
 <div style="width:${v}%;height:8px;background:#3b82f6;"></div>
-</div>
-`).join("")}
-
-<a href="${d.pdf_report}" target="_blank">Download PDF</a>
+</div>`).join("")}
 
 </div>
 
@@ -293,51 +246,34 @@ ${Object.entries(d.signals||{}).map(([k,v])=>`
 <div id="mapTab" class="tab-content"><div id="map"></div></div>
 
 <div id="metaTab" class="tab-content">
-<div class="card">
-<div class="meta-container">
-
-${
-d.metadata?.available
+<div class="card"><div class="meta-container">
+${d.metadata?.available
 ? Object.entries(d.metadata.all).map(([k,v])=>`<p><b>${k}:</b> ${v}</p>`).join("")
-: "No metadata"
-}
-
-</div>
-</div>
+: "No metadata"}
+</div></div>
 </div>
 
 <div id="detailTab" class="tab-content">
 <div class="card">
-<h2>How Scoring Works</h2>
-<p>The score is based on multiple forensic signals including ELA, noise, edge consistency, compression, and metadata.</p>
-<p>Confidence reflects agreement between these signals.</p>
+<p>The score is calculated using multiple forensic signals. Confidence reflects agreement between them.</p>
 </div>
 </div>
 
 <div id="aboutTab" class="tab-content">
-<div class="card">
-PixelProof - Barry Mattison-Off Road Artist Photography
-</div>
+<div class="card">PixelProof - Barry Mattison-Off Road Artist Photography</div>
 </div>
 `;
-
 }
 
-/* MAP */
+/* ================= MAP ================= */
 function initMap(gps){
-
-  if(mapInstance){
-    mapInstance.remove();
-    mapInstance=null;
-  }
-
+  if(mapInstance){ mapInstance.remove(); mapInstance=null; }
   if(!gps) return;
 
   mapInstance=L.map('map').setView([gps.lat,gps.lon],15);
 
-  L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-  ).addTo(mapInstance);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
+    .addTo(mapInstance);
 
   L.marker([gps.lat,gps.lon]).addTo(mapInstance);
 
@@ -348,12 +284,10 @@ function initMap(gps){
   setTimeout(()=>mapInstance.invalidateSize(),200);
 }
 
-/* TABS */
+/* ================= TABS ================= */
 function tab(e,id){
-
 document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
 document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-
 document.getElementById(id).classList.add("active");
 e.target.classList.add("active");
 
