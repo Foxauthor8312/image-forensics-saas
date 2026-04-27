@@ -79,33 +79,116 @@ def combine(scores):
     confidence=100-np.std(list(scores.values()))
     return int(total), int(max(0,min(100,confidence)))
 
-def generate_pdf(job_id,data):
-    path=os.path.join(UPLOAD_FOLDER,f"{job_id}.pdf")
-    doc=SimpleDocTemplate(path)
-    styles=getSampleStyleSheet()
+def from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 
-    content=[]
-    content.append(Paragraph("Forensic Report",styles["Title"]))
+def def generate_pdf(job_id, data):
+
+    path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
+    doc = SimpleDocTemplate(path)
+    styles = getSampleStyleSheet()
+
+    content = []
+
+    # Paths
+    original_path = os.path.join(UPLOAD_FOLDER, f"{job_id}.jpg")
+    heatmap_path = os.path.join(UPLOAD_FOLDER, f"{job_id}_heat.jpg")
+
+    # Title
+    content.append(Paragraph("Digital Image Forensic Analysis Report", styles["Title"]))
     content.append(Spacer(1,12))
 
-    content.append(Paragraph(f"Result: {data['analysis']}",styles["Normal"]))
-    content.append(Paragraph(f"Score: {data['score']}",styles["Normal"]))
-    content.append(Paragraph(f"Confidence: {data['confidence']}",styles["Normal"]))
+    # Results
+    content.append(Paragraph(f"<b>Result:</b> {data['analysis']}", styles["Normal"]))
+    content.append(Paragraph(f"<b>Score:</b> {data['score']}%", styles["Normal"]))
+    content.append(Paragraph(f"<b>Confidence:</b> {data['confidence']}%", styles["Normal"]))
     content.append(Spacer(1,12))
 
-    content.append(Paragraph(data["technical_explanation"],styles["Normal"]))
+    # =========================
+    # IMAGES (NEW SECTION)
+    # =========================
+    content.append(Paragraph("<b>Visual Evidence</b>", styles["Heading2"]))
+    content.append(Spacer(1,10))
+
+    try:
+        if os.path.exists(original_path):
+            content.append(Paragraph("Original Image", styles["Normal"]))
+            content.append(Spacer(1,6))
+            content.append(RLImage(original_path, width=400, height=250))
+            content.append(Spacer(1,10))
+
+        if os.path.exists(heatmap_path):
+            content.append(Paragraph("Forensic Heatmap", styles["Normal"]))
+            content.append(Spacer(1,6))
+            content.append(RLImage(heatmap_path, width=400, height=250))
+            content.append(Spacer(1,10))
+
+    except Exception as e:
+        content.append(Paragraph(f"Image load error: {str(e)}", styles["Normal"]))
+
     content.append(Spacer(1,12))
 
-    content.append(Paragraph("Signal Breakdown",styles["Heading2"]))
-    for k,v in data["signals"].items():
-        content.append(Paragraph(f"{k}: {v}",styles["Normal"]))
+    # Explanations
+    content.append(Paragraph("<b>Summary</b>", styles["Heading2"]))
+    content.append(Paragraph(data.get("simple_explanation","N/A"), styles["Normal"]))
+
+    content.append(Spacer(1,8))
+    content.append(Paragraph("<b>Technical Analysis</b>", styles["Heading2"]))
+    content.append(Paragraph(data.get("technical_explanation","N/A"), styles["Normal"]))
+
+    content.append(Spacer(1,8))
+    content.append(Paragraph("<b>Conclusion</b>", styles["Heading2"]))
+    content.append(Paragraph(data.get("legal_explanation","N/A"), styles["Normal"]))
+
+    content.append(Spacer(1,8))
+    content.append(Paragraph("<b>Confidence Explanation</b>", styles["Heading2"]))
+    content.append(Paragraph(data.get("confidence_note","N/A"), styles["Normal"]))
+
+    content.append(Spacer(1,12))
+
+    # Signals
+    content.append(Paragraph("<b>Signal Breakdown</b>", styles["Heading2"]))
+    for k, v in data.get("signals", {}).items():
+        content.append(Paragraph(f"{k}: {v}", styles["Normal"]))
+
+    content.append(Spacer(1,12))
+
+    # Metadata
+    content.append(Paragraph("<b>Key Metadata</b>", styles["Heading2"]))
+    meta = data.get("metadata", {}).get("all", {})
+
+    for key in ["Make","Model","DateTime","Software"]:
+        if key in meta:
+            content.append(Paragraph(f"{key}: {meta[key]}", styles["Normal"]))
+
+    content.append(Spacer(1,12))
+
+    # GPS
+    content.append(Paragraph("<b>Location Data</b>", styles["Heading2"]))
+    gps = data.get("gps")
+
+    if gps:
+        content.append(Paragraph(f"Latitude: {gps.get('lat')}", styles["Normal"]))
+        content.append(Paragraph(f"Longitude: {gps.get('lon')}", styles["Normal"]))
+        content.append(Paragraph(f"Source: {gps.get('source')}", styles["Normal"]))
+    else:
+        content.append(Paragraph("No GPS data available", styles["Normal"]))
+
+    content.append(Spacer(1,12))
+
+    # Integrity
+    content.append(Paragraph("<b>Forensic Integrity</b>", styles["Heading2"]))
+    content.append(Paragraph(f"File Hash: {data.get('integrity',{}).get('hash','N/A')}", styles["Normal"]))
 
     content.append(Spacer(1,20))
-    content.append(Paragraph("PixelProof",styles["Normal"]))
+
+    # Footer
+    content.append(Paragraph("Generated by PixelProof", styles["Normal"]))
+    content.append(Paragraph("Barry Mattison-Off Road Artist Photography", styles["Normal"]))
 
     doc.build(content)
 
-    return f"{BASE_URL}/files/{job_id}.pdf"
+    return f"{BASE_URL}/files/{job_id}_report.pdf"
 
 @app.route("/api/analyze",methods=["POST"])
 def analyze():
@@ -148,7 +231,7 @@ def analyze():
         "heatmap":f"{BASE_URL}/files/{heatfile}"
     }
 
-    result["pdf_report"]=generate_pdf(job_id,result)
+   result_data["pdf_report"] = generate_pdf(job_id, result_data)
 
     return jsonify({"result":result})
 
