@@ -348,65 +348,133 @@ function confidenceAgreementBar(conf){
 /* RENDER */
 async function render(d){
 
-window.lastGPS=d.gps;
+  window.lastGPS = d.gps;
 
-let addr="";
-if(d.gps){
-  const a=await reverseGeocode(d.gps.lat,d.gps.lon);
-  if(a) addr=`<p><b>Location:</b> ${a}</p>`;
-}
+  let addr="";
+  if(d.gps){
+    const a = await reverseGeocode(d.gps.lat,d.gps.lon);
+    if(a) addr = `<p><b>Location:</b> ${a}</p>`;
+  }
 
-const verdictColor = d.score>70?"#ef4444":d.score>40?"#f59e0b":"#22c55e";
-const verdictText = d.score>70?"Likely Edited":d.score>40?"Possibly Edited":"Likely Original";
+  const verdictColor = d.score>70?"#ef4444":d.score>40?"#f59e0b":"#22c55e";
+  const verdictText = d.score>70?"Likely Edited":d.score>40?"Possibly Edited":"Likely Original";
 
-const best = topSignal(d.signals);
+  const best = topSignal(d.signals);
 
-result.innerHTML=`
-${!navigator.onLine ? `
-  <div class="offline-banner" id="offlineBanner">
-    <span>⚠️ Offline Mode — limited analysis</span>
-    <button onclick="dismissBanner()">✖</button>
+  result.innerHTML=`
+
+  ${!navigator.onLine ? `
+    <div class="offline-banner" id="offlineBanner">
+      <span>⚠️ Offline Mode — limited analysis</span>
+      <button onclick="dismissBanner()">✖</button>
+    </div>
+  ` : ""}
+
+  <div class="tabs">
+    <div class="tab active" onclick="tab(event,'r')">Results</div>
+    <div class="tab" onclick="tab(event,'mapTab')">Map</div>
+    <div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
+    <div class="tab" onclick="tab(event,'detailTab')">Detailed</div>
   </div>
-` : ""}
 
-<div class="tabs">
-  <div class="tab active" onclick="tab(event,'r')">Results</div>
-  <div class="tab" onclick="tab(event,'mapTab')">Map</div>
-  <div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
-  <div class="tab" onclick="tab(event,'detailTab')">Detailed</div>
-</div>
+  <!-- RESULTS -->
+  <div id="r" class="tab-content active">
+    <div class="card">
 
-<div id="r" class="tab-content active">
-  <div class="card">
+      <h2>${d.analysis}</h2>
 
-    <h2>${d.analysis}</h2>
+      <div class="badge" style="background:${verdictColor}">
+        ${verdictText}
+      </div>
 
-    <div class="badge" style="background:${verdictColor}">
-      ${verdictText}
+      <div class="row" style="margin-top:12px;">
+        ${advancedGauge(d.score,"Score")}
+        ${advancedGauge(d.confidence,"Confidence")}
+      </div>
+
+      ${addr}
+
+      <p><b>Summary:</b> ${d.simple_explanation}</p>
+      <p><b>Technical:</b> ${d.technical_explanation}</p>
+      <p><b>Conclusion:</b> ${d.legal_explanation}</p>
+      <p><b>Confidence:</b> ${d.confidence_note}</p>
+
+      ${confidenceAgreementBar(d.confidence)}
+
+      <div class="hr"></div>
+
+      <h3>Signals</h3>
+      ${best.k ? `<div class="pill">Top signal: <b>${best.k}</b> (${best.v}%)</div>` : ""}
+
+      ${Object.entries(d.signals||{}).map(([k,v])=>`
+        <div>${k}: ${v}%</div>
+        <div class="bar"><div class="bar-fill" style="width:${v}%"></div></div>
+      `).join("")}
+
     </div>
 
-    <div class="row" style="margin-top:12px;">
-      ${advancedGauge(d.score,"Score")}
-      ${advancedGauge(d.confidence,"Confidence")}
+    <div class="image-row">
+      <div class="image-box">
+        <img id="origImg" src="${previewURL}">
+        <img id="overlayImg" class="overlay" src="${d.heatmap}?t=${Date.now()}">
+      </div>
+      <div class="image-box">
+        <img src="${d.heatmap}?t=${Date.now()}">
+      </div>
     </div>
-
-    ${addr}
-
-    <p><b>Summary:</b> ${d.simple_explanation}</p>
-    <p><b>Technical:</b> ${d.technical_explanation}</p>
-    <p><b>Conclusion:</b> ${d.legal_explanation}</p>
-    <p><b>Confidence:</b> ${d.confidence_note}</p>
-
-    ${confidenceAgreementBar(d.confidence)}
-
-    <h3>Signals</h3>
-    ${best.k ? `<div class="pill">Top signal: <b>${best.k}</b> (${best.v}%)</div>` : ""}
-
   </div>
-</div>
-`;
-}
 
+  <!-- MAP -->
+  <div id="mapTab" class="tab-content">
+    <div id="map"></div>
+  </div>
+
+  <!-- METADATA -->
+  <div id="metaTab" class="tab-content">
+    <div class="card meta-container">
+      ${Object.entries(d.metadata?.all||{}).map(([k,v])=>`
+        <p><b>${k}:</b> ${v}</p>
+      `).join("")}
+    </div>
+  </div>
+
+  <!-- DETAILED -->
+  <div id="detailTab" class="tab-content">
+    <div class="card">
+
+      <h2>Detailed Forensic Analysis</h2>
+
+      <p>This system evaluates multiple independent signals.</p>
+
+      <div class="hr"></div>
+
+      <h3>Score (${d.score}%)</h3>
+      <p>Higher score = more anomalies detected.</p>
+
+      <h3>Confidence (${d.confidence}%)</h3>
+      <p>Confidence reflects agreement between signals.</p>
+
+      ${confidenceAgreementBar(d.confidence)}
+
+      <div class="hr"></div>
+
+      ${Object.entries(d.signals||{}).map(([k,v])=>`
+        <p><b>${k} (${v}%)</b></p>
+      `).join("")}
+
+    </div>
+  </div>
+  `;
+
+  // overlay toggle
+  const toggle = document.getElementById("overlayToggle");
+  if(toggle){
+    const overlay = document.getElementById("overlayImg");
+    toggle.addEventListener("change", ()=>{
+      overlay.style.opacity = toggle.checked ? 0.6 : 0;
+    });
+  }
+}
 /* MAP */
 function initMap(gps){
   if(!gps) return;
