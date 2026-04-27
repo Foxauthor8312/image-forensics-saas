@@ -106,24 +106,24 @@ def combine(s):
 def explain(score):
     if score > 70:
         return {
-            "simple": "Strong signs of manipulation detected.",
-            "technical": "Multiple forensic signals indicate inconsistencies in compression, noise, and structure.",
-            "legal": "The image demonstrates characteristics consistent with digital alteration.",
-            "confidence_note": "High confidence due to strong agreement across detection methods."
+            "simple": "Strong signs of manipulation detected--> Score > 70.",
+            "technical": "Multiple forensic signals indicate inconsistencies in compression, noise, and structure--> Score > 70.",
+            "legal": "The image demonstrates characteristics consistent with digital alteration--> Score > 70.",
+            "confidence_note": "High confidence due to strong agreement across detection methods--> Score > 70."
         }
     elif score > 40:
         return {
-            "simple": "Possible editing detected.",
-            "technical": "Moderate inconsistencies detected across several forensic indicators.",
-            "legal": "The image may have undergone editing or recompression.",
-            "confidence_note": "Moderate confidence; further validation recommended."
+            "simple": "Possible editing detected--> Score > 40.",
+            "technical": "Moderate inconsistencies detected across several forensic indicators--> Score > 40.",
+            "legal": "The image may have undergone editing or recompression--> Score > 40.",
+            "confidence_note": "Moderate confidence; further validation recommended--> Score > 40."
         }
     else:
         return {
-            "simple": "Image appears original.",
-            "technical": "Forensic signals show consistent compression, noise, and structure.",
-            "legal": "No indicators of digital manipulation detected.",
-            "confidence_note": "High confidence in image integrity."
+            "simple": "Image appears original--> Score < 40.",
+            "technical": "Forensic signals show consistent compression, noise, and structure--> Score < 40.",
+            "legal": "No indicators of digital manipulation detected--> Score < 40.",
+            "confidence_note": "High confidence in image integrity--> Score < 40."
         }
 
 # =========================
