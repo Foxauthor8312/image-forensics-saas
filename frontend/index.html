@@ -325,6 +325,21 @@ ${gauge(d.confidence,"Confidence")}
 <p><b>Conclusion:</b><br>${d.legal_explanation}</p>
 <p><b>Confidence:</b><br>${d.confidence_note}</p>
 
+<h3>Signal Breakdown</h3>
+
+<div style="margin-top:10px;">
+${
+Object.entries(d.signals).map(([k,v])=>`
+  <div style="margin-bottom:10px;">
+    <div>${k}: ${v}</div>
+    <div style="background:#1e293b;height:8px;border-radius:4px;">
+      <div style="width:${v}%;height:8px;background:#3b82f6;border-radius:4px;"></div>
+    </div>
+  </div>
+`).join("")
+}
+</div>
+
 <p><b>Location Source:</b> ${d.gps?.source || "None"}</p>
 
 <a href="${d.pdf_report}" target="_blank">Download PDF</a>
