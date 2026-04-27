@@ -168,22 +168,19 @@ async function processFile(file){
 }
 
 file.onchange=e=>processFile(e.target.files[0]);
+
 cameraRear.onchange = async e => {
   await processFile(e.target.files[0]);
   closeSheet();
-
-  // auto analyze
   analyzeImage();
 };
 
 cameraFront.onchange = async e => {
   await processFile(e.target.files[0]);
   closeSheet();
-
-  // auto analyze
   analyzeImage();
 };
-  
+
 /* GPS */
 function extractGPS(meta){
   if(!meta.GPSLatitude||!meta.GPSLongitude) return null;
@@ -203,7 +200,7 @@ async function reverseGeocode(lat,lon){
   }catch{return null;}
 }
 
-/* RESIZE (never hangs) */
+/* RESIZE */
 async function resizeImage(file){
   return new Promise(resolve=>{
     const img=new Image(),reader=new FileReader();
@@ -229,7 +226,7 @@ async function analyzeImage(){
 
   showProgress();
 
-  // 🚫 OFFLINE FIRST CHECK (NEW)
+  // OFFLINE → return immediately
   if(!navigator.onLine){
     setProgress(40,"Offline mode");
 
@@ -254,10 +251,10 @@ async function analyzeImage(){
       render(offlineResult);
     },300);
 
-    return; // ⛔ STOP HERE (no upload attempt)
+    return;
   }
 
-  // ✅ NORMAL FLOW (UNCHANGED)
+  // ONLINE FLOW
   setProgress(20,"Preparing...");
 
   const resized = await resizeImage(selectedFile);
@@ -276,10 +273,10 @@ async function analyzeImage(){
       finalGPS = await new Promise(resolve=>{
         navigator.geolocation?.getCurrentPosition(
           p=>resolve({
-            lat: p.coords.latitude,
-            lon: p.coords.longitude,
-            accuracy: p.coords.accuracy,
-            source: "device"
+            lat:p.coords.latitude,
+            lon:p.coords.longitude,
+            accuracy:p.coords.accuracy,
+            source:"device"
           }),
           ()=>resolve(null),
           { enableHighAccuracy:true, timeout:5000 }
@@ -294,9 +291,9 @@ async function analyzeImage(){
 
   let res;
   try{
-    res = await fetch(API + "/api/analyze", {
+    res = await fetch(API+"/api/analyze",{
       method:"POST",
-      body: form
+      body:form
     });
   }catch{
     hideProgress();
@@ -307,53 +304,6 @@ async function analyzeImage(){
   setProgress(80,"Processing...");
 
   const data = await res.json();
-
-  setProgress(100,"Done");
-
-  setTimeout(()=>{
-    hideProgress();
-    render(data.result);
-  },300);
-}
-
-  form.append("gps", JSON.stringify(finalGPS));
-
- let data;
-
-if(!navigator.onLine){
-  // OFFLINE MODE
-  data = {
-    result: {
-      analysis: "Offline Mode",
-      score: 0,
-      confidence: 0,
-      simple_explanation: "No internet connection. Full analysis unavailable.",
-      technical_explanation: "Backend processing requires network access.",
-      legal_explanation: "This result is not a forensic determination.",
-      confidence_note: "Offline mode provides limited functionality.",
-      signals: {},
-      metadata: { all: metadata },
-      gps: gps,
-      heatmap: null
-    }
-  };
-}else{
-  let res;
-  try{
-    res = await fetch(API + "/api/analyze", {
-      method:"POST",
-      body: form
-    });
-  }catch{
-    hideProgress();
-    alert("Server unreachable");
-    return;
-  }
-
-  setProgress(80,"Processing...");
-
-  data = await res.json();
-}
 
   setProgress(100,"Done");
 
@@ -378,7 +328,7 @@ function advancedGauge(v,label){
   </div>`;
 }
 
-/* HELPERS (safe adds) */
+/* HELPERS */
 function topSignal(signals){
   let best={k:null,v:-1};
   for(const [k,v] of Object.entries(signals||{})){
@@ -404,11 +354,6 @@ let addr="";
 if(d.gps){
   const a=await reverseGeocode(d.gps.lat,d.gps.lon);
   if(a) addr=`<p><b>Location:</b> ${a}</p>`;
-
-  setTimeout(()=>{
-  const b = document.getElementById("offlineBanner");
-  if(b) b.style.display="none";
-},5000);
 }
 
 const verdictColor = d.score>70?"#ef4444":d.score>40?"#f59e0b":"#22c55e";
@@ -421,11 +366,6 @@ ${!navigator.onLine ? `
   <div class="offline-banner" id="offlineBanner">
     <span>⚠️ Offline Mode — limited analysis</span>
     <button onclick="dismissBanner()">✖</button>
-  </div>
-` : ""}
-${!navigator.onLine ? `
-  <div class="card" style="background:#7c2d12;">
-    <b>Offline Mode</b> — limited analysis (no server processing)
   </div>
 ` : ""}
 
@@ -450,8 +390,6 @@ ${!navigator.onLine ? `
       ${advancedGauge(d.confidence,"Confidence")}
     </div>
 
-    <div class="hr"></div>
-
     ${addr}
 
     <p><b>Summary:</b> ${d.simple_explanation}</p>
@@ -461,126 +399,12 @@ ${!navigator.onLine ? `
 
     ${confidenceAgreementBar(d.confidence)}
 
-    ${d.pdf_report?`<p><a href="${d.pdf_report}" target="_blank">Download PDF</a></p>`:""}
-
-    <div class="hr"></div>
-
     <h3>Signals</h3>
     ${best.k ? `<div class="pill">Top signal: <b>${best.k}</b> (${best.v}%)</div>` : ""}
 
-    ${Object.entries(d.signals||{}).map(([k,v])=>`
-      <div>${k}: ${v}%</div>
-      <div class="bar"><div class="bar-fill" style="width:${v}%"></div></div>
-    `).join("")}
-
-    <div class="hr"></div>
-
-    <label class="toggle">
-      <input type="checkbox" id="overlayToggle">
-      <span>Overlay heatmap on image</span>
-    </label>
-
-  </div>
-
-  <div class="image-row">
-    <div class="image-box">
-      <img id="origImg" src="${previewURL}">
-      <img id="overlayImg" class="overlay" src="${d.heatmap}?t=${Date.now()}">
-    </div>
-    <div class="image-box">
-      <img src="${d.heatmap}?t=${Date.now()}">
-    </div>
-  </div>
-</div>
-
-<div id="detailTab" class="tab-content">
-  <div class="card">
-
-    <h2>Detailed Forensic Analysis</h2>
-
-    <p>
-      This system evaluates multiple independent signals to assess image integrity.
-      Each signal looks for inconsistencies commonly introduced by editing, recompression, or synthetic generation.
-    </p>
-
-    <div class="hr"></div>
-
-    <h3>How the Score is Calculated (${d.score}%)</h3>
-    <ul>
-      <li><b>ELA</b> – compression inconsistencies</li>
-      <li><b>Noise</b> – irregular texture/grain</li>
-      <li><b>Edges</b> – unnatural boundaries</li>
-      <li><b>Compression</b> – JPEG block artifacts</li>
-      <li><b>Metadata</b> – editing traces / missing data</li>
-    </ul>
-    <p>Higher score = more anomalies detected → higher likelihood of manipulation.</p>
-
-    <div class="hr"></div>
-
-    <h3>Score Interpretation</h3>
-    <p>
-      <span style="color:#22c55e;">0–40 → Likely original</span><br>
-      <span style="color:#f59e0b;">40–70 → Possible editing</span><br>
-      <span style="color:#ef4444;">70–100 → Likely edited</span>
-    </p>
-
-    <div class="hr"></div>
-
-    <h3>Confidence Explained (${d.confidence}%)</h3>
-    <p>
-      Confidence measures agreement between signals:
-    </p>
-    <ul>
-      <li><b>High:</b> signals agree</li>
-      <li><b>Moderate:</b> partial agreement</li>
-      <li><b>Low:</b> mixed or unclear</li>
-    </ul>
-
-    ${confidenceAgreementBar(d.confidence)}
-
-    <div class="hr"></div>
-
-    <h3>Signal Details</h3>
-    ${Object.entries(d.signals||{}).map(([k,v])=>`
-      <p><b>${k} (${v}%)</b><br>
-      ${
-        k==="ELA" ? "Compression differences highlighting possible edits." :
-        k==="Noise" ? "Texture inconsistencies indicating manipulation." :
-        k==="Edges" ? "Sharp unnatural transitions." :
-        k==="Compression" ? "JPEG block irregularities." :
-        k==="Metadata" ? "Editing software traces or missing metadata." :
-        ""
-      }
-      </p>
-    `).join("")}
-
-    <div class="hr"></div>
-
-    <p class="small">
-      Notes: Compression, resizing, or platform uploads can affect signals.
-      This tool identifies patterns consistent with manipulation; it does not determine intent.
-    </p>
-
-  </div>
-</div>
-
-<div id="mapTab" class="tab-content"><div id="map"></div></div>
-
-<div id="metaTab" class="tab-content">
-  <div class="card meta-container">
-    ${Object.entries(d.metadata.all||{}).map(([k,v])=>`<p><b>${k}:</b> ${v}</p>`).join("")}
   </div>
 </div>
 `;
-
-  // overlay toggle (safe, no side effects)
-  const toggle = document.getElementById("overlayToggle");
-  if(toggle){
-    const overlay = document.getElementById("overlayImg");
-    toggle.addEventListener("change", ()=>{
-      overlay.style.opacity = toggle.checked ? 0.6 : 0;
-    });
-  }
 }
 
 /* MAP */
@@ -597,31 +421,30 @@ function initMap(gps){
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
   ).addTo(mapInstance);
 
-  // 📍 Marker
   L.marker([gps.lat, gps.lon]).addTo(mapInstance);
 
-  // 🔵 Accuracy circle (NEW)
   if(gps.accuracy){
     L.circle([gps.lat, gps.lon], {
       radius: gps.accuracy,
-      color: "#3b82f6",
-      fillColor: "#3b82f6",
-      fillOpacity: 0.2
+      color:"#3b82f6",
+      fillColor:"#3b82f6",
+      fillOpacity:0.2
     }).addTo(mapInstance);
   }
 }
 
 /* TABS */
 function tab(e,id){
-  function dismissBanner(){
-  const b = document.getElementById("offlineBanner");
-  if(b) b.style.display = "none";
-}
   document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.getElementById(id).classList.add("active");
   e.target.classList.add("active");
   if(id==="mapTab"){setTimeout(()=>initMap(window.lastGPS),100);}
+}
+
+function dismissBanner(){
+  const b = document.getElementById("offlineBanner");
+  if(b) b.style.display="none";
 }
 
 </script>
