@@ -133,9 +133,22 @@ async function processFile(file){
 }
 
 file.onchange=e=>processFile(e.target.files[0]);
-cameraRear.onchange=e=>{processFile(e.target.files[0]);closeSheet();}
-cameraFront.onchange=e=>{processFile(e.target.files[0]);closeSheet();}
+cameraRear.onchange = async e => {
+  await processFile(e.target.files[0]);
+  closeSheet();
 
+  // auto analyze
+  analyzeImage();
+};
+
+cameraFront.onchange = async e => {
+  await processFile(e.target.files[0]);
+  closeSheet();
+
+  // auto analyze
+  analyzeImage();
+};
+  
 /* GPS */
 function extractGPS(meta){
   if(!meta.GPSLatitude||!meta.GPSLongitude) return null;
@@ -214,6 +227,26 @@ async function analyzeImage(){
 
   form.append("gps", JSON.stringify(finalGPS));
 
+ let data;
+
+if(!navigator.onLine){
+  // OFFLINE MODE
+  data = {
+    result: {
+      analysis: "Offline Mode",
+      score: 0,
+      confidence: 0,
+      simple_explanation: "No internet connection. Full analysis unavailable.",
+      technical_explanation: "Backend processing requires network access.",
+      legal_explanation: "This result is not a forensic determination.",
+      confidence_note: "Offline mode provides limited functionality.",
+      signals: {},
+      metadata: { all: metadata },
+      gps: gps,
+      heatmap: null
+    }
+  };
+}else{
   let res;
   try{
     res = await fetch(API + "/api/analyze", {
@@ -228,7 +261,8 @@ async function analyzeImage(){
 
   setProgress(80,"Processing...");
 
-  const data = await res.json();
+  data = await res.json();
+}
 
   setProgress(100,"Done");
 
