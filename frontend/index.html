@@ -177,41 +177,67 @@ async function resizeImage(file){
 
 /* ANALYZE */
 async function analyzeImage(){
-  if(!selectedFile)return alert("Select image");
+  if(!selectedFile) return alert("Select image");
 
   showProgress();
   setProgress(20,"Preparing...");
 
-  const resized=await resizeImage(selectedFile);
+  const resized = await resizeImage(selectedFile);
 
   setProgress(40,"Uploading...");
 
-  const form=new FormData();
-  form.append("image",resized);
-  form.append("metadata",JSON.stringify(metadata));
-  form.append("gps",JSON.stringify(gps));
+  const form = new FormData();
+  form.append("image", resized);
+  form.append("metadata", JSON.stringify(metadata));
+
+  // ✅ GPS (EXIF → fallback to device)
   let finalGPS = gps;
 
-if(!finalGPS){
+  if(!finalGPS){
+    try{
+      setProgress(30,"Getting location...");
+      finalGPS = await new Promise(resolve=>{
+        navigator.geolocation?.getCurrentPosition(
+          p=>resolve({
+            lat: p.coords.latitude,
+            lon: p.coords.longitude,
+            accuracy: p.coords.accuracy,
+            source: "device"
+          }),
+          ()=>resolve(null),
+          { enableHighAccuracy:true, timeout:5000 }
+        );
+      });
+    }catch{
+      finalGPS = null;
+    }
+  }
+
+  form.append("gps", JSON.stringify(finalGPS));
+
+  let res;
   try{
-    setProgress(30,"Getting location...");
-    finalGPS = await new Promise(resolve=>{
-      navigator.geolocation?.getCurrentPosition(
-        p=>resolve({
-          lat:p.coords.latitude,
-          lon:p.coords.longitude,
-          accuracy:p.coords.accuracy,
-          source:"device"
-        }),
-        ()=>resolve(null),
-        {enableHighAccuracy:true, timeout:5000}
-      );
+    res = await fetch(API + "/api/analyze", {
+      method:"POST",
+      body: form
     });
   }catch{
-    finalGPS = null;
+    hideProgress();
+    alert("Server unreachable");
+    return;
   }
-}
 
+  setProgress(80,"Processing...");
+
+  const data = await res.json();
+
+  setProgress(100,"Done");
+
+  setTimeout(()=>{
+    hideProgress();
+    render(data.result);
+  },300);
+}
 form.append("gps", JSON.stringify(finalGPS));
 
   let res;
