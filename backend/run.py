@@ -15,19 +15,29 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 
-# =========================
-# HASH
-# =========================
-def generate_file_hash(path):
-    sha256 = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            sha256.update(chunk)
-    return sha256.hexdigest()
+def explain(score):
+    if score > 70:
+        return {
+            "simple": "Strong signs of manipulation detected.",
+            "technical": "Multiple forensic signals indicate inconsistencies in compression, structure, and noise patterns.",
+            "legal": "The image demonstrates characteristics consistent with digital alteration.",
+            "confidence_note": "High confidence due to agreement across detection methods."
+        }
+    elif score > 40:
+        return {
+            "simple": "Possible editing detected.",
+            "technical": "Moderate inconsistencies detected across several forensic indicators.",
+            "legal": "The image may have undergone editing or recompression.",
+            "confidence_note": "Moderate confidence; further validation recommended."
+        }
+    else:
+        return {
+            "simple": "Image appears original.",
+            "technical": "Image signals are consistent across compression, noise, and structural analysis.",
+            "legal": "No indicators of digital manipulation detected.",
+            "confidence_note": "High confidence in authenticity."
+        }
 
-# =========================
-# ELA
-# =========================
 def ela_score(image, path):
     temp = path + "_temp.jpg"
     image.save(temp, "JPEG", quality=90)
@@ -36,175 +46,112 @@ def ela_score(image, path):
     ela = ImageEnhance.Brightness(diff).enhance(10)
 
     gray = np.array(ela.convert("L"))
-    score = np.mean(gray) / 255 * 100
+    return np.mean(gray)/255*100, ela
 
-    return score, ela
-
-# =========================
-# NOISE CONSISTENCY
-# =========================
 def noise_score(image):
     gray = np.array(image.convert("L"))
     blur = Image.fromarray(gray).filter(ImageFilter.GaussianBlur(3))
     noise = np.abs(gray - np.array(blur))
-    return np.std(noise) / 255 * 100
+    return np.std(noise)/255*100
 
-# =========================
-# EDGE CONSISTENCY
-# =========================
 def edge_score(image):
     edges = image.filter(ImageFilter.FIND_EDGES)
-    gray = np.array(edges.convert("L"))
-    return np.mean(gray) / 255 * 100
+    return np.mean(np.array(edges.convert("L")))/255*100
 
-# =========================
-# BLOCK ARTIFACT
-# =========================
 def block_score(image):
     gray = np.array(image.convert("L"))
-    h, w = gray.shape
+    h,w = gray.shape
+    blocks=[]
+    for y in range(0,h-8,8):
+        for x in range(0,w-8,8):
+            blocks.append(np.std(gray[y:y+8,x:x+8]))
+    return np.std(blocks)/255*100
 
-    blocks = []
-    for y in range(0, h-8, 8):
-        for x in range(0, w-8, 8):
-            block = gray[y:y+8, x:x+8]
-            blocks.append(np.std(block))
-
-    return np.std(blocks) / 255 * 100
-
-# =========================
-# METADATA SCORE
-# =========================
 def metadata_score(meta):
-    if not meta:
-        return 10
-    text = str(meta).lower()
-    if "photoshop" in text or "adobe" in text:
-        return 80
+    if not meta: return 10
+    txt=str(meta).lower()
+    if "photoshop" in txt or "adobe" in txt: return 80
     return 30
 
-# =========================
-# COMBINE SCORES
-# =========================
-def combine_scores(scores):
+def combine(scores):
+    weights={"ela":0.3,"noise":0.2,"edge":0.2,"block":0.2,"meta":0.1}
+    total=sum(scores[k]*weights[k] for k in weights)
+    confidence=100-np.std(list(scores.values()))
+    return int(total), int(max(0,min(100,confidence)))
 
-    weights = {
-        "ela": 0.3,
-        "noise": 0.2,
-        "edge": 0.2,
-        "block": 0.2,
-        "meta": 0.1
-    }
+def generate_pdf(job_id,data):
+    path=os.path.join(UPLOAD_FOLDER,f"{job_id}.pdf")
+    doc=SimpleDocTemplate(path)
+    styles=getSampleStyleSheet()
 
-    total = sum(scores[k]*weights[k] for k in weights)
-    confidence = 100 - np.std(list(scores.values()))
-
-    return int(total), int(max(0, min(100, confidence)))
-
-# =========================
-# EXPLANATION
-# =========================
-def explain(score):
-    if score > 70:
-        return "Strong indicators of manipulation across multiple forensic signals."
-    elif score > 40:
-        return "Moderate inconsistencies detected; possible editing."
-    else:
-        return "No significant anomalies detected."
-
-# =========================
-# PDF
-# =========================
-def generate_pdf(job_id, data):
-
-    path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
-    doc = SimpleDocTemplate(path)
-    styles = getSampleStyleSheet()
-
-    content = []
-
-    content.append(Paragraph("Forensic Analysis Report", styles["Title"]))
+    content=[]
+    content.append(Paragraph("Forensic Report",styles["Title"]))
     content.append(Spacer(1,12))
 
-    content.append(Paragraph(f"Result: {data['analysis']}", styles["Normal"]))
-    content.append(Paragraph(f"Score: {data['score']}", styles["Normal"]))
-    content.append(Paragraph(f"Confidence: {data['confidence']}", styles["Normal"]))
+    content.append(Paragraph(f"Result: {data['analysis']}",styles["Normal"]))
+    content.append(Paragraph(f"Score: {data['score']}",styles["Normal"]))
+    content.append(Paragraph(f"Confidence: {data['confidence']}",styles["Normal"]))
     content.append(Spacer(1,12))
 
-    content.append(Paragraph("Signal Breakdown", styles["Heading2"]))
+    content.append(Paragraph(data["technical_explanation"],styles["Normal"]))
+    content.append(Spacer(1,12))
+
+    content.append(Paragraph("Signal Breakdown",styles["Heading2"]))
     for k,v in data["signals"].items():
-        content.append(Paragraph(f"{k}: {v}", styles["Normal"]))
-
-    content.append(Spacer(1,12))
-
-    content.append(Paragraph(data["explanation"], styles["Normal"]))
+        content.append(Paragraph(f"{k}: {v}",styles["Normal"]))
 
     content.append(Spacer(1,20))
-
-    content.append(Paragraph("Generated by PixelProof", styles["Normal"]))
-    content.append(Paragraph("Barry Mattison-Off Road Artist Photography", styles["Normal"]))
+    content.append(Paragraph("PixelProof",styles["Normal"]))
 
     doc.build(content)
 
-    return f"{BASE_URL}/files/{job_id}_report.pdf"
+    return f"{BASE_URL}/files/{job_id}.pdf"
 
-# =========================
-# MAIN ROUTE
-# =========================
-@app.route("/api/analyze", methods=["POST"])
+@app.route("/api/analyze",methods=["POST"])
 def analyze():
+    file=request.files["image"]
+    metadata=json.loads(request.form.get("metadata","{}"))
+    gps=json.loads(request.form.get("gps","null"))
 
-    file = request.files.get("image")
-    metadata = json.loads(request.form.get("metadata","{}"))
-    gps = json.loads(request.form.get("gps","null"))
-
-    job_id = str(uuid.uuid4())
-    path = os.path.join(UPLOAD_FOLDER, job_id+".jpg")
+    job_id=str(uuid.uuid4())
+    path=os.path.join(UPLOAD_FOLDER,job_id+".jpg")
     file.save(path)
 
-    image = Image.open(path).convert("RGB")
+    img=Image.open(path).convert("RGB")
 
-    ela, ela_img = ela_score(image, path)
-    noise = noise_score(image)
-    edge = edge_score(image)
-    block = block_score(image)
-    meta = metadata_score(metadata)
+    ela,ela_img=ela_score(img,path)
+    noise=noise_score(img)
+    edge=edge_score(img)
+    block=block_score(img)
+    meta=metadata_score(metadata)
 
-    scores = {
-        "ELA": int(ela),
-        "Noise": int(noise),
-        "Edges": int(edge),
-        "Compression": int(block),
-        "Metadata": int(meta)
+    scores={"ELA":int(ela),"Noise":int(noise),"Edges":int(edge),"Compression":int(block),"Metadata":int(meta)}
+
+    final,conf=combine({"ela":ela,"noise":noise,"edge":edge,"block":block,"meta":meta})
+
+    exp=explain(final)
+
+    heatfile=f"{job_id}_heat.jpg"
+    ela_img.save(os.path.join(UPLOAD_FOLDER,heatfile))
+
+    result={
+        "analysis":"Likely edited" if final>70 else "Possibly edited" if final>40 else "Likely original",
+        "score":final,
+        "confidence":conf,
+        "simple_explanation":exp["simple"],
+        "technical_explanation":exp["technical"],
+        "legal_explanation":exp["legal"],
+        "confidence_note":exp["confidence_note"],
+        "signals":scores,
+        "metadata":{"available":bool(metadata),"all":metadata},
+        "gps":gps,
+        "heatmap":f"{BASE_URL}/files/{heatfile}"
     }
 
-    final_score, confidence = combine_scores({
-        "ela": ela,
-        "noise": noise,
-        "edge": edge,
-        "block": block,
-        "meta": meta
-    })
+    result["pdf_report"]=generate_pdf(job_id,result)
 
-    result = "Likely edited" if final_score>70 else "Possibly edited" if final_score>40 else "Likely original"
+    return jsonify({"result":result})
 
-    heat_file = f"{job_id}_heat.jpg"
-    ela_img.save(os.path.join(UPLOAD_FOLDER, heat_file))
-
-    result_data = {
-        "analysis": result,
-        "score": final_score,
-        "confidence": confidence,
-        "signals": scores,
-        "explanation": explain(final_score),
-        "gps": gps,
-        "heatmap": f"{BASE_URL}/files/{heat_file}"
-    }
-
-    result_data["pdf_report"] = generate_pdf(job_id, result_data)
-
-    return jsonify({"status":"done","result":result_data})
-
-@app.route("/files/<filename>")
-def files(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
+@app.route("/files/<f>")
+def files(f):
+    return send_from_directory(UPLOAD_FOLDER,f)
