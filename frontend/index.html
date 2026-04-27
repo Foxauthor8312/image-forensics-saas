@@ -444,13 +444,29 @@ result.innerHTML=`
 
 /* MAP */
 function initMap(gps){
-  if(!gps)return;
-  if(mapInstance){mapInstance.remove();}
-  mapInstance=L.map('map').setView([gps.lat,gps.lon],15);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(mapInstance);
-  L.marker([gps.lat,gps.lon]).addTo(mapInstance);
+  if(!gps) return;
+
+  if(mapInstance){
+    mapInstance.remove();
+  }
+
+  mapInstance = L.map('map').setView([gps.lat, gps.lon], 15);
+
+  L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+  ).addTo(mapInstance);
+
+  // 📍 Marker
+  L.marker([gps.lat, gps.lon]).addTo(mapInstance);
+
+  // 🔵 Accuracy circle (NEW)
   if(gps.accuracy){
-    L.circle([gps.lat,gps.lon],{radius:gps.accuracy}).addTo(mapInstance);
+    L.circle([gps.lat, gps.lon], {
+      radius: gps.accuracy,
+      color: "#3b82f6",
+      fillColor: "#3b82f6",
+      fillOpacity: 0.2
+    }).addTo(mapInstance);
   }
 }
 
