@@ -268,7 +268,10 @@ ${d.metadata?.available
 /* ================= MAP ================= */
 function initMap(gps){
   if(mapInstance){ mapInstance.remove(); mapInstance=null; }
-  if(!gps) return;
+ if(!gps || isNaN(gps.lat) || isNaN(gps.lon)){
+  document.getElementById("map").innerHTML = "<p>No valid location data</p>";
+  return;
+}
 
   mapInstance=L.map('map').setView([gps.lat,gps.lon],15);
 
