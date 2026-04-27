@@ -4,9 +4,9 @@ import os, uuid, json, hashlib
 import numpy as np
 
 from PIL import Image, ImageChops, ImageEnhance, ImageFilter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Image as RLImage
+
 
 app = Flask(__name__)
 CORS(app)
