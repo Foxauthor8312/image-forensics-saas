@@ -1,9 +1,9 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os, uuid, json, hashlib
-from datetime import datetime
+import numpy as np
 
-from PIL import Image, ImageChops, ImageEnhance
+from PIL import Image, ImageChops, ImageEnhance, ImageFilter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
@@ -15,6 +15,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 BASE_URL = "https://pixelproof-backend-v2.onrender.com"
 
+# =========================
+# HASH
+# =========================
 def generate_file_hash(path):
     sha256 = hashlib.sha256()
     with open(path, "rb") as f:
@@ -22,99 +25,119 @@ def generate_file_hash(path):
             sha256.update(chunk)
     return sha256.hexdigest()
 
-def explain(score):
-    if score > 70:
-        return {
-            "simple": "Strong signs of manipulation detected.",
-            "technical": "High pixel inconsistency and compression anomalies detected.",
-            "legal": "Significant irregularities indicate likely digital alteration.",
-            "confidence_note": "High confidence due to consistent anomaly patterns."
-        }
-    elif score > 40:
-        return {
-            "simple": "Possible editing detected.",
-            "technical": "Moderate inconsistencies detected.",
-            "legal": "Possible recompression or partial editing.",
-            "confidence_note": "Moderate confidence."
-        }
-    else:
-        return {
-            "simple": "Image appears original.",
-            "technical": "Pixel structure is consistent.",
-            "legal": "No significant irregularities detected.",
-            "confidence_note": "High confidence in authenticity."
-        }
-
-def analyze_image(path, job_id):
-    image = Image.open(path).convert("RGB")
-
+# =========================
+# ELA
+# =========================
+def ela_score(image, path):
     temp = path + "_temp.jpg"
     image.save(temp, "JPEG", quality=90)
 
     diff = ImageChops.difference(image, Image.open(temp))
     ela = ImageEnhance.Brightness(diff).enhance(10)
 
-    gray = ela.convert("L")
-    pixels = list(gray.getdata())
+    gray = np.array(ela.convert("L"))
+    score = np.mean(gray) / 255 * 100
 
-    score = int((sum(pixels)/len(pixels)/255)*100)
-    confidence = score
+    return score, ela
 
-    result = "Likely edited" if score>70 else "Possibly edited" if score>40 else "Likely original"
-    exp = explain(score)
+# =========================
+# NOISE CONSISTENCY
+# =========================
+def noise_score(image):
+    gray = np.array(image.convert("L"))
+    blur = Image.fromarray(gray).filter(ImageFilter.GaussianBlur(3))
+    noise = np.abs(gray - np.array(blur))
+    return np.std(noise) / 255 * 100
 
-    heat = ela.convert("RGB")
-    heat = ImageEnhance.Color(heat).enhance(3)
-    heat = ImageEnhance.Contrast(heat).enhance(2)
+# =========================
+# EDGE CONSISTENCY
+# =========================
+def edge_score(image):
+    edges = image.filter(ImageFilter.FIND_EDGES)
+    gray = np.array(edges.convert("L"))
+    return np.mean(gray) / 255 * 100
 
-    heat_file = f"{job_id}_heatmap.jpg"
-    heat.save(os.path.join(UPLOAD_FOLDER, heat_file))
+# =========================
+# BLOCK ARTIFACT
+# =========================
+def block_score(image):
+    gray = np.array(image.convert("L"))
+    h, w = gray.shape
 
-    return score, confidence, result, exp, heat_file
+    blocks = []
+    for y in range(0, h-8, 8):
+        for x in range(0, w-8, 8):
+            block = gray[y:y+8, x:x+8]
+            blocks.append(np.std(block))
 
+    return np.std(blocks) / 255 * 100
+
+# =========================
+# METADATA SCORE
+# =========================
+def metadata_score(meta):
+    if not meta:
+        return 10
+    text = str(meta).lower()
+    if "photoshop" in text or "adobe" in text:
+        return 80
+    return 30
+
+# =========================
+# COMBINE SCORES
+# =========================
+def combine_scores(scores):
+
+    weights = {
+        "ela": 0.3,
+        "noise": 0.2,
+        "edge": 0.2,
+        "block": 0.2,
+        "meta": 0.1
+    }
+
+    total = sum(scores[k]*weights[k] for k in weights)
+    confidence = 100 - np.std(list(scores.values()))
+
+    return int(total), int(max(0, min(100, confidence)))
+
+# =========================
+# EXPLANATION
+# =========================
+def explain(score):
+    if score > 70:
+        return "Strong indicators of manipulation across multiple forensic signals."
+    elif score > 40:
+        return "Moderate inconsistencies detected; possible editing."
+    else:
+        return "No significant anomalies detected."
+
+# =========================
+# PDF
+# =========================
 def generate_pdf(job_id, data):
-    path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
 
+    path = os.path.join(UPLOAD_FOLDER, f"{job_id}_report.pdf")
     doc = SimpleDocTemplate(path)
     styles = getSampleStyleSheet()
+
     content = []
 
-    content.append(Paragraph("Digital Image Forensic Analysis Report", styles["Title"]))
+    content.append(Paragraph("Forensic Analysis Report", styles["Title"]))
     content.append(Spacer(1,12))
 
     content.append(Paragraph(f"Result: {data['analysis']}", styles["Normal"]))
     content.append(Paragraph(f"Score: {data['score']}", styles["Normal"]))
-    content.append(Paragraph(f"Confidence: {data['confidence']}%", styles["Normal"]))
+    content.append(Paragraph(f"Confidence: {data['confidence']}", styles["Normal"]))
     content.append(Spacer(1,12))
 
-    content.append(Paragraph("Technical Findings", styles["Heading2"]))
-    content.append(Paragraph(data["technical_explanation"], styles["Normal"]))
-    content.append(Spacer(1,12))
-
-    content.append(Paragraph("Conclusion", styles["Heading2"]))
-    content.append(Paragraph(data["legal_explanation"], styles["Normal"]))
-    content.append(Spacer(1,12))
-
-    content.append(Paragraph("Metadata", styles["Heading2"]))
-    if data["metadata"]["available"]:
-        for k,v in list(data["metadata"]["all"].items())[:15]:
-            content.append(Paragraph(f"{k}: {v}", styles["Normal"]))
-    else:
-        content.append(Paragraph("No metadata found", styles["Normal"]))
+    content.append(Paragraph("Signal Breakdown", styles["Heading2"]))
+    for k,v in data["signals"].items():
+        content.append(Paragraph(f"{k}: {v}", styles["Normal"]))
 
     content.append(Spacer(1,12))
 
-    content.append(Paragraph("GPS Data", styles["Heading2"]))
-    if data["gps"]:
-        content.append(Paragraph(f"Lat: {data['gps']['lat']}", styles["Normal"]))
-        content.append(Paragraph(f"Lon: {data['gps']['lon']}", styles["Normal"]))
-    else:
-        content.append(Paragraph("No GPS available", styles["Normal"]))
-
-    content.append(Spacer(1,12))
-
-    content.append(Paragraph("Forensic Integrity", styles["Heading2"]))
-    content.append(Paragraph(f"Hash: {data['integrity']['hash']}", styles["Normal"]))
+    content.append(Paragraph(data["explanation"], styles["Normal"]))
 
     content.append(Spacer(1,20))
 
@@ -125,6 +148,9 @@ def generate_pdf(job_id, data):
 
     return f"{BASE_URL}/files/{job_id}_report.pdf"
 
+# =========================
+# MAIN ROUTE
+# =========================
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
 
@@ -136,23 +162,43 @@ def analyze():
     path = os.path.join(UPLOAD_FOLDER, job_id+".jpg")
     file.save(path)
 
-    file_hash = generate_file_hash(path)
-    image = Image.open(path)
+    image = Image.open(path).convert("RGB")
 
-    score, confidence, result, exp, heatmap = analyze_image(path, job_id)
+    ela, ela_img = ela_score(image, path)
+    noise = noise_score(image)
+    edge = edge_score(image)
+    block = block_score(image)
+    meta = metadata_score(metadata)
+
+    scores = {
+        "ELA": int(ela),
+        "Noise": int(noise),
+        "Edges": int(edge),
+        "Compression": int(block),
+        "Metadata": int(meta)
+    }
+
+    final_score, confidence = combine_scores({
+        "ela": ela,
+        "noise": noise,
+        "edge": edge,
+        "block": block,
+        "meta": meta
+    })
+
+    result = "Likely edited" if final_score>70 else "Possibly edited" if final_score>40 else "Likely original"
+
+    heat_file = f"{job_id}_heat.jpg"
+    ela_img.save(os.path.join(UPLOAD_FOLDER, heat_file))
 
     result_data = {
         "analysis": result,
-        "score": score,
+        "score": final_score,
         "confidence": confidence,
-        "simple_explanation": exp["simple"],
-        "technical_explanation": exp["technical"],
-        "legal_explanation": exp["legal"],
-        "confidence_note": exp["confidence_note"],
-        "metadata": {"available": bool(metadata), "all": metadata},
+        "signals": scores,
+        "explanation": explain(final_score),
         "gps": gps,
-        "heatmap": f"{BASE_URL}/files/{heatmap}",
-        "integrity": {"hash": file_hash}
+        "heatmap": f"{BASE_URL}/files/{heat_file}"
     }
 
     result_data["pdf_report"] = generate_pdf(job_id, result_data)
