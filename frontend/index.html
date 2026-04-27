@@ -23,14 +23,13 @@ button {
   margin:5px;
   cursor:pointer;
 }
-
 #analyzeBtn { background:#22c55e; }
 
 #progress-container { display:none; margin-top:15px; }
-.progress-bar { width:100%; height:8px; background:#1e293b; border-radius:5px; }
+.progress-bar { height:8px; background:#1e293b; }
 .progress-fill { height:8px; width:0%; background:#3b82f6; }
 
-.tabs { display:flex; gap:10px; margin-top:20px; }
+.tabs { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
 .tab { padding:10px; background:#1e293b; border-radius:6px; cursor:pointer; }
 .tab.active { background:#3b82f6; }
 
@@ -45,16 +44,13 @@ button {
 
 #map { height:400px; border-radius:10px; }
 
-  .card p {
-  word-wrap: break-word;
-  overflow-wrap: break-word;
+.card p {
   word-break: break-word;
 }
 
 .meta-container {
-  max-height: 400px;
-  overflow-y: auto;
-  padding-right: 5px;
+  max-height:400px;
+  overflow-y:auto;
 }
 </style>
 </head>
@@ -88,13 +84,12 @@ button {
 const API="https://pixelproof-backend-v2.onrender.com";
 
 let selectedFile=null;
+let previewURL=null;
 let metadata={};
 let gps=null;
 let mapInstance=null;
 
-/* =========================
-   RESIZE IMAGE
-========================= */
+/* IMAGE RESIZE */
 async function resizeImage(file){
   return new Promise(resolve=>{
     const img=new Image();
@@ -105,7 +100,6 @@ async function resizeImage(file){
     img.onload=()=>{
       const canvas=document.createElement("canvas");
       const MAX=1280;
-
       let w=img.width,h=img.height;
 
       if(w>h && w>MAX){h*=MAX/w;w=MAX;}
@@ -124,9 +118,7 @@ async function resizeImage(file){
   });
 }
 
-/* =========================
-   EXIF
-========================= */
+/* EXIF */
 function extractGPS(meta){
   if(!meta.GPSLatitude || !meta.GPSLongitude) return null;
 
@@ -143,6 +135,7 @@ function extractGPS(meta){
 
 file.onchange=async e=>{
   selectedFile=e.target.files[0];
+  previewURL=URL.createObjectURL(selectedFile);
   metadata={}; gps=null;
 
   await new Promise(resolve=>{
@@ -154,9 +147,7 @@ file.onchange=async e=>{
   });
 };
 
-/* =========================
-   GPS
-========================= */
+/* GPS */
 function getDeviceLocation(){
   return new Promise(resolve=>{
     navigator.geolocation.getCurrentPosition(
@@ -171,9 +162,7 @@ function getDeviceLocation(){
   });
 }
 
-/* =========================
-   CAMERA
-========================= */
+/* CAMERA */
 async function capturePhoto(){
   const stream=await navigator.mediaDevices.getUserMedia({video:true});
   const video=document.createElement("video");
@@ -184,7 +173,6 @@ async function capturePhoto(){
   overlay.style.position="fixed";
   overlay.style.inset="0";
   overlay.style.background="#000";
-  overlay.style.zIndex=9999;
   overlay.appendChild(video);
 
   const btn=document.createElement("button");
@@ -205,6 +193,7 @@ async function capturePhoto(){
 
     canvas.toBlob(async blob=>{
       selectedFile=new File([blob],"capture.jpg");
+      previewURL=URL.createObjectURL(selectedFile);
       gps=await getDeviceLocation();
     });
 
@@ -213,26 +202,21 @@ async function capturePhoto(){
   };
 }
 
-/* =========================
-   PROGRESS
-========================= */
+/* PROGRESS */
 function setProgress(p,t){
   document.getElementById("progress-fill").style.width=p+"%";
   document.getElementById("status").innerText=t;
 }
 
-/* =========================
-   ANALYZE (FIXED)
-========================= */
+/* ANALYZE */
 async function analyzeImage(){
 
   if(!selectedFile){
-    alert("Select or capture an image");
+    alert("Select image");
     return;
   }
 
   document.getElementById("progress-container").style.display="block";
-
   setProgress(20,"Preparing...");
 
   const resized=await resizeImage(selectedFile);
@@ -250,7 +234,7 @@ async function analyzeImage(){
 
   try{
     res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-  }catch(err){
+  }catch{
     alert("Upload failed");
     return;
   }
@@ -262,9 +246,7 @@ async function analyzeImage(){
   render(data.result);
 }
 
-/* =========================
-   RENDER
-========================= */
+/* RENDER */
 function render(d){
 
 window.lastGPS=d.gps;
@@ -300,61 +282,27 @@ ${Object.entries(d.signals||{}).map(([k,v])=>`
 <a href="${d.pdf_report}" target="_blank">Download PDF</a>
 
 </div>
+
+<div class="image-row">
+<div class="image-box"><img src="${previewURL}"></div>
+<div class="image-box"><img src="${d.heatmap}?t=${Date.now()}"></div>
+</div>
+
 </div>
 
 <div id="mapTab" class="tab-content"><div id="map"></div></div>
 
 <div id="metaTab" class="tab-content">
 <div class="card">
-
 <div class="meta-container">
 
 ${
 d.metadata?.available
-? (() => {
-
-  const meta = d.metadata.all || {};
-
-  const importantKeys = [
-    "Make","Model","DateTime","Software",
-    "GPSLatitude","GPSLongitude"
-  ];
-
-  const important = Object.entries(meta)
-    .filter(([k]) => importantKeys.includes(k));
-
-  const others = Object.entries(meta)
-    .filter(([k]) => !importantKeys.includes(k));
-
-  return `
-
-  <h3>Key Metadata</h3>
-
-  ${
-    important.length
-    ? important.map(([k,v])=>`
-        <p><b>${k}:</b> ${String(v)}</p>
-      `).join("")
-    : "<p>No key metadata found</p>"
-  }
-
-  <hr>
-
-  <h3>Full Metadata</h3>
-
-  ${
-    others.slice(0,50).map(([k,v])=>`
-      <p>${k}: ${String(v)}</p>
-    `).join("")
-  }
-
-  `;
-})()
-: "<p>No metadata found</p>"
+? Object.entries(d.metadata.all).map(([k,v])=>`<p><b>${k}:</b> ${v}</p>`).join("")
+: "No metadata"
 }
 
 </div>
-
 </div>
 </div>
 
@@ -372,11 +320,10 @@ PixelProof - Barry Mattison-Off Road Artist Photography
 </div>
 </div>
 `;
+
 }
 
-/* =========================
-   MAP
-========================= */
+/* MAP */
 function initMap(gps){
 
   if(mapInstance){
@@ -401,9 +348,7 @@ function initMap(gps){
   setTimeout(()=>mapInstance.invalidateSize(),200);
 }
 
-/* =========================
-   TABS
-========================= */
+/* TABS */
 function tab(e,id){
 
 document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
