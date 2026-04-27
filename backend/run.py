@@ -4,6 +4,8 @@ import os, uuid, json, hashlib
 import numpy as np
 
 from PIL import Image, ImageChops, ImageEnhance, ImageFilter
+
+# ✅ REPORTLAB IMPORTS (CORRECT)
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet
 
