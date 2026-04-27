@@ -2,7 +2,6 @@
 <html>
 <head>
 <title>PixelProof</title>
-
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
@@ -90,17 +89,17 @@ const API="https://pixelproof-backend-v2.onrender.com";
 
 let selectedFile=null, previewURL=null, metadata={}, gps=null, mapInstance=null;
 
-/* CAMERA UI */
+/* CAMERA */
 function openSheet(){
-  document.getElementById("sheetBackdrop").style.display="block";
-  document.getElementById("cameraSheet").classList.add("open");
+  sheetBackdrop.style.display="block";
+  cameraSheet.classList.add("open");
 }
 function closeSheet(){
-  document.getElementById("sheetBackdrop").style.display="none";
-  document.getElementById("cameraSheet").classList.remove("open");
+  sheetBackdrop.style.display="none";
+  cameraSheet.classList.remove("open");
 }
 
-/* FILE PROCESS */
+/* FILE */
 async function processFile(file){
   selectedFile=file;
   previewURL=URL.createObjectURL(file);
@@ -128,6 +127,17 @@ function extractGPS(meta){
   return {lat,lon};
 }
 
+/* REVERSE GEOCODE */
+async function reverseGeocode(lat, lon){
+  try{
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+    const data = await res.json();
+    return data.display_name;
+  }catch{
+    return null;
+  }
+}
+
 /* PROGRESS */
 function showProgress(){progressOverlay.style.display="flex";}
 function hideProgress(){progressOverlay.style.display="none";}
@@ -135,21 +145,6 @@ function setProgress(p,t){
   progressBar.style.width=p+"%";
   progressPercent.innerText=p+"%";
   progressText.innerText=t;
-}
-
-/* RESIZE */
-async function resizeImage(file){
-  return new Promise(resolve=>{
-    const img=new Image(),r=new FileReader();
-    r.onload=e=>img.src=e.target.result;
-    img.onload=()=>{
-      const c=document.createElement("canvas");
-      c.width=img.width;c.height=img.height;
-      c.getContext("2d").drawImage(img,0,0);
-      c.toBlob(b=>resolve(new File([b],"resized.jpg",{type:"image/jpeg"})),"image/jpeg",0.85);
-    };
-    r.readAsDataURL(file);
-  });
 }
 
 /* ANALYZE */
@@ -160,12 +155,8 @@ async function analyzeImage(){
   showProgress();
   setProgress(20,"Preparing...");
 
-  const resized=await resizeImage(selectedFile);
-
-  setProgress(60,"Uploading...");
-
   const form=new FormData();
-  form.append("image",resized);
+  form.append("image",selectedFile);
   form.append("metadata",JSON.stringify(metadata));
   form.append("gps",JSON.stringify(gps));
 
@@ -182,21 +173,19 @@ async function analyzeImage(){
 
 /* GAUGE */
 function gauge(v,label){
-  const r=50,c=2*Math.PI*r,o=c-(v/100)*c;
-  const col=v>70?"#ef4444":v>40?"#f59e0b":"#22c55e";
-  return `<div style="text-align:center">
-  <svg width="120" height="120" style="transform:rotate(-90deg)">
-  <circle cx="60" cy="60" r="${r}" stroke="#1e293b" stroke-width="10"/>
-  <circle cx="60" cy="60" r="${r}" stroke="${col}" stroke-width="10"
-  stroke-dasharray="${c}" stroke-dashoffset="${o}" fill="none"/></svg>
-  <div style="margin-top:-70px">${v}%</div>
-  <div>${label}</div></div>`;
+  return `<div><b>${label}</b>: ${v}%</div>`;
 }
 
 /* RENDER */
-function render(d){
+async function render(d){
 
 window.lastGPS=d.gps;
+
+let addressHTML="";
+if(d.gps){
+  const addr=await reverseGeocode(d.gps.lat,d.gps.lon);
+  if(addr) addressHTML=`<p><b>Location:</b> ${addr}</p>`;
+}
 
 result.innerHTML=`
 
@@ -215,14 +204,13 @@ result.innerHTML=`
 ${gauge(d.score,"Score")}
 ${gauge(d.confidence,"Confidence")}
 
-<p><b>Summary:</b> ${d.simple_explanation}</p>
-<p><b>Technical:</b> ${d.technical_explanation}</p>
-<p><b>Conclusion:</b> ${d.legal_explanation}</p>
+${addressHTML}
+
+<p><b>Deepfake Score:</b> ${d.deepfake_score || "N/A"}%</p>
+
+<p>${d.simple_explanation}</p>
 
 ${d.pdf_report?`<a href="${d.pdf_report}" target="_blank">Download PDF</a>`:""}
-
-<h3>Signals</h3>
-${Object.entries(d.signals).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")}
 
 </div>
 
@@ -235,20 +223,8 @@ ${Object.entries(d.signals).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")}
 
 <div id="detailTab" class="tab-content">
 <div class="card">
-
-<h2>Detailed Forensic Analysis</h2>
-
-<p>This system evaluates multiple forensic signals to determine image integrity.</p>
-
-<h3>Score (${d.score}%)</h3>
-<p>Higher score = more anomalies detected → more likely edited.</p>
-
-<h3>Confidence (${d.confidence}%)</h3>
-<p>Indicates agreement between detection methods.</p>
-
-<h3>Signals</h3>
-${Object.entries(d.signals).map(([k,v])=>`<p><b>${k}</b>: ${v}%</p>`).join("")}
-
+<h2>Detailed Analysis</h2>
+<p>Score reflects anomaly level. Confidence reflects agreement.</p>
 </div>
 </div>
 
