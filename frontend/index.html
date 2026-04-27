@@ -45,7 +45,16 @@ button { padding:10px; background:#3b82f6; border:none; color:white; border-radi
 </head>
 
 <body>
-
+<div id="progressOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;">
+  <div style="width:300px;background:#020617;padding:20px;border-radius:12px;text-align:center;">
+    <h3>Analyzing Image</h3>
+    <div style="background:#1e293b;height:10px;border-radius:6px;margin:15px 0;">
+      <div id="progressBar" style="height:10px;width:0%;background:#3b82f6;border-radius:6px;"></div>
+    </div>
+    <div id="progressPercent">0%</div>
+    <div id="progressText">Starting...</div>
+  </div>
+</div>
 <div class="container">
 
 <h1>PixelProof 🔍</h1>
