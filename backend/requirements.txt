@@ -3,5 +3,4 @@ flask-cors
 pillow
 reportlab
 numpy
-torch
-torchvision
+gunicorn
