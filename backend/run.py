@@ -82,7 +82,6 @@ def combine(scores):
     confidence=100-np.std(list(scores.values()))
     return int(total), int(max(0,min(100,confidence)))
 
-def from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
 def def generate_pdf(job_id, data):
