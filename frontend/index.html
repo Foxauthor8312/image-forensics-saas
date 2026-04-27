@@ -354,29 +354,51 @@ setTimeout(()=>initMap(d.gps),200);
 /* =========================
    MAP
 ========================= */
+let mapInstance = null;
+
 function initMap(gps){
 
-  if(!gps || !gps.lat || !gps.lon){
-    document.getElementById("map").innerHTML = "<p>No valid location data</p>";
+  const mapContainer = document.getElementById("map");
+
+  // clear previous map
+  if(mapInstance){
+    mapInstance.remove();
+    mapInstance = null;
+  }
+
+  // validate GPS
+  if(!gps || typeof gps.lat !== "number" || typeof gps.lon !== "number"){
+    mapContainer.innerHTML = "<p>No valid location data</p>";
     return;
   }
 
-  const map = L.map('map').setView([gps.lat, gps.lon], 15);
+  // create map AFTER visible
+  mapInstance = L.map('map', {
+    zoomControl: true
+  }).setView([gps.lat, gps.lon], 15);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
-    .addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+  }).addTo(mapInstance);
 
   L.marker([gps.lat, gps.lon])
-    .addTo(map)
-    .bindPopup(gps.source || "Location");
+    .addTo(mapInstance)
+    .bindPopup(gps.source || "Location")
+    .openPopup();
 
-  if(gps.accuracy){
+  // accuracy circle
+  if(gps.accuracy && gps.accuracy < 5000){
     L.circle([gps.lat, gps.lon], {
       radius: gps.accuracy,
-      color: "blue",
-      fillOpacity: 0.2
-    }).addTo(map);
+      color: "#3b82f6",
+      fillOpacity: 0.15
+    }).addTo(mapInstance);
   }
+
+  // critical fix: force resize
+  setTimeout(() => {
+    mapInstance.invalidateSize();
+  }, 200);
 }
 
 /* =========================
