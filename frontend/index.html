@@ -200,69 +200,152 @@ function gauge(v,label){
 /* ================= RENDER ================= */
 function render(d){
 
-window.lastGPS=d.gps;
+  window.lastGPS = d.gps;
 
-document.getElementById("result").innerHTML=`
+  document.getElementById("result").innerHTML = `
 
-<div class="tabs">
-<div class="tab active" onclick="tab(event,'r')">Results</div>
-<div class="tab" onclick="tab(event,'mapTab')">Map</div>
-<div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
-<div class="tab" onclick="tab(event,'detailTab')">Detailed</div>
-<div class="tab" onclick="tab(event,'aboutTab')">About</div>
-</div>
+  <div class="tabs">
+    <div class="tab active" onclick="tab(event,'r')">Results</div>
+    <div class="tab" onclick="tab(event,'mapTab')">Map</div>
+    <div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
+    <div class="tab" onclick="tab(event,'detailTab')">Detailed</div>
+    <div class="tab" onclick="tab(event,'aboutTab')">About</div>
+  </div>
 
-<div id="r" class="tab-content active">
-<div class="card">
+  <!-- ================= RESULTS ================= -->
+  <div id="r" class="tab-content active">
+    <div class="card">
 
-<h2>${d.analysis}</h2>
+      <h2>${d.analysis}</h2>
 
-<div style="display:flex;gap:30px;flex-wrap:wrap;">
-${gauge(d.score,"Score")}
-${gauge(d.confidence,"Confidence")}
-</div>
+      <!-- ✅ SCORE + CONFIDENCE -->
+      <div style="display:flex;gap:30px;flex-wrap:wrap;margin-bottom:15px;">
+        ${gauge(d.score,"Score")}
+        ${gauge(d.confidence,"Confidence")}
+      </div>
 
-<p><b>Summary:</b> ${d.simple_explanation}</p>
-<p><b>Technical:</b> ${d.technical_explanation}</p>
-<p><b>Conclusion:</b> ${d.legal_explanation}</p>
-<p><b>Confidence:</b> ${d.confidence_note}</p>
+      <!-- ✅ EXPLANATIONS (LOCKED) -->
+      <p><b>Summary:</b><br>${d.simple_explanation || "N/A"}</p>
+      <p><b>Technical:</b><br>${d.technical_explanation || "N/A"}</p>
+      <p><b>Conclusion:</b><br>${d.legal_explanation || "N/A"}</p>
+      <p><b>Confidence:</b><br>${d.confidence_note || "N/A"}</p>
 
-<h3>Signals</h3>
-${Object.entries(d.signals||{}).map(([k,v])=>`
-<div>${k}: ${v}</div>
-<div style="background:#1e293b;height:8px;margin-bottom:10px;">
-<div style="width:${v}%;height:8px;background:#3b82f6;"></div>
-</div>`).join("")}
+      <!-- ✅ PDF DOWNLOAD (LOCKED) -->
+      <div style="margin:15px 0;">
+        ${d.pdf_report 
+          ? `<a href="${d.pdf_report}" target="_blank" style="color:#3b82f6;font-weight:bold;">Download Full PDF Report</a>`
+          : "<p>PDF not available</p>"
+        }
+      </div>
 
-</div>
+      <!-- ✅ SIGNAL BARS -->
+      <h3>Signal Breakdown</h3>
+      ${
+        Object.entries(d.signals || {}).map(([k,v])=>`
+          <div style="margin-bottom:10px;">
+            <div>${k}: ${v}</div>
+            <div style="background:#1e293b;height:8px;border-radius:4px;">
+              <div style="width:${v}%;height:8px;background:#3b82f6;border-radius:4px;"></div>
+            </div>
+          </div>
+        `).join("")
+      }
 
-<div class="image-row">
-<div class="image-box"><img src="${previewURL}"></div>
-<div class="image-box"><img src="${d.heatmap}?t=${Date.now()}"></div>
-</div>
+    </div>
 
-</div>
+    <!-- ✅ IMAGES (LOCKED) -->
+    <div class="image-row">
+      <div class="image-box">
+        <h4>Original</h4>
+        <img src="${previewURL || ""}">
+      </div>
+      <div class="image-box">
+        <h4>Heatmap</h4>
+        <img src="${d.heatmap ? d.heatmap + "?t=" + Date.now() : ""}">
+      </div>
+    </div>
 
-<div id="mapTab" class="tab-content"><div id="map"></div></div>
+  </div>
 
-<div id="metaTab" class="tab-content">
-<div class="card"><div class="meta-container">
-${d.metadata?.available
-? Object.entries(d.metadata.all).map(([k,v])=>`<p><b>${k}:</b> ${v}</p>`).join("")
-: "No metadata"}
-</div></div>
-</div>
+  <!-- ================= MAP ================= -->
+  <div id="mapTab" class="tab-content">
+    <div id="map"></div>
+  </div>
 
-<div id="detailTab" class="tab-content">
-<div class="card">
-<p>The score is calculated using multiple forensic signals. Confidence reflects agreement between them.</p>
-</div>
-</div>
+  <!-- ================= METADATA ================= -->
+  <div id="metaTab" class="tab-content">
+    <div class="card">
+      <div class="meta-container">
 
-<div id="aboutTab" class="tab-content">
-<div class="card">PixelProof - Barry Mattison-Off Road Artist Photography</div>
-</div>
-`;
+        ${
+          d.metadata?.available
+          ? (() => {
+
+              const meta = d.metadata.all || {};
+
+              const importantKeys = [
+                "Make","Model","DateTime","Software",
+                "GPSLatitude","GPSLongitude"
+              ];
+
+              const important = Object.entries(meta)
+                .filter(([k]) => importantKeys.includes(k));
+
+              const others = Object.entries(meta)
+                .filter(([k]) => !importantKeys.includes(k));
+
+              return `
+                <h3>Key Metadata</h3>
+                ${
+                  important.length
+                  ? important.map(([k,v])=>`<p><b>${k}:</b> ${v}</p>`).join("")
+                  : "<p>No key metadata</p>"
+                }
+
+                <hr>
+
+                <h3>Full Metadata</h3>
+                ${
+                  others.slice(0,50).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")
+                }
+              `;
+            })()
+          : "<p>No metadata available</p>"
+        }
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= DETAILED ================= -->
+  <div id="detailTab" class="tab-content">
+    <div class="card">
+      <h2>Detailed Analysis</h2>
+
+      <p>The forensic score is calculated using multiple independent signals:</p>
+
+      <ul>
+        <li>ELA (compression inconsistencies)</li>
+        <li>Noise pattern analysis</li>
+        <li>Edge structure analysis</li>
+        <li>Compression artifacts</li>
+        <li>Metadata inspection</li>
+      </ul>
+
+      <p><b>Score:</b> Indicates likelihood of manipulation.</p>
+      <p><b>Confidence:</b> Indicates agreement between detection signals.</p>
+
+    </div>
+  </div>
+
+  <!-- ================= ABOUT ================= -->
+  <div id="aboutTab" class="tab-content">
+    <div class="card">
+      PixelProof — Barry Mattison-Off Road Artist Photography
+    </div>
+  </div>
+
+  `;
 }
 
 /* ================= MAP ================= */
