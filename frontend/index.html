@@ -377,6 +377,11 @@ const verdictText = d.score>70?"Likely Edited":d.score>40?"Possibly Edited":"Lik
 const best = topSignal(d.signals);
 
 result.innerHTML=`
+${!navigator.onLine ? `
+  <div class="card" style="background:#7c2d12;">
+    <b>Offline Mode</b> — limited analysis (no server processing)
+  </div>
+` : ""}
 
 <div class="tabs">
   <div class="tab active" onclick="tab(event,'r')">Results</div>
