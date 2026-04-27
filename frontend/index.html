@@ -5,27 +5,60 @@
 
 <link rel="manifest" href="/manifest.json">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f172a">
 
 <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <style>
-body{background:#0f172a;color:white;font-family:system-ui;}
-.container{max-width:1100px;margin:auto;padding:20px;}
-button{padding:10px;background:#3b82f6;border:none;color:white;margin:5px;border-radius:6px;}
+body { background:#0f172a; color:white; font-family:system-ui; margin:0; }
+.container { max-width:1100px; margin:auto; padding:20px; }
 
-.tabs{display:flex;gap:10px;margin-top:20px;}
-.tab{padding:10px;background:#1e293b;border-radius:6px;cursor:pointer;}
-.tab.active{background:#3b82f6;}
-.tab-content{display:none;margin-top:20px;}
-.tab-content.active{display:block;}
+button {
+  padding:10px 16px;
+  background:#3b82f6;
+  border:none;
+  border-radius:6px;
+  color:white;
+  margin:5px;
+  cursor:pointer;
+}
 
-.image-row{display:flex;gap:15px;flex-wrap:wrap;}
-.image-box{flex:1 1 48%;}
-.image-box img{width:100%;max-height:400px;object-fit:contain;}
+#analyzeBtn { background:#22c55e; }
 
-#map{height:400px;}
+/* progress */
+#progress-container { display:none; margin-top:15px; }
+.progress-bar { width:100%; height:8px; background:#1e293b; border-radius:5px; overflow:hidden; }
+.progress-fill { height:100%; width:0%; background:#3b82f6; transition:0.4s; }
+
+/* tabs */
+.tabs { display:flex; gap:10px; margin-top:20px; }
+.tab { padding:10px; background:#1e293b; border-radius:6px; cursor:pointer; }
+.tab.active { background:#3b82f6; }
+
+.tab-content { display:none; margin-top:20px; }
+.tab-content.active { display:block; }
+
+/* card */
+.card { background:#020617; padding:18px; border-radius:10px; margin-top:15px; }
+
+/* images */
+.image-row { display:flex; gap:15px; flex-wrap:wrap; margin-top:20px; }
+.image-box { flex:1 1 48%; text-align:center; }
+.image-box img { width:100%; max-height:420px; object-fit:contain; }
+
+/* gauge */
+.gauge { width:120px; height:120px; position:relative; }
+.gauge svg { transform:rotate(-90deg); }
+.gauge-text {
+  position:absolute; top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  font-weight:bold;
+}
+
+#map { height:400px; border-radius:10px; margin-top:10px; }
 </style>
 </head>
 
@@ -35,9 +68,20 @@ button{padding:10px;background:#3b82f6;border:none;color:white;margin:5px;border
 
 <h1>PixelProof 🔍</h1>
 
-<input type="file" id="file">
-<button onclick="capturePhoto()">📷 Capture</button>
-<button onclick="analyzeImage()" style="background:#22c55e;">Analyze</button>
+<input type="file" id="file" accept="image/*">
+
+<br>
+
+<button onclick="capturePhoto()">📷 Capture Photo</button>
+<button id="analyzeBtn" onclick="analyzeImage()">Analyze Image</button>
+
+<!-- progress -->
+<div id="progress-container">
+  <div class="progress-bar">
+    <div id="progress-fill" class="progress-fill"></div>
+  </div>
+  <p id="status">Preparing...</p>
+</div>
 
 <div id="result"></div>
 
@@ -46,110 +90,298 @@ button{padding:10px;background:#3b82f6;border:none;color:white;margin:5px;border
 <script>
 
 const API="https://pixelproof-backend-v2.onrender.com";
-let selectedFile=null,gps=null,metadata={};
 
-file.onchange=e=>{
-selectedFile=e.target.files[0];
-EXIF.getData(selectedFile,function(){
-metadata=EXIF.getAllTags(this);
-});
+let selectedFile=null;
+let metadata={};
+let gps=null;
+
+/* =========================
+   EXIF GPS EXTRACTION
+========================= */
+function extractGPS(meta){
+
+  if(!meta.GPSLatitude || !meta.GPSLongitude) return null;
+
+  const toDecimal = coord =>
+    coord[0] + coord[1]/60 + coord[2]/3600;
+
+  let lat = toDecimal(meta.GPSLatitude);
+  let lon = toDecimal(meta.GPSLongitude);
+
+  if(meta.GPSLatitudeRef === "S") lat = -lat;
+  if(meta.GPSLongitudeRef === "W") lon = -lon;
+
+  return { lat, lon, source:"EXIF" };
+}
+
+/* =========================
+   FILE INPUT
+========================= */
+file.onchange = e => {
+  selectedFile = e.target.files[0];
+  metadata = {};
+  gps = null;
+
+  EXIF.getData(selectedFile,function(){
+    metadata = EXIF.getAllTags(this);
+    gps = extractGPS(metadata);
+
+    console.log("Metadata:", metadata);
+    console.log("EXIF GPS:", gps);
+  });
 };
 
-async function getDeviceLocation(){
-return new Promise(r=>{
-navigator.geolocation.getCurrentPosition(p=>r({
-lat:p.coords.latitude,
-lon:p.coords.longitude,
-accuracy:p.coords.accuracy
-}),()=>r(null));
-});
+/* =========================
+   DEVICE GPS
+========================= */
+function getDeviceLocation(){
+  return new Promise(resolve => {
+
+    if(!navigator.geolocation){
+      return resolve(null);
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        resolve({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          source:"Device"
+        });
+      },
+      () => resolve(null),
+      {
+        enableHighAccuracy:true,
+        timeout:10000,
+        maximumAge:0
+      }
+    );
+  });
 }
 
+/* =========================
+   CAMERA
+========================= */
 async function capturePhoto(){
-const stream=await navigator.mediaDevices.getUserMedia({video:true});
-const video=document.createElement("video");
-video.srcObject=stream;video.play();
 
-const canvas=document.createElement("canvas");
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({video:true});
+    const video = document.createElement("video");
+    video.srcObject = stream;
+    video.play();
 
-setTimeout(()=>{
-canvas.width=video.videoWidth;
-canvas.height=video.videoHeight;
-canvas.getContext("2d").drawImage(video,0,0);
+    const overlay = document.createElement("div");
+    overlay.style.position="fixed";
+    overlay.style.inset="0";
+    overlay.style.background="#000";
+    overlay.style.zIndex=9999;
+    overlay.appendChild(video);
 
-canvas.toBlob(async blob=>{
-selectedFile=new File([blob],"capture.jpg");
-gps=await getDeviceLocation();
-alert("Captured. Tap Analyze.");
-});
+    const btn=document.createElement("button");
+    btn.innerText="Capture";
+    btn.style.position="absolute";
+    btn.style.bottom="20px";
+    btn.style.left="50%";
+    btn.style.transform="translateX(-50%)";
 
-stream.getTracks().forEach(t=>t.stop());
-},2000);
+    overlay.appendChild(btn);
+    document.body.appendChild(overlay);
+
+    btn.onclick = async () => {
+
+      const canvas=document.createElement("canvas");
+      canvas.width=video.videoWidth;
+      canvas.height=video.videoHeight;
+      canvas.getContext("2d").drawImage(video,0,0);
+
+      canvas.toBlob(async blob=>{
+        selectedFile=new File([blob],"capture.jpg",{type:"image/jpeg"});
+      });
+
+      stream.getTracks().forEach(t=>t.stop());
+      document.body.removeChild(overlay);
+
+      gps = await getDeviceLocation();
+
+      alert("Photo captured. Tap Analyze Image.");
+    };
+
+  }catch{
+    alert("Camera unavailable");
+  }
 }
 
+/* =========================
+   PROGRESS
+========================= */
+function setProgress(p,t){
+  document.getElementById("progress-fill").style.width=p+"%";
+  document.getElementById("status").innerText=t;
+}
+
+/* =========================
+   GAUGE
+========================= */
+function gauge(v,label){
+  const r=50,c=2*Math.PI*r;
+  const o=c-(v/100)*c;
+  const color=v>70?"#22c55e":v>40?"#f59e0b":"#ef4444";
+
+  return `
+  <div style="text-align:center">
+    <div class="gauge">
+      <svg width="120" height="120">
+        <circle cx="60" cy="60" r="${r}" stroke="#1e293b" stroke-width="10" fill="none"/>
+        <circle cx="60" cy="60" r="${r}" stroke="${color}" stroke-width="10"
+          stroke-dasharray="${c}" stroke-dashoffset="${o}" fill="none"/>
+      </svg>
+      <div class="gauge-text">${v}</div>
+    </div>
+    <div>${label}</div>
+  </div>`;
+}
+
+/* =========================
+   ANALYZE
+========================= */
 async function analyzeImage(){
 
-if(!selectedFile) return alert("Select image");
+  if(!selectedFile) return alert("Select or capture an image");
 
-const form=new FormData();
-form.append("image",selectedFile);
-form.append("metadata",JSON.stringify(metadata));
+  document.getElementById("progress-container").style.display="block";
 
-if(!gps) gps=await getDeviceLocation();
-form.append("gps",JSON.stringify(gps));
+  setProgress(20,"Preparing...");
 
-const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-const data=await res.json();
+  let finalGPS = gps;
 
-render(data.result);
+  if(!finalGPS){
+    setProgress(40,"Getting device location...");
+    finalGPS = await getDeviceLocation();
+  }
+
+  if(finalGPS && (isNaN(finalGPS.lat) || isNaN(finalGPS.lon))){
+    finalGPS = null;
+  }
+
+  const form=new FormData();
+  form.append("image",selectedFile);
+  form.append("metadata",JSON.stringify(metadata));
+  form.append("gps",JSON.stringify(finalGPS));
+
+  setProgress(70,"Uploading...");
+
+  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+  const data=await res.json();
+
+  setProgress(100,"Done");
+
+  render(data.result);
 }
 
+/* =========================
+   RENDER
+========================= */
 function render(d){
 
 document.getElementById("result").innerHTML=`
 
 <div class="tabs">
-<div class="tab active" onclick="tab(event,'r')">Results</div>
-<div class="tab" onclick="tab(event,'mapTab')">Map</div>
-<div class="tab" onclick="tab(event,'aboutTab')">About</div>
+  <div class="tab active" onclick="tab(event,'r')">Results</div>
+  <div class="tab" onclick="tab(event,'mapTab')">Map</div>
+  <div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
+  <div class="tab" onclick="tab(event,'aboutTab')">About</div>
 </div>
 
 <div id="r" class="tab-content active">
+
+<div class="card">
+
 <h2>${d.analysis}</h2>
 
-<p>${d.simple_explanation}</p>
+<div style="display:flex; gap:30px; flex-wrap:wrap;">
+  ${gauge(d.score,"Score")}
+  ${gauge(d.confidence,"Confidence")}
+</div>
+
+<hr>
+
+<p><b>Summary:</b><br>${d.simple_explanation}</p>
+<p><b>Technical:</b><br>${d.technical_explanation}</p>
+<p><b>Conclusion:</b><br>${d.legal_explanation}</p>
+<p><b>Confidence:</b><br>${d.confidence_note}</p>
+
+<p><b>Location Source:</b> ${d.gps?.source || "None"}</p>
+
+<a href="${d.pdf_report}" target="_blank">Download PDF</a>
+
+</div>
 
 <div class="image-row">
 <div class="image-box"><img src="${URL.createObjectURL(selectedFile)}"></div>
 <div class="image-box"><img src="${d.heatmap}"></div>
 </div>
 
-<a href="${d.pdf_report}" target="_blank">Download PDF</a>
 </div>
 
-<div id="mapTab" class="tab-content"><div id="map"></div></div>
+<div id="mapTab" class="tab-content">
+<div id="map"></div>
+</div>
+
+<div id="metaTab" class="tab-content">
+<div class="card">
+${
+d.metadata?.available
+? Object.entries(d.metadata.all)
+  .slice(0,20)
+  .map(([k,v])=>`<p>${k}: ${v}</p>`).join("")
+: "<p>No metadata found</p>"
+}
+</div>
+</div>
 
 <div id="aboutTab" class="tab-content">
+<div class="card">
 <p>PixelProof - Digital Image Forensics Tool</p>
 <p>Barry Mattison-Off Road Artist Photography</p>
+</div>
 </div>
 `;
 
 setTimeout(()=>initMap(d.gps),200);
 }
 
+/* =========================
+   MAP
+========================= */
 function initMap(gps){
-if(!gps) return;
 
-const map=L.map('map').setView([gps.lat,gps.lon],15);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-L.marker([gps.lat,gps.lon]).addTo(map);
+  if(!gps || !gps.lat || !gps.lon){
+    document.getElementById("map").innerHTML = "<p>No valid location data</p>";
+    return;
+  }
 
-if(gps.accuracy){
-L.circle([gps.lat,gps.lon],{radius:gps.accuracy}).addTo(map);
+  const map = L.map('map').setView([gps.lat, gps.lon], 15);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+    .addTo(map);
+
+  L.marker([gps.lat, gps.lon])
+    .addTo(map)
+    .bindPopup(gps.source || "Location");
+
+  if(gps.accuracy){
+    L.circle([gps.lat, gps.lon], {
+      radius: gps.accuracy,
+      color: "blue",
+      fillOpacity: 0.2
+    }).addTo(map);
+  }
 }
-}
 
+/* =========================
+   TABS
+========================= */
 function tab(e,id){
 document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
 document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
@@ -159,7 +391,7 @@ e.target.classList.add("active");
 
 </script>
 
-<!-- YOUR EXACT FOOTER -->
+<!-- FOOTER (YOUR EXACT VERSION) -->
 <div style="
   margin-top:40px;
   padding-top:15px;
