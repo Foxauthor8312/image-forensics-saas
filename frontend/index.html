@@ -25,8 +25,14 @@ button { padding:10px; background:#3b82f6; border:none; color:white; border-radi
 .card { background:#020617; padding:18px; border-radius:12px; }
 
 .image-row { display:flex; gap:15px; flex-wrap:wrap; margin-top:20px; }
-.image-box { flex:1 1 48%; }
-.image-box img { width:100%; max-height:400px; object-fit:contain; }
+.image-box { flex:1 1 48%; position:relative; }
+.image-box img { width:100%; max-height:400px; object-fit:contain; display:block; }
+
+.overlay {
+  position:absolute; inset:0;
+  pointer-events:none;
+  opacity:0; transition:opacity .2s ease;
+}
 
 #map { height:400px; border-radius:12px; }
 
@@ -37,10 +43,26 @@ button { padding:10px; background:#3b82f6; border:none; color:white; border-radi
 .sheet.open{bottom:0;}
 .option{padding:12px;background:#1e293b;border-radius:8px;margin-top:8px;cursor:pointer;}
 
-.bar{height:8px;background:#1e293b;border-radius:6px;margin-bottom:8px;}
+.bar{height:8px;background:#1e293b;border-radius:6px;margin-bottom:8px;overflow:hidden;}
 .bar-fill{height:8px;background:#3b82f6;border-radius:6px;}
 
 .badge{padding:6px 12px;border-radius:20px;font-weight:bold;display:inline-block;margin-top:10px;}
+
+.row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.small { font-size:12px; opacity:.8; }
+
+.toggle {
+  display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+  background:#1e293b; padding:6px 10px; border-radius:10px;
+}
+.toggle input { cursor:pointer; }
+
+.hr { height:1px; background:#1e293b; margin:14px 0; }
+
+.pill {
+  display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px;
+  background:#1e293b;
+}
 </style>
 </head>
 
@@ -133,7 +155,7 @@ async function reverseGeocode(lat,lon){
   }catch{return null;}
 }
 
-/* RESIZE */
+/* RESIZE (never hangs) */
 async function resizeImage(file){
   return new Promise(resolve=>{
     const img=new Image(),reader=new FileReader();
@@ -205,6 +227,23 @@ function advancedGauge(v,label){
   </div>`;
 }
 
+/* HELPERS (safe adds) */
+function topSignal(signals){
+  let best={k:null,v:-1};
+  for(const [k,v] of Object.entries(signals||{})){
+    if(v>best.v) best={k,v};
+  }
+  return best;
+}
+
+function confidenceAgreementBar(conf){
+  const col=conf>70?"#22c55e":conf>40?"#f59e0b":"#ef4444";
+  return `
+    <div class="small">Signal agreement</div>
+    <div class="bar"><div class="bar-fill" style="width:${conf}%; background:${col};"></div></div>
+  `;
+}
+
 /* RENDER */
 async function render(d){
 
@@ -219,99 +258,183 @@ if(d.gps){
 const verdictColor = d.score>70?"#ef4444":d.score>40?"#f59e0b":"#22c55e";
 const verdictText = d.score>70?"Likely Edited":d.score>40?"Possibly Edited":"Likely Original";
 
+const best = topSignal(d.signals);
+
 result.innerHTML=`
 
 <div class="tabs">
-<div class="tab active" onclick="tab(event,'r')">Results</div>
-<div class="tab" onclick="tab(event,'mapTab')">Map</div>
-<div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
-<div class="tab" onclick="tab(event,'detailTab')">Detailed</div>
+  <div class="tab active" onclick="tab(event,'r')">Results</div>
+  <div class="tab" onclick="tab(event,'mapTab')">Map</div>
+  <div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
+  <div class="tab" onclick="tab(event,'detailTab')">Detailed</div>
 </div>
 
 <div id="r" class="tab-content active">
-<div class="card">
+  <div class="card">
 
-<h2>${d.analysis}</h2>
+    <h2>${d.analysis}</h2>
 
-<div class="badge" style="background:${verdictColor}">
-${verdictText}
-</div>
+    <div class="badge" style="background:${verdictColor}">
+      ${verdictText}
+    </div>
 
-<div style="display:flex;gap:30px;flex-wrap:wrap;margin-top:15px;">
-${advancedGauge(d.score,"Score")}
-${advancedGauge(d.confidence,"Confidence")}
-</div>
+    <div class="row" style="margin-top:12px;">
+      ${advancedGauge(d.score,"Score")}
+      ${advancedGauge(d.confidence,"Confidence")}
+    </div>
 
-${addr}
+    <div class="hr"></div>
 
-<p><b>Summary:</b> ${d.simple_explanation}</p>
-<p><b>Technical:</b> ${d.technical_explanation}</p>
-<p><b>Conclusion:</b> ${d.legal_explanation}</p>
-<p><b>Confidence:</b> ${d.confidence_note}</p>
+    ${addr}
 
-${d.pdf_report?`<a href="${d.pdf_report}" target="_blank">Download PDF</a>`:""}
+    <p><b>Summary:</b> ${d.simple_explanation}</p>
+    <p><b>Technical:</b> ${d.technical_explanation}</p>
+    <p><b>Conclusion:</b> ${d.legal_explanation}</p>
+    <p><b>Confidence:</b> ${d.confidence_note}</p>
 
-<h3>Signals</h3>
-${Object.entries(d.signals||{}).map(([k,v])=>`
-<div>${k}: ${v}%</div>
-<div class="bar"><div class="bar-fill" style="width:${v}%"></div></div>
-`).join("")}
+    ${confidenceAgreementBar(d.confidence)}
 
-</div>
+    ${d.pdf_report?`<p><a href="${d.pdf_report}" target="_blank">Download PDF</a></p>`:""}
 
-<div class="image-row">
-<div class="image-box"><img src="${previewURL}"></div>
-<div class="image-box"><img src="${d.heatmap}?t=${Date.now()}"></div>
-</div>
+    <div class="hr"></div>
 
+    <h3>Signals</h3>
+    ${best.k ? `<div class="pill">Top signal: <b>${best.k}</b> (${best.v}%)</div>` : ""}
+
+    ${Object.entries(d.signals||{}).map(([k,v])=>`
+      <div>${k}: ${v}%</div>
+      <div class="bar"><div class="bar-fill" style="width:${v}%"></div></div>
+    `).join("")}
+
+    <div class="hr"></div>
+
+    <label class="toggle">
+      <input type="checkbox" id="overlayToggle">
+      <span>Overlay heatmap on image</span>
+    </label>
+
+  </div>
+
+  <div class="image-row">
+    <div class="image-box">
+      <img id="origImg" src="${previewURL}">
+      <img id="overlayImg" class="overlay" src="${d.heatmap}?t=${Date.now()}">
+    </div>
+    <div class="image-box">
+      <img src="${d.heatmap}?t=${Date.now()}">
+    </div>
+  </div>
 </div>
 
 <div id="detailTab" class="tab-content">
-<div class="card">
+  <div class="card">
 
-<h2>Detailed Forensic Analysis</h2>
+    <h2>Detailed Forensic Analysis</h2>
 
-<p>This system evaluates multiple forensic signals to determine image integrity.</p>
+    <p>
+      This system evaluates multiple independent signals to assess image integrity.
+      Each signal looks for inconsistencies commonly introduced by editing, recompression, or synthetic generation.
+    </p>
 
-<h3>Score (${d.score}%)</h3>
-<p>Higher score = more anomalies → more likely edited.</p>
+    <div class="hr"></div>
 
-<h3>Confidence (${d.confidence}%)</h3>
-<p>Confidence reflects agreement between signals.</p>
+    <h3>How the Score is Calculated (${d.score}%)</h3>
+    <ul>
+      <li><b>ELA</b> – compression inconsistencies</li>
+      <li><b>Noise</b> – irregular texture/grain</li>
+      <li><b>Edges</b> – unnatural boundaries</li>
+      <li><b>Compression</b> – JPEG block artifacts</li>
+      <li><b>Metadata</b> – editing traces / missing data</li>
+    </ul>
+    <p>Higher score = more anomalies detected → higher likelihood of manipulation.</p>
 
-<h3>Signals</h3>
-${Object.entries(d.signals||{}).map(([k,v])=>`<p><b>${k}</b>: ${v}%</p>`).join("")}
+    <div class="hr"></div>
 
-</div>
+    <h3>Score Interpretation</h3>
+    <p>
+      <span style="color:#22c55e;">0–40 → Likely original</span><br>
+      <span style="color:#f59e0b;">40–70 → Possible editing</span><br>
+      <span style="color:#ef4444;">70–100 → Likely edited</span>
+    </p>
+
+    <div class="hr"></div>
+
+    <h3>Confidence Explained (${d.confidence}%)</h3>
+    <p>
+      Confidence measures agreement between signals:
+    </p>
+    <ul>
+      <li><b>High:</b> signals agree</li>
+      <li><b>Moderate:</b> partial agreement</li>
+      <li><b>Low:</b> mixed or unclear</li>
+    </ul>
+
+    ${confidenceAgreementBar(d.confidence)}
+
+    <div class="hr"></div>
+
+    <h3>Signal Details</h3>
+    ${Object.entries(d.signals||{}).map(([k,v])=>`
+      <p><b>${k} (${v}%)</b><br>
+      ${
+        k==="ELA" ? "Compression differences highlighting possible edits." :
+        k==="Noise" ? "Texture inconsistencies indicating manipulation." :
+        k==="Edges" ? "Sharp unnatural transitions." :
+        k==="Compression" ? "JPEG block irregularities." :
+        k==="Metadata" ? "Editing software traces or missing metadata." :
+        ""
+      }
+      </p>
+    `).join("")}
+
+    <div class="hr"></div>
+
+    <p class="small">
+      Notes: Compression, resizing, or platform uploads can affect signals.
+      This tool identifies patterns consistent with manipulation; it does not determine intent.
+    </p>
+
+  </div>
 </div>
 
 <div id="mapTab" class="tab-content"><div id="map"></div></div>
 
-<div id="metaTab" class="tab-content"><div class="card meta-container">
-${Object.entries(d.metadata.all||{}).map(([k,v])=>`<p><b>${k}:</b> ${v}</p>`).join("")}
-</div></div>
+<div id="metaTab" class="tab-content">
+  <div class="card meta-container">
+    ${Object.entries(d.metadata.all||{}).map(([k,v])=>`<p><b>${k}:</b> ${v}</p>`).join("")}
+  </div>
+</div>
 `;
+
+  // overlay toggle (safe, no side effects)
+  const toggle = document.getElementById("overlayToggle");
+  if(toggle){
+    const overlay = document.getElementById("overlayImg");
+    toggle.addEventListener("change", ()=>{
+      overlay.style.opacity = toggle.checked ? 0.6 : 0;
+    });
+  }
 }
 
 /* MAP */
 function initMap(gps){
-if(!gps)return;
-if(mapInstance){mapInstance.remove();}
-mapInstance=L.map('map').setView([gps.lat,gps.lon],15);
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(mapInstance);
-L.marker([gps.lat,gps.lon]).addTo(mapInstance);
-if(gps.accuracy){
-  L.circle([gps.lat,gps.lon],{radius:gps.accuracy}).addTo(mapInstance);
-}
+  if(!gps)return;
+  if(mapInstance){mapInstance.remove();}
+  mapInstance=L.map('map').setView([gps.lat,gps.lon],15);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(mapInstance);
+  L.marker([gps.lat,gps.lon]).addTo(mapInstance);
+  if(gps.accuracy){
+    L.circle([gps.lat,gps.lon],{radius:gps.accuracy}).addTo(mapInstance);
+  }
 }
 
 /* TABS */
 function tab(e,id){
-document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-document.getElementById(id).classList.add("active");
-e.target.classList.add("active");
-if(id==="mapTab"){setTimeout(()=>initMap(window.lastGPS),100);}
+  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  e.target.classList.add("active");
+  if(id==="mapTab"){setTimeout(()=>initMap(window.lastGPS),100);}
 }
 
 </script>
