@@ -38,6 +38,18 @@ button { padding:10px; background:#3b82f6; border:none; color:white; border-radi
 
 <body>
 
+<!-- ================= PROGRESS OVERLAY ================= -->
+<div id="progressOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;align-items:center;justify-content:center;">
+  <div style="width:300px;background:#020617;padding:20px;border-radius:10px;text-align:center;">
+    <h3>Analyzing Image</h3>
+    <div style="background:#1e293b;height:10px;border-radius:5px;margin:15px 0;">
+      <div id="progressBar" style="height:10px;width:0%;background:#3b82f6;border-radius:5px;"></div>
+    </div>
+    <div id="progressPercent">0%</div>
+    <div id="progressText" style="margin-top:10px;font-size:14px;">Starting...</div>
+  </div>
+</div>
+
 <div class="container">
 
 <h1>PixelProof 🔍</h1>
@@ -57,100 +69,80 @@ const API="https://pixelproof-backend-v2.onrender.com";
 
 let selectedFile=null, previewURL=null, metadata={}, gps=null, mapInstance=null;
 
-/* ================= IMAGE RESIZE ================= */
+/* ================= PROGRESS ================= */
+function showProgress(){ document.getElementById("progressOverlay").style.display="flex"; }
+function hideProgress(){ document.getElementById("progressOverlay").style.display="none"; }
+function setProgress(p,t){
+  document.getElementById("progressBar").style.width=p+"%";
+  document.getElementById("progressPercent").innerText=p+"%";
+  document.getElementById("progressText").innerText=t;
+}
+
+/* ================= RESIZE ================= */
 async function resizeImage(file){
   return new Promise(resolve=>{
-    const img=new Image(), reader=new FileReader();
-    reader.onload=e=>img.src=e.target.result;
-
+    const img=new Image(), r=new FileReader();
+    r.onload=e=>img.src=e.target.result;
     img.onload=()=>{
-      const canvas=document.createElement("canvas");
-      const MAX=1280;
+      const c=document.createElement("canvas"), MAX=1280;
       let w=img.width,h=img.height;
-
-      if(w>h && w>MAX){h*=MAX/w;w=MAX;}
-      else if(h>MAX){w*=MAX/h;h=MAX;}
-
-      canvas.width=w; canvas.height=h;
-      canvas.getContext("2d").drawImage(img,0,0,w,h);
-
-      canvas.toBlob(blob=>{
-        resolve(new File([blob],"resized.jpg",{type:"image/jpeg"}));
-      },"image/jpeg",0.85);
+      if(w>h&&w>MAX){h*=MAX/w;w=MAX;} else if(h>MAX){w*=MAX/h;h=MAX;}
+      c.width=w;c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      c.toBlob(b=>resolve(new File([b],"resized.jpg",{type:"image/jpeg"})),"image/jpeg",0.85);
     };
-
-    reader.readAsDataURL(file);
+    r.readAsDataURL(file);
   });
 }
 
 /* ================= EXIF ================= */
 function extractGPS(meta){
-  if(!meta.GPSLatitude || !meta.GPSLongitude) return null;
+  if(!meta.GPSLatitude||!meta.GPSLongitude) return null;
   const d=c=>c[0]+c[1]/60+c[2]/3600;
-  let lat=d(meta.GPSLatitude), lon=d(meta.GPSLongitude);
-  if(meta.GPSLatitudeRef==="S") lat=-lat;
-  if(meta.GPSLongitudeRef==="W") lon=-lon;
+  let lat=d(meta.GPSLatitude),lon=d(meta.GPSLongitude);
+  if(meta.GPSLatitudeRef==="S")lat=-lat;
+  if(meta.GPSLongitudeRef==="W")lon=-lon;
   return {lat,lon,source:"EXIF"};
 }
 
 file.onchange=async e=>{
   selectedFile=e.target.files[0];
   previewURL=URL.createObjectURL(selectedFile);
-
-  await new Promise(resolve=>{
-    EXIF.getData(selectedFile,function(){
-      metadata=EXIF.getAllTags(this)||{};
-      gps=extractGPS(metadata);
-      resolve();
-    });
-  });
+  await new Promise(r=>EXIF.getData(selectedFile,function(){
+    metadata=EXIF.getAllTags(this)||{};
+    gps=extractGPS(metadata);
+    r();
+  }));
 };
 
 /* ================= GPS ================= */
 function getDeviceLocation(){
-  return new Promise(resolve=>{
+  return new Promise(r=>{
     navigator.geolocation.getCurrentPosition(
-      pos=>resolve({
-        lat:pos.coords.latitude,
-        lon:pos.coords.longitude,
-        accuracy:pos.coords.accuracy,
-        source:"Device"
-      }),
-      ()=>resolve(null)
+      p=>r({lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy,source:"Device"}),
+      ()=>r(null)
     );
   });
 }
 
 /* ================= CAMERA ================= */
 async function capturePhoto(){
-  const stream=await navigator.mediaDevices.getUserMedia({video:true});
-  const video=document.createElement("video");
-  video.srcObject=stream; video.play();
-
-  const overlay=document.createElement("div");
-  overlay.style="position:fixed;inset:0;background:#000;z-index:9999;";
-  overlay.appendChild(video);
-
-  const btn=document.createElement("button");
-  btn.innerText="Capture";
-  btn.style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%)";
-  overlay.appendChild(btn);
-  document.body.appendChild(overlay);
-
-  btn.onclick=async()=>{
-    const canvas=document.createElement("canvas");
-    canvas.width=video.videoWidth;
-    canvas.height=video.videoHeight;
-    canvas.getContext("2d").drawImage(video,0,0);
-
-    canvas.toBlob(async blob=>{
+  const s=await navigator.mediaDevices.getUserMedia({video:true});
+  const v=document.createElement("video");v.srcObject=s;v.play();
+  const o=document.createElement("div");o.style="position:fixed;inset:0;background:#000;z-index:9999;";o.appendChild(v);
+  const b=document.createElement("button");b.innerText="Capture";b.style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%)";o.appendChild(b);
+  document.body.appendChild(o);
+  b.onclick=async()=>{
+    const c=document.createElement("canvas");
+    c.width=v.videoWidth;c.height=v.videoHeight;
+    c.getContext("2d").drawImage(v,0,0);
+    c.toBlob(async blob=>{
       selectedFile=new File([blob],"capture.jpg");
       previewURL=URL.createObjectURL(selectedFile);
       gps=await getDeviceLocation();
     });
-
-    stream.getTracks().forEach(t=>t.stop());
-    document.body.removeChild(overlay);
+    s.getTracks().forEach(t=>t.stop());
+    document.body.removeChild(o);
   };
 }
 
@@ -159,8 +151,15 @@ async function analyzeImage(){
 
   if(!selectedFile) return alert("Select image");
 
+  showProgress();
+  setProgress(10,"Preparing...");
+
   const resized=await resizeImage(selectedFile);
-  let finalGPS=gps || await getDeviceLocation();
+
+  setProgress(30,"Getting location...");
+  let finalGPS=gps||await getDeviceLocation();
+
+  setProgress(60,"Uploading...");
 
   const form=new FormData();
   form.append("image",resized);
@@ -168,25 +167,25 @@ async function analyzeImage(){
   form.append("gps",JSON.stringify(finalGPS));
 
   let res;
-  try{
-    res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-  }catch{
-    alert("Upload failed");
-    return;
-  }
+  try{ res=await fetch(API+"/api/analyze",{method:"POST",body:form}); }
+  catch{ hideProgress(); return alert("Upload failed"); }
 
+  setProgress(85,"Processing...");
   const data=await res.json();
-  render(data.result);
+
+  setProgress(100,"Done");
+
+  setTimeout(()=>{
+    hideProgress();
+    render(data.result);
+  },400);
 }
 
 /* ================= GAUGE ================= */
 function gauge(v,label){
-  const r=50,c=2*Math.PI*r;
-  const o=c-(v/100)*c;
-  const color=v>70?"#22c55e":v>40?"#f59e0b":"#ef4444";
-
-  return `
-  <div style="text-align:center">
+  const r=50,c=2*Math.PI*r,o=c-(v/100)*c;
+  const color=v>70?"#ef4444":v>40?"#f59e0b":"#22c55e";
+  return `<div style="text-align:center">
     <svg width="120" height="120" style="transform:rotate(-90deg)">
       <circle cx="60" cy="60" r="${r}" stroke="#1e293b" stroke-width="10" fill="none"/>
       <circle cx="60" cy="60" r="${r}" stroke="${color}" stroke-width="10"
@@ -200,203 +199,92 @@ function gauge(v,label){
 /* ================= RENDER ================= */
 function render(d){
 
-  window.lastGPS = d.gps;
+window.lastGPS=d.gps;
 
-  document.getElementById("result").innerHTML = `
+document.getElementById("result").innerHTML=`
 
-  <div class="tabs">
-    <div class="tab active" onclick="tab(event,'r')">Results</div>
-    <div class="tab" onclick="tab(event,'mapTab')">Map</div>
-    <div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
-    <div class="tab" onclick="tab(event,'detailTab')">Detailed</div>
-    <div class="tab" onclick="tab(event,'aboutTab')">About</div>
-  </div>
+<div class="tabs">
+<div class="tab active" onclick="tab(event,'r')">Results</div>
+<div class="tab" onclick="tab(event,'mapTab')">Map</div>
+<div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
+<div class="tab" onclick="tab(event,'detailTab')">Detailed</div>
+<div class="tab" onclick="tab(event,'aboutTab')">About</div>
+</div>
 
-  <!-- ================= RESULTS ================= -->
-  <div id="r" class="tab-content active">
-    <div class="card">
+<div id="r" class="tab-content active">
+<div class="card">
 
-      <h2>${d.analysis}</h2>
+<h2>${d.analysis}</h2>
 
-      <!-- ✅ SCORE + CONFIDENCE -->
-      <div style="display:flex;gap:30px;flex-wrap:wrap;margin-bottom:15px;">
-        ${gauge(d.score,"Manipulation Score")}
-        ${gauge(d.confidence,"Confidence")}
-      </div>
-      <div style="margin-top:15px; padding:12px; background:#020617; border-radius:8px; font-size:14px; line-height:1.5;">
+<div style="display:flex;gap:30px;flex-wrap:wrap;">
+${gauge(d.score,"Manipulation Score")}
+${gauge(d.confidence,"Confidence")}
+</div>
 
-  <b>How to Read These Results</b>
+<div style="margin-top:15px;background:#020617;padding:12px;border-radius:8px;font-size:14px;">
+<b>How to Read These Results</b>
+<p>Low score = likely original • High score = likely edited</p>
+</div>
 
-  <p style="margin-top:8px;">
-    <b>Manipulation Score:</b> This score estimates how likely the image has been altered.
-    <br>
-    • <span style="color:#22c55e;">0–40 → Likely original (low anomaly)</span><br>
-    • <span style="color:#f59e0b;">40–70 → Possible editing</span><br>
-    • <span style="color:#ef4444;">70–100 → Likely edited</span>
-  </p>
+<p><b>Summary:</b> ${d.simple_explanation}</p>
+<p><b>Technical:</b> ${d.technical_explanation}</p>
+<p><b>Conclusion:</b> ${d.legal_explanation}</p>
+<p><b>Confidence:</b> ${d.confidence_note}</p>
 
-  <p>
-    A <b>lower score is better</b> because it means the image behaves like a normal,
-    unedited photograph with consistent compression and structure.
-    A higher score means the system detected unusual patterns.
-  </p>
+<div style="margin:10px 0;">
+${d.pdf_report ? `<a href="${d.pdf_report}" target="_blank">Download PDF Report</a>` : ""}
+</div>
 
-  <p>
-    <b>Confidence:</b> Indicates how strongly the detection methods agree with each other.
-    <br>
-    • High confidence → signals agree<br>
-    • Low confidence → mixed or inconclusive results
-  </p>
+<h3>Signals</h3>
+${Object.entries(d.signals||{}).map(([k,v])=>`
+<div>${k}: ${v}</div>
+<div style="background:#1e293b;height:8px;">
+<div style="width:${v}%;height:8px;background:#3b82f6;"></div>
+</div>`).join("")}
 
 </div>
 
-      <!-- ✅ EXPLANATIONS (LOCKED) -->
-      <p><b>Summary:</b><br>${d.simple_explanation || "N/A"}</p>
-      <p><b>Technical:</b><br>${d.technical_explanation || "N/A"}</p>
-      <p><b>Conclusion:</b><br>${d.legal_explanation || "N/A"}</p>
-      <p><b>Confidence:</b><br>${d.confidence_note || "N/A"}</p>
+<div class="image-row">
+<div class="image-box"><img src="${previewURL}"></div>
+<div class="image-box"><img src="${d.heatmap}?t=${Date.now()}"></div>
+</div>
 
-      <!-- ✅ PDF DOWNLOAD (LOCKED) -->
-      <div style="margin:15px 0;">
-        ${d.pdf_report 
-          ? `<a href="${d.pdf_report}" target="_blank" style="color:#3b82f6;font-weight:bold;">Download Full PDF Report</a>`
-          : "<p>PDF not available</p>"
-        }
-      </div>
+</div>
 
-      <!-- ✅ SIGNAL BARS -->
-      <h3>Signal Breakdown</h3>
-      ${
-        Object.entries(d.signals || {}).map(([k,v])=>`
-          <div style="margin-bottom:10px;">
-            <div>${k}: ${v}</div>
-            <div style="background:#1e293b;height:8px;border-radius:4px;">
-              <div style="width:${v}%;height:8px;background:#3b82f6;border-radius:4px;"></div>
-            </div>
-          </div>
-        `).join("")
-      }
+<div id="mapTab" class="tab-content"><div id="map"></div></div>
 
-    </div>
+<div id="metaTab" class="tab-content"><div class="card"><div class="meta-container">
+${d.metadata?.available ? Object.entries(d.metadata.all).map(([k,v])=>`<p><b>${k}:</b> ${v}</p>`).join(""):"No metadata"}
+</div></div></div>
 
-    <!-- ✅ IMAGES (LOCKED) -->
-    <div class="image-row">
-      <div class="image-box">
-        <h4>Original</h4>
-        <img src="${previewURL || ""}">
-      </div>
-      <div class="image-box">
-        <h4>Heatmap</h4>
-        <img src="${d.heatmap ? d.heatmap + "?t=" + Date.now() : ""}">
-      </div>
-    </div>
+<div id="detailTab" class="tab-content"><div class="card">
+Score = likelihood of manipulation. Confidence = agreement between signals.
+</div></div>
 
-  </div>
-
-  <!-- ================= MAP ================= -->
-  <div id="mapTab" class="tab-content">
-    <div id="map"></div>
-  </div>
-
-  <!-- ================= METADATA ================= -->
-  <div id="metaTab" class="tab-content">
-    <div class="card">
-      <div class="meta-container">
-
-        ${
-          d.metadata?.available
-          ? (() => {
-
-              const meta = d.metadata.all || {};
-
-              const importantKeys = [
-                "Make","Model","DateTime","Software",
-                "GPSLatitude","GPSLongitude"
-              ];
-
-              const important = Object.entries(meta)
-                .filter(([k]) => importantKeys.includes(k));
-
-              const others = Object.entries(meta)
-                .filter(([k]) => !importantKeys.includes(k));
-
-              return `
-                <h3>Key Metadata</h3>
-                ${
-                  important.length
-                  ? important.map(([k,v])=>`<p><b>${k}:</b> ${v}</p>`).join("")
-                  : "<p>No key metadata</p>"
-                }
-
-                <hr>
-
-                <h3>Full Metadata</h3>
-                ${
-                  others.slice(0,50).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")
-                }
-              `;
-            })()
-          : "<p>No metadata available</p>"
-        }
-
-      </div>
-    </div>
-  </div>
-
-  <!-- ================= DETAILED ================= -->
-  <div id="detailTab" class="tab-content">
-    <div class="card">
-      <h2>Detailed Analysis</h2>
-
-      <p>The forensic score is calculated using multiple independent signals:</p>
-
-      <ul>
-        <li>ELA (compression inconsistencies)</li>
-        <li>Noise pattern analysis</li>
-        <li>Edge structure analysis</li>
-        <li>Compression artifacts</li>
-        <li>Metadata inspection</li>
-      </ul>
-
-      <p><b>Score:</b> Indicates likelihood of manipulation.</p>
-      <p><b>Confidence:</b> Indicates agreement between detection signals.</p>
-
-    </div>
-  </div>
-
-  <!-- ================= ABOUT ================= -->
-  <div id="aboutTab" class="tab-content">
-    <div class="card">
-      PixelProof — Barry Mattison-Off Road Artist Photography
-    </div>
-  </div>
-
-  `;
+<div id="aboutTab" class="tab-content"><div class="card">
+PixelProof — Barry Mattison-Off Road Artist Photography
+</div></div>
+`;
 }
 
 /* ================= MAP ================= */
 function initMap(gps){
-
-  if(mapInstance){
-    mapInstance.remove();
-    mapInstance=null;
-  }
+  if(mapInstance){ mapInstance.remove(); mapInstance=null; }
 
   if(!gps || isNaN(gps.lat) || isNaN(gps.lon)){
-    document.getElementById("map").innerHTML = "<p>No valid location data</p>";
+    document.getElementById("map").innerHTML="No valid location data";
     return;
   }
 
-  mapInstance = L.map('map').setView([gps.lat,gps.lon],15);
+  mapInstance=L.map('map').setView([gps.lat,gps.lon],15);
 
-  L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-  ).addTo(mapInstance);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
+    .addTo(mapInstance);
 
   L.marker([gps.lat,gps.lon]).addTo(mapInstance);
 
   if(gps.accuracy){
-    L.circle([gps.lat,gps.lon], { radius: gps.accuracy }).addTo(mapInstance);
+    L.circle([gps.lat,gps.lon],{radius:gps.accuracy}).addTo(mapInstance);
   }
 
   setTimeout(()=>mapInstance.invalidateSize(),200);
@@ -408,17 +296,10 @@ document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"
 document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
 document.getElementById(id).classList.add("active");
 e.target.classList.add("active");
-
-if(id==="mapTab"){
-  setTimeout(()=>initMap(window.lastGPS),100);
-}
+if(id==="mapTab"){ setTimeout(()=>initMap(window.lastGPS),100); }
 }
 
 </script>
-
-<div style="text-align:center;margin-top:30px;font-size:12px;opacity:0.6;">
-PixelProof © 2026 Barry Mattison-Off Road Artist Photography
-</div>
 
 </body>
 </html>
