@@ -78,6 +78,27 @@ async function analyze(){
     }catch{}
   }
 
+async function resizeImage(file){
+  return new Promise(res=>{
+    const img=new Image(), reader=new FileReader();
+    reader.onload=e=>img.src=e.target.result;
+
+    img.onload=()=>{
+      const canvas=document.createElement("canvas");
+      let w=img.width,h=img.height,MAX=1280;
+
+      if(w>MAX){h*=MAX/w;w=MAX;}
+
+      canvas.width=w;canvas.height=h;
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
+
+      canvas.toBlob(b=>res(new File([b],"resized.jpg",{type:"image/jpeg"})));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+  
   const form=new FormData();
   form.append("image",selectedFile);
   form.append("metadata",JSON.stringify(metadata));
