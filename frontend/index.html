@@ -190,6 +190,29 @@ async function analyzeImage(){
   form.append("image",resized);
   form.append("metadata",JSON.stringify(metadata));
   form.append("gps",JSON.stringify(gps));
+  let finalGPS = gps;
+
+if(!finalGPS){
+  try{
+    setProgress(30,"Getting location...");
+    finalGPS = await new Promise(resolve=>{
+      navigator.geolocation?.getCurrentPosition(
+        p=>resolve({
+          lat:p.coords.latitude,
+          lon:p.coords.longitude,
+          accuracy:p.coords.accuracy,
+          source:"device"
+        }),
+        ()=>resolve(null),
+        {enableHighAccuracy:true, timeout:5000}
+      );
+    });
+  }catch{
+    finalGPS = null;
+  }
+}
+
+form.append("gps", JSON.stringify(finalGPS));
 
   let res;
   try{
