@@ -109,21 +109,21 @@ def explain(score):
             "simple": "Strong signs of manipulation detected--> Score > 70.",
             "technical": "Multiple forensic signals indicate inconsistencies in compression, noise, and structure--> Score > 70.",
             "legal": "The image demonstrates characteristics consistent with digital alteration--> Score > 70.",
-            "confidence_note": "High confidence due to strong agreement across detection methods--> Score > 70."
+            "confidence_note": "High confidence due to strong agreement across detection methods."
         }
     elif score > 40:
         return {
-            "simple": "Possible editing detected--> Score > 40.",
-            "technical": "Moderate inconsistencies detected across several forensic indicators--> Score > 40.",
-            "legal": "The image may have undergone editing or recompression--> Score > 40.",
-            "confidence_note": "Moderate confidence; further validation recommended--> Score > 40."
+            "simple": "Possible editing detected--> Score > 40 and <70.",
+            "technical": "Moderate inconsistencies detected across several forensic indicators--> Score 0 and < 40.",
+            "legal": "The image may have undergone editing or recompression--> Score 0 and < 40.",
+            "confidence_note": "Moderate confidence; further validation recommended."
         }
     else:
         return {
-            "simple": "Image appears original--> Score < 40.",
+            "simple": "Image appears original--> Score 0 and < 40.",
             "technical": "Forensic signals show consistent compression, noise, and structure--> Score < 40.",
             "legal": "No indicators of digital manipulation detected--> Score < 40.",
-            "confidence_note": "High confidence in image integrity--> Score < 40."
+            "confidence_note": "High confidence in image integrity."
         }
 
 # =========================
