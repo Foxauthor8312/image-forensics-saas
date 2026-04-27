@@ -53,7 +53,7 @@ button { padding:10px; background:#3b82f6; border:none; color:white; border-radi
   </div>
 </div>
 
-<!-- CAMERA SHEET -->
+<!-- CAMERA -->
 <div id="sheetBackdrop" class="sheet-backdrop" onclick="closeSheet()"></div>
 
 <div id="cameraSheet" class="sheet">
@@ -68,7 +68,6 @@ button { padding:10px; background:#3b82f6; border:none; color:white; border-radi
     🤳 Front Camera
     <input type="file" id="cameraFront" accept="image/*" capture="user" style="display:none;">
   </label>
-
 </div>
 
 <div class="container">
@@ -138,6 +137,56 @@ async function reverseGeocode(lat, lon){
   }
 }
 
+/* FIXED RESIZE (NO FREEZE) */
+async function resizeImage(file){
+  return new Promise((resolve)=>{
+
+    const img=new Image();
+    const reader=new FileReader();
+
+    reader.onload=e=>img.src=e.target.result;
+
+    img.onload=()=>{
+      try{
+        const canvas=document.createElement("canvas");
+        const MAX=1280;
+
+        let w=img.width,h=img.height;
+
+        if(w>h && w>MAX){
+          h*=MAX/w;
+          w=MAX;
+        } else if(h>MAX){
+          w*=MAX/h;
+          h=MAX;
+        }
+
+        canvas.width=w;
+        canvas.height=h;
+
+        const ctx=canvas.getContext("2d");
+        ctx.drawImage(img,0,0,w,h);
+
+        canvas.toBlob(blob=>{
+          if(!blob){
+            resolve(file);
+          } else {
+            resolve(new File([blob],"resized.jpg",{type:"image/jpeg"}));
+          }
+        },"image/jpeg",0.85);
+
+      }catch{
+        resolve(file);
+      }
+    };
+
+    img.onerror=()=>resolve(file);
+    reader.onerror=()=>resolve(file);
+
+    reader.readAsDataURL(file);
+  });
+}
+
 /* PROGRESS */
 function showProgress(){progressOverlay.style.display="flex";}
 function hideProgress(){progressOverlay.style.display="none";}
@@ -155,12 +204,26 @@ async function analyzeImage(){
   showProgress();
   setProgress(20,"Preparing...");
 
+  const resized=await resizeImage(selectedFile);
+
+  setProgress(40,"Getting location...");
+
   const form=new FormData();
-  form.append("image",selectedFile);
+  form.append("image",resized);
   form.append("metadata",JSON.stringify(metadata));
   form.append("gps",JSON.stringify(gps));
 
-  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+  setProgress(70,"Uploading...");
+
+  let res;
+  try{
+    res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+  }catch{
+    hideProgress();
+    alert("Server unreachable");
+    return;
+  }
+
   const data=await res.json();
 
   setProgress(100,"Done");
@@ -171,29 +234,22 @@ async function analyzeImage(){
   },300);
 }
 
-/* GAUGE */
-function gauge(v,label){
-  return `<div><b>${label}</b>: ${v}%</div>`;
-}
-
 /* RENDER */
 async function render(d){
 
 window.lastGPS=d.gps;
 
-let addressHTML="";
+let addr="";
 if(d.gps){
-  const addr=await reverseGeocode(d.gps.lat,d.gps.lon);
-  if(addr) addressHTML=`<p><b>Location:</b> ${addr}</p>`;
+  const a=await reverseGeocode(d.gps.lat,d.gps.lon);
+  if(a) addr=`<p><b>Location:</b> ${a}</p>`;
 }
 
 result.innerHTML=`
-
 <div class="tabs">
 <div class="tab active" onclick="tab(event,'r')">Results</div>
 <div class="tab" onclick="tab(event,'mapTab')">Map</div>
 <div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
-<div class="tab" onclick="tab(event,'detailTab')">Detailed</div>
 </div>
 
 <div id="r" class="tab-content active">
@@ -201,12 +257,9 @@ result.innerHTML=`
 
 <h2>${d.analysis}</h2>
 
-${gauge(d.score,"Score")}
-${gauge(d.confidence,"Confidence")}
+<p>Score: ${d.score}% | Confidence: ${d.confidence}%</p>
 
-${addressHTML}
-
-<p><b>Deepfake Score:</b> ${d.deepfake_score || "N/A"}%</p>
+${addr}
 
 <p>${d.simple_explanation}</p>
 
@@ -221,19 +274,11 @@ ${d.pdf_report?`<a href="${d.pdf_report}" target="_blank">Download PDF</a>`:""}
 
 </div>
 
-<div id="detailTab" class="tab-content">
-<div class="card">
-<h2>Detailed Analysis</h2>
-<p>Score reflects anomaly level. Confidence reflects agreement.</p>
-</div>
-</div>
-
 <div id="mapTab" class="tab-content"><div id="map"></div></div>
 
 <div id="metaTab" class="tab-content"><div class="card">
 ${Object.entries(d.metadata.all||{}).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")}
 </div></div>
-
 `;
 }
 
