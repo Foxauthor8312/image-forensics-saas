@@ -4,5 +4,4 @@ numpy
 opencv-python-headless
 pillow
 reportlab
-requests
 gunicorn
