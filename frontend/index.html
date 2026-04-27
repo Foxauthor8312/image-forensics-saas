@@ -45,6 +45,8 @@ button { padding:10px; background:#3b82f6; border:none; color:white; border-radi
 </head>
 
 <body>
+
+<!-- PROGRESS -->
 <div id="progressOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;">
   <div style="width:300px;background:#020617;padding:20px;border-radius:12px;text-align:center;">
     <h3>Analyzing Image</h3>
@@ -55,6 +57,7 @@ button { padding:10px; background:#3b82f6; border:none; color:white; border-radi
     <div id="progressText">Starting...</div>
   </div>
 </div>
+
 <div class="container">
 
 <h1>PixelProof 🔍</h1>
@@ -79,6 +82,15 @@ button { padding:10px; background:#3b82f6; border:none; color:white; border-radi
 const API="https://pixelproof-backend-v2.onrender.com";
 
 let selectedFile=null, previewURL=null, metadata={}, gps=null, mapInstance=null;
+
+/* PROGRESS */
+function showProgress(){progressOverlay.style.display="flex";}
+function hideProgress(){progressOverlay.style.display="none";}
+function setProgress(p,t){
+  progressBar.style.width=p+"%";
+  progressPercent.innerText=p+"%";
+  progressText.innerText=t;
+}
 
 /* CAMERA */
 function openSheet(){sheetBackdrop.style.display="block";cameraSheet.classList.add("open");}
@@ -121,7 +133,7 @@ async function reverseGeocode(lat,lon){
   }catch{return null;}
 }
 
-/* RESIZE SAFE */
+/* RESIZE */
 async function resizeImage(file){
   return new Promise(resolve=>{
     const img=new Image(),reader=new FileReader();
@@ -145,17 +157,37 @@ async function resizeImage(file){
 async function analyzeImage(){
   if(!selectedFile)return alert("Select image");
 
+  showProgress();
+  setProgress(20,"Preparing...");
+
   const resized=await resizeImage(selectedFile);
+
+  setProgress(40,"Uploading...");
 
   const form=new FormData();
   form.append("image",resized);
   form.append("metadata",JSON.stringify(metadata));
   form.append("gps",JSON.stringify(gps));
 
-  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+  let res;
+  try{
+    res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+  }catch{
+    hideProgress();
+    alert("Server unreachable");
+    return;
+  }
+
+  setProgress(80,"Processing...");
+
   const data=await res.json();
 
-  render(data.result);
+  setProgress(100,"Done");
+
+  setTimeout(()=>{
+    hideProgress();
+    render(data.result);
+  },300);
 }
 
 /* GAUGE */
