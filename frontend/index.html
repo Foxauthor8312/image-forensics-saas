@@ -190,7 +190,6 @@ async function analyzeImage(){
   form.append("image", resized);
   form.append("metadata", JSON.stringify(metadata));
 
-  // ✅ GPS (EXIF → fallback to device)
   let finalGPS = gps;
 
   if(!finalGPS){
@@ -230,28 +229,6 @@ async function analyzeImage(){
   setProgress(80,"Processing...");
 
   const data = await res.json();
-
-  setProgress(100,"Done");
-
-  setTimeout(()=>{
-    hideProgress();
-    render(data.result);
-  },300);
-}
-form.append("gps", JSON.stringify(finalGPS));
-
-  let res;
-  try{
-    res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-  }catch{
-    hideProgress();
-    alert("Server unreachable");
-    return;
-  }
-
-  setProgress(80,"Processing...");
-
-  const data=await res.json();
 
   setProgress(100,"Done");
 
