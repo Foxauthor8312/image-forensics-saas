@@ -44,6 +44,18 @@ button {
 .image-box img { width:100%; max-height:400px; object-fit:contain; }
 
 #map { height:400px; border-radius:10px; }
+
+  .card p {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.meta-container {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 5px;
+}
 </style>
 </head>
 
@@ -294,9 +306,21 @@ ${Object.entries(d.signals||{}).map(([k,v])=>`
 
 <div id="metaTab" class="tab-content">
 <div class="card">
-${d.metadata?.available
-? Object.entries(d.metadata.all).slice(0,20).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")
-: "No metadata"}
+
+<div class="meta-container">
+
+${
+d.metadata?.available
+? Object.entries(d.metadata.all)
+    .slice(0,50)
+    .map(([k,v])=>`
+      <p><b>${k}:</b> ${String(v)}</p>
+    `).join("")
+: "<p>No metadata found</p>"
+}
+
+</div>
+
 </div>
 </div>
 
