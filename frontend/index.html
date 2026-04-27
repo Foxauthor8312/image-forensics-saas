@@ -439,33 +439,90 @@ async function render(d){
   </div>
 
   <!-- DETAILED -->
-  <div id="detailTab" class="tab-content">
-    <div class="card">
+ <div id="detailTab" class="tab-content">
+  <div class="card">
 
-      <h2>Detailed Forensic Analysis</h2>
+    <h2>Detailed Forensic Analysis</h2>
 
-      <p>This system evaluates multiple independent signals.</p>
+    <p>
+      This system evaluates multiple independent signals to assess image integrity.
+      Each signal looks for inconsistencies commonly introduced by editing, recompression, or synthetic generation.
+    </p>
 
-      <div class="hr"></div>
+    <div class="hr"></div>
 
-      <h3>Score (${d.score}%)</h3>
-      <p>Higher score = more anomalies detected.</p>
+    <h3>How the Score is Calculated (${d.score}%)</h3>
+    <ul>
+      <li><b>ELA</b> – compression inconsistencies</li>
+      <li><b>Noise</b> – irregular texture/grain</li>
+      <li><b>Edges</b> – unnatural boundaries</li>
+      <li><b>Compression</b> – JPEG block artifacts</li>
+      <li><b>Metadata</b> – editing traces / missing data</li>
+    </ul>
 
-      <h3>Confidence (${d.confidence}%)</h3>
-      <p>Confidence reflects agreement between signals.</p>
+    <p>
+      The score represents the **strength and number of anomalies detected**.
+      Higher scores indicate more inconsistencies typically associated with image manipulation.
+    </p>
 
-      ${confidenceAgreementBar(d.confidence)}
+    <div class="hr"></div>
 
-      <div class="hr"></div>
+    <h3>Score Interpretation</h3>
+    <p>
+      <span style="color:#22c55e;">0–40 → Likely original</span><br>
+      <span style="color:#f59e0b;">40–70 → Possible editing</span><br>
+      <span style="color:#ef4444;">70–100 → Likely edited</span>
+    </p>
 
-      ${Object.entries(d.signals||{}).map(([k,v])=>`
-        <p><b>${k} (${v}%)</b></p>
-      `).join("")}
+    <div class="hr"></div>
 
-    </div>
+    <h3>Confidence Explained (${d.confidence}%)</h3>
+
+    <p>
+      Confidence measures how strongly the different detection signals agree:
+    </p>
+
+    <ul>
+      <li><b>High confidence</b>: multiple signals point to the same conclusion</li>
+      <li><b>Moderate confidence</b>: some agreement, some uncertainty</li>
+      <li><b>Low confidence</b>: mixed or conflicting signals</li>
+    </ul>
+
+    ${confidenceAgreementBar(d.confidence)}
+
+    <div class="hr"></div>
+
+    <h3>Signal Breakdown</h3>
+
+    ${Object.entries(d.signals||{}).map(([k,v])=>`
+      <p><b>${k} (${v}%)</b><br>
+      ${
+        k==="ELA" ? "Highlights compression differences that may indicate localized edits." :
+        k==="Noise" ? "Detects unnatural variations in texture and grain patterns." :
+        k==="Edges" ? "Identifies sharp or inconsistent boundaries introduced by editing." :
+        k==="Compression" ? "Looks for irregular JPEG block patterns caused by recompression." :
+        k==="Metadata" ? "Checks for missing, altered, or suspicious metadata fields." :
+        "General anomaly detection signal."
+      }
+      </p>
+    `).join("")}
+
+    <div class="hr"></div>
+
+    <h3>Important Notes</h3>
+
+    <p class="small">
+      Image compression, resizing, and platform uploads (social media, messaging apps)
+      can introduce artifacts that may influence results.
+    </p>
+
+    <p class="small">
+      This tool identifies patterns consistent with manipulation but does not determine intent
+      or provide legal proof on its own.
+    </p>
+
   </div>
-  `;
-
+</div>
   // overlay toggle
   const toggle = document.getElementById("overlayToggle");
   if(toggle){
@@ -475,6 +532,7 @@ async function render(d){
     });
   }
 }
+
 /* MAP */
 function initMap(gps){
   if(!gps) return;
