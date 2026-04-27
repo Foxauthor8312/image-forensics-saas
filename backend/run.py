@@ -16,6 +16,21 @@ UP, HM = "uploads", "heatmaps"
 os.makedirs(UP, exist_ok=True)
 os.makedirs(HM, exist_ok=True)
 
+def resize_image(path, max_dim=1280):
+    img = cv2.imread(path)
+    h, w = img.shape[:2]
+
+    if max(h, w) <= max_dim:
+        return path  # no change
+
+    scale = max_dim / max(h, w)
+    new_size = (int(w * scale), int(h * scale))
+
+    resized = cv2.resize(img, new_size, interpolation=cv2.INTER_AREA)
+    cv2.imwrite(path, resized)
+
+    return path
+
 def _score(m): return float(np.mean(m))/255*100
 
 def analyze_image(path):
@@ -76,6 +91,9 @@ def analyze():
     img = request.files["image"]
     path = os.path.join(UP, f"{datetime.utcnow().timestamp()}_{img.filename}")
     img.save(path)
+
+# 🔥 resize BEFORE analysis
+path = resize_image(path)
 
     try:
         metadata = json.loads(request.form.get("metadata","{}"))
