@@ -21,6 +21,30 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 .bar{height:6px;background:#1e293b}
 .bar-fill{height:6px;background:#3b82f6}
 .overlay{position:absolute;inset:0;opacity:0}
+.overlay{position:absolute;inset:0;opacity:0}
+
+/* 🔽 ADD FOOTER STYLES HERE */
+.footer {
+  margin-top:40px;
+  padding:15px 20px;
+  background:#020617;
+  border-top:1px solid #1e293b;
+  font-size:13px;
+  color:#94a3b8;
+}
+
+.footer-inner {
+  max-width:1100px;
+  margin:auto;
+  display:flex;
+  justify-content:space-between;
+}
+
+.footer-right {
+  opacity:0.7;
+}
+</style>
+  
 </style>
 </head>
 
@@ -202,5 +226,11 @@ function downloadPDF(d){
   });
 }
 </script>
+  <footer class="footer">
+  <div class="footer-inner">
+    <span>PixelProof © 2026</span>
+    <span class="footer-right">Forensic Image Analysis</span>
+  </div>
+</footer>
 </body>
 </html>
