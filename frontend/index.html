@@ -159,22 +159,57 @@ async function resizeImage(file){
 }
   
 async function analyze(){
+  try {
 
-  showProgress();
-  setProgress(10, "Preparing...");
+    showProgress();
+    setProgress(10, "Preparing...");
 
-  let finalGPS=gps;
+    let finalGPS = gps;
 
-  if(!finalGPS){
-    try{
-      finalGPS=await new Promise(res=>{
-        navigator.geolocation.getCurrentPosition(
-          p=>res({lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy}),
-          ()=>res(null)
-        );
-      });
-    }catch{}
+    if(!finalGPS){
+      try{
+        finalGPS = await new Promise(res=>{
+          navigator.geolocation.getCurrentPosition(
+            p=>res({lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy}),
+            ()=>res(null)
+          );
+        });
+      } catch {}
+    }
+
+    setProgress(30, "Resizing image...");
+
+    const resized = await resizeImage(selectedFile);
+
+    const form = new FormData();
+    form.append("image", resized);
+    form.append("metadata", JSON.stringify(metadata));
+    form.append("gps", JSON.stringify(finalGPS));
+
+    setProgress(60, "Uploading...");
+
+    const res = await fetch(API + "/api/analyze", {
+      method: "POST",
+      body: form
+    });
+
+    if (!res.ok) throw new Error("Server error " + res.status);
+
+    setProgress(90, "Processing...");
+
+    const data = await res.json();
+
+    setProgress(100, "Done");
+    setTimeout(hideProgress, 500);
+
+    render(data.result);
+
+  } catch (err) {
+    console.error("ANALYZE ERROR:", err);
+    hideProgress();
+    alert("Something failed. Check console.");
   }
+}
 
   setProgress(30, "Resizing image...");
 
@@ -187,9 +222,27 @@ async function analyze(){
 
   setProgress(60, "Uploading...");   // ✅ HERE
 
-  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-  const data=await res.json();
+  const res = await fetch(API + "/api/analyze", {
+  method: "POST",
+  body: form
+});
 
+if (!res.ok) {
+  console.error("Server error:", res.status);
+  hideProgress();
+  alert("Server error: " + res.status);
+  return;
+}
+
+let data;
+try {
+  data = await res.json();
+} catch (e) {
+  console.error("Invalid JSON response", e);
+  hideProgress();
+  alert("Invalid server response");
+  return;
+}
   setProgress(90, "Processing...");  // ✅ HERE
 
   setProgress(100, "Done");
