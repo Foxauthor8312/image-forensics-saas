@@ -43,6 +43,32 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 .footer-right {
   opacity:0.7;
 }
+.footer-left {
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.footer-version {
+  font-size:11px;
+  opacity:0.6;
+}
+
+.footer-links {
+  display:flex;
+  gap:15px;
+}
+
+.footer-links a {
+  color:#60a5fa;
+  text-decoration:none;
+  font-size:13px;
+}
+
+.footer-links a:hover {
+  text-decoration:underline;
+}
+  
 </style>
   
 </style>
@@ -225,11 +251,28 @@ function downloadPDF(d){
     a.href=url;a.download="report.pdf";a.click();
   });
 }
+function openPrivacy(){
+  alert("Privacy Policy:\n\nNo images are stored permanently. Analysis is processed securely and not shared.");
+}
+
+function openTerms(){
+  alert("Terms of Use:\n\nThis tool provides automated analysis and is not a certified forensic determination.");
+}
+  
 </script>
   <footer class="footer">
   <div class="footer-inner">
-    <span>PixelProof © 2026</span>
-    <span class="footer-right">Forensic Image Analysis</span>
+
+    <div class="footer-left">
+      <span>PixelProof © 2026</span>
+      <span class="footer-version">v1.0.0 • Build 2026.04</span>
+    </div>
+
+    <div class="footer-links">
+      <a href="#" onclick="openPrivacy()">Privacy</a>
+      <a href="#" onclick="openTerms()">Terms</a>
+    </div>
+
   </div>
 </footer>
 </body>
