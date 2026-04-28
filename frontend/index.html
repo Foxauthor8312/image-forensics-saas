@@ -21,7 +21,6 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 .bar{height:6px;background:#1e293b}
 .bar-fill{height:6px;background:#3b82f6}
 .overlay{position:absolute;inset:0;opacity:0}
-.overlay{position:absolute;inset:0;opacity:0}
 
 /* 🔽 ADD FOOTER STYLES HERE */
 .footer {
@@ -69,8 +68,7 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
   text-decoration:underline;
 }
   
-</style>
-  
+ 
 </style>
 </head>
 
@@ -238,7 +236,9 @@ function tab(e,id){
   e.target.classList.add("active");
 
   if(id==="mapTab"){
-    setTimeout(()=>initMap(window.lastGPS),100);
+   setTimeout(()=>{
+  if(d.gps) initMap(d.gps);
+},200);
   }
 }
 
