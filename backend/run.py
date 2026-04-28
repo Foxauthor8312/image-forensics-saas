@@ -85,23 +85,27 @@ def heatmap(fname):
 
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
+
     if "image" not in request.files:
-        return jsonify({"error":"No image"}), 400
+        return jsonify({"error": "No image"}), 400
 
     img = request.files["image"]
-    path = os.path.join(UP, f"{datetime.utcnow().timestamp()}_{img.filename}")
+
+    fname = f"{datetime.utcnow().timestamp()}_{img.filename}"
+    path = os.path.join(UP, fname)
+
     img.save(path)
 
-# 🔥 resize BEFORE analysis
-path = resize_image(path)
+    # 🔥 resize fix (correct indentation)
+    path = resize_image(path)
 
     try:
-        metadata = json.loads(request.form.get("metadata","{}"))
+        metadata = json.loads(request.form.get("metadata", "{}"))
     except:
         metadata = {}
 
     try:
-        gps = json.loads(request.form.get("gps","null"))
+        gps = json.loads(request.form.get("gps", "null"))
     except:
         gps = None
 
