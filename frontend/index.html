@@ -48,7 +48,25 @@ let selectedFile, metadata={}, gps=null, mapInstance;
 file.onchange=handle;
 rear.onchange=handle;
 front.onchange=handle;
+  
+function extractGPS(meta){
+  if(!meta.GPSLatitude || !meta.GPSLongitude) return null;
 
+  const convert = (coord) => {
+    return coord.reduce((acc, val, i)=>{
+      const v = val.numerator ? val.numerator / val.denominator : val;
+      return acc + v / (i === 0 ? 1 : i === 1 ? 60 : 3600);
+    },0);
+  };
+
+  let lat = convert(meta.GPSLatitude);
+  let lon = convert(meta.GPSLongitude);
+
+  if(meta.GPSLatitudeRef === "S") lat = -lat;
+  if(meta.GPSLongitudeRef === "W") lon = -lon;
+
+  return { lat, lon };
+}
 async function handle(e){
   const f=e.target.files[0];
   if(!f) return;
@@ -168,6 +186,10 @@ function tab(e,id){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.getElementById(id).classList.add("active");
   e.target.classList.add("active");
+
+  if(id==="mapTab"){
+    setTimeout(()=>initMap(window.lastGPS),100);
+  }
 }
 
 function downloadPDF(d){
