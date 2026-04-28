@@ -129,7 +129,7 @@ async function handle(e){
   await new Promise(r=>{
     EXIF.getData(f,function(){
       metadata = EXIF.getAllTags(this) || {};
-gps = extractGPS(metadata);   // ✅ FIX
+      gps = extractGPS(metadata);   // ✅ FIX
       r();
     });
   });
@@ -159,9 +159,12 @@ async function resizeImage(file){
 }
   
 async function analyze(){
+
   showProgress();
-setProgress(10, "Preparing...");
+  setProgress(10, "Preparing...");
+
   let finalGPS=gps;
+
   if(!finalGPS){
     try{
       finalGPS=await new Promise(res=>{
@@ -174,18 +177,24 @@ setProgress(10, "Preparing...");
   }
 
   setProgress(30, "Resizing image...");
+
   const form=new FormData();
   const resized = await resizeImage(selectedFile);
+
   form.append("image", resized);
   form.append("metadata",JSON.stringify(metadata));
   form.append("gps",JSON.stringify(finalGPS));
 
+  setProgress(60, "Uploading...");   // ✅ HERE
+
   const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
   const data=await res.json();
 
+  setProgress(90, "Processing...");  // ✅ HERE
+
   setProgress(100, "Done");
   setTimeout(hideProgress, 500);
-  
+
   render(data.result);
 }
 
@@ -246,13 +255,10 @@ function tab(e,id){
   document.getElementById(id).classList.add("active");
   e.target.classList.add("active");
 
-  if(id==="mapTab"){
-   setTimeout(()=>{
-  if(d.gps) initMap(d.gps);
-},200);
-  }
+if(id==="mapTab"){
+  setTimeout(()=>initMap(window.lastGPS),100);
 }
-setProgress(60, "Uploading...");
+}
 function downloadPDF(d){
   fetch(API+"/api/pdf",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)})
   .then(r=>r.blob())
@@ -262,7 +268,6 @@ function downloadPDF(d){
     a.href=url;a.download="report.pdf";a.click();
   });
 }
-setProgress(90, "Processing...");
 function openPrivacy(){
   alert("Privacy Policy:\n\nNo images are stored permanently. Analysis is processed securely and not shared.");
 }
