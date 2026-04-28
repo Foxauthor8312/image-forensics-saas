@@ -300,10 +300,11 @@ function hideProgress(){
 }
 
 function setProgress(p, text){
-  document.getElementById("bar").style.width = p + "%";
+  const bar = document.getElementById("bar");
+  bar.style.transition = "width 0.3s ease";
+  bar.style.width = p + "%";
   document.getElementById("progressText").innerText = text;
 }
-
   
 </script>
   <footer class="footer">
