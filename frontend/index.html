@@ -177,22 +177,7 @@ async function analyze(){
       } catch {}
     }
 
-    setProgress(30, "Resizing image...");
-
-    const resized = await resizeImage(selectedFile);
-
-    const form = new FormData();
-    form.append("image", resized);
-    form.append("metadata", JSON.stringify(metadata));
-    form.append("gps", JSON.stringify(finalGPS));
-
-    setProgress(60, "Uploading...");
-
-    const res = await fetch(API + "/api/analyze", {
-      method: "POST",
-      body: form
-    });
-
+    
     if (!res.ok) throw new Error("Server error " + res.status);
 
     setProgress(90, "Processing...");
