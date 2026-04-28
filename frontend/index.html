@@ -83,7 +83,13 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 
 <input id="rear" type="file" accept="image/*" capture="environment" hidden>
 <input id="front" type="file" accept="image/*" capture="user" hidden>
-
+<div id="progress" style="display:none;margin-top:15px;">
+  <div style="background:#1e293b;height:8px;border-radius:6px;">
+    <div id="bar" style="height:8px;width:0%;background:#3b82f6;"></div>
+  </div>
+  <div id="progressText" style="font-size:12px;margin-top:5px;">Starting...</div>
+</div>
+  
 <div id="result"></div>
 
 </div>
@@ -153,6 +159,8 @@ async function resizeImage(file){
 }
   
 async function analyze(){
+  showProgress();
+setProgress(10, "Preparing...");
   let finalGPS=gps;
   if(!finalGPS){
     try{
@@ -165,7 +173,7 @@ async function analyze(){
     }catch{}
   }
 
-  
+  setProgress(30, "Resizing image...");
   const form=new FormData();
   const resized = await resizeImage(selectedFile);
   form.append("image", resized);
@@ -175,6 +183,9 @@ async function analyze(){
   const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
   const data=await res.json();
 
+  setProgress(100, "Done");
+  setTimeout(hideProgress, 500);
+  
   render(data.result);
 }
 
@@ -241,7 +252,7 @@ function tab(e,id){
 },200);
   }
 }
-
+setProgress(60, "Uploading...");
 function downloadPDF(d){
   fetch(API+"/api/pdf",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)})
   .then(r=>r.blob())
@@ -251,6 +262,7 @@ function downloadPDF(d){
     a.href=url;a.download="report.pdf";a.click();
   });
 }
+setProgress(90, "Processing...");
 function openPrivacy(){
   alert("Privacy Policy:\n\nNo images are stored permanently. Analysis is processed securely and not shared.");
 }
@@ -258,6 +270,19 @@ function openPrivacy(){
 function openTerms(){
   alert("Terms of Use:\n\nThis tool provides automated analysis and is not a certified forensic determination.");
 }
+function showProgress(){
+  document.getElementById("progress").style.display="block";
+}
+
+function hideProgress(){
+  document.getElementById("progress").style.display="none";
+}
+
+function setProgress(p, text){
+  document.getElementById("bar").style.width = p + "%";
+  document.getElementById("progressText").innerText = text;
+}
+
   
 </script>
   <footer class="footer">
