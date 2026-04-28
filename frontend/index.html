@@ -65,19 +65,6 @@ gps = extractGPS(metadata);   // ✅ FIX
   analyze();
 }
 
-async function analyze(){
-  let finalGPS=gps;
-  if(!finalGPS){
-    try{
-      finalGPS=await new Promise(res=>{
-        navigator.geolocation.getCurrentPosition(
-          p=>res({lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy}),
-          ()=>res(null)
-        );
-      });
-    }catch{}
-  }
-
 async function resizeImage(file){
   return new Promise(res=>{
     const img=new Image(), reader=new FileReader();
@@ -99,8 +86,23 @@ async function resizeImage(file){
   });
 }
   
+async function analyze(){
+  let finalGPS=gps;
+  if(!finalGPS){
+    try{
+      finalGPS=await new Promise(res=>{
+        navigator.geolocation.getCurrentPosition(
+          p=>res({lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy}),
+          ()=>res(null)
+        );
+      });
+    }catch{}
+  }
+
+  
   const form=new FormData();
-  form.append("image",selectedFile);
+  const resized = await resizeImage(selectedFile);
+  form.append("image", resized);
   form.append("metadata",JSON.stringify(metadata));
   form.append("gps",JSON.stringify(finalGPS));
 
