@@ -211,6 +211,40 @@ async function analyze(){
   }
 }
 
+    setProgress(30, "Resizing image...");
+
+    const resized = await resizeImage(selectedFile);
+
+    const form = new FormData();
+    form.append("image", resized);
+    form.append("metadata", JSON.stringify(metadata));
+    form.append("gps", JSON.stringify(finalGPS));
+
+    setProgress(60, "Uploading...");
+
+    const res = await fetch(API + "/api/analyze", {
+      method: "POST",
+      body: form
+    });
+
+    if (!res.ok) throw new Error("Server error " + res.status);
+
+    setProgress(90, "Processing...");
+
+    const data = await res.json();
+
+    setProgress(100, "Done");
+    setTimeout(hideProgress, 500);
+
+    render(data.result);
+
+  } catch (err) {
+    console.error("ANALYZE ERROR:", err);
+    hideProgress();
+    alert("Something failed. Check console.");
+  }
+}
+
   setProgress(30, "Resizing image...");
 
   const form=new FormData();
