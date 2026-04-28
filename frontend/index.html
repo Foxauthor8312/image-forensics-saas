@@ -56,8 +56,8 @@ async function handle(e){
 
   await new Promise(r=>{
     EXIF.getData(f,function(){
-      metadata=EXIF.getAllTags(this)||{};
-      gps=null;
+      metadata = EXIF.getAllTags(this) || {};
+gps = extractGPS(metadata);   // ✅ FIX
       r();
     });
   });
