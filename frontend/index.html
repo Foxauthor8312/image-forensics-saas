@@ -24,6 +24,7 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 
 .bar{height:6px;background:#111;margin:5px 0}
 .bar-fill{height:6px;background:#3b82f6}
+.bar-conf{height:6px;background:#22c55e}
 
 .tabs{display:flex;gap:10px;margin-top:15px}
 .tab{padding:6px 10px;background:#111;border-radius:6px;cursor:pointer}
@@ -124,20 +125,49 @@ async function analyze(f){
   render(data.result||data);
 }
 
+/* SCORE */
 function score(s){
   return Math.round((s.ela||0)*0.5+(s.noise||0)*0.25+(s.metadata||0)*0.25);
+}
+
+/* CONFIDENCE */
+function confidence(s){
+  const conf={};
+  const vals=Object.values(s);
+  const avg=vals.reduce((a,b)=>a+b,0)/(vals.length||1);
+
+  for(let k in s){
+    let v=s[k],c=50;
+    if(v>75)c=90;
+    else if(v>60)c=80;
+    else if(v>45)c=70;
+    else if(v>30)c=60;
+
+    if(Math.abs(v-avg)<15)c+=5;
+    if(k==="ela")c+=5;
+    if(k==="metadata")c-=5;
+
+    conf[k]=Math.min(95,Math.max(45,Math.round(c)));
+  }
+  return conf;
 }
 
 function render(d){
   const signals=d.signals||{};
   const meta=d.metadata||{};
   const gps=meta.gps||null;
-  const s=score(signals);
 
-  window.last=d;
+  const s=score(signals);
+  const conf=confidence(signals);
+
+  window.last={d,s,conf};
 
   const bars=Object.entries(signals).map(([k,v])=>`
-    <div>${k}: ${v}%<div class="bar"><div class="bar-fill" style="width:${v}%"></div></div></div>
+    <div>
+      ${k}: ${v}% (conf ${conf[k]}%)
+      <div class="bar"><div class="bar-fill" style="width:${v}%"></div></div>
+      <div class="bar"><div class="bar-conf" style="width:${conf[k]}%"></div></div>
+    </div>
   `).join("");
 
   result.innerHTML=`
@@ -151,7 +181,7 @@ function render(d){
   <div id="r" class="tab-content active">
     <h2>${s>70?"Likely Altered":s>40?"Possibly Modified":"Likely Authentic"}</h2>
     <p>Score: ${s}%</p>
-    <button onclick="exportPDF()">Download PDF</button>
+    <button onclick="exportPDF()">Download Forensic Report (PDF)</button>
     ${bars}
     ${d.heatmap?`<img src="${API+d.heatmap}" style="width:100%;margin-top:10px">`:""}
   </div>
@@ -187,16 +217,44 @@ function tab(e,id){
   e.target.classList.add("active");
 }
 
+/* COURT-STYLE PDF */
 function exportPDF(){
   const { jsPDF }=window.jspdf;
   const doc=new jsPDF();
+  let y=10;
 
-  doc.text("PixelProof Forensic Report",10,10);
-  doc.text(JSON.stringify(window.last,null,2),10,20);
+  const {d,s,conf}=window.last;
 
-  doc.save("report.pdf");
+  doc.setFontSize(16);
+  doc.text("PixelProof Forensic Report",10,y); y+=10;
+
+  doc.setFontSize(10);
+  doc.text("Generated: "+new Date().toLocaleString(),10,y); y+=10;
+
+  doc.setFontSize(12);
+  doc.text("Conclusion:",10,y); y+=6;
+  doc.text(
+    s>70?"Strong evidence of alteration":
+    s>40?"Possible modification detected":
+    "No significant manipulation detected",
+    10,y
+  ); y+=10;
+
+  doc.text("Score: "+s+"%",10,y); y+=10;
+
+  doc.setFontSize(13);
+  doc.text("Signal Analysis",10,y); y+=6;
+  doc.setFontSize(12);
+
+  Object.entries(d.signals||{}).forEach(([k,v])=>{
+    doc.text(`${k}: ${v}% (confidence ${conf[k]}%)`,10,y);
+    y+=6;
+  });
+
+  doc.save("pixelproof-report.pdf");
 }
 
+/* MODAL */
 function openModal(){document.getElementById("legalModal").style.display="flex";}
 function closeModal(){document.getElementById("legalModal").style.display="none";}
 
