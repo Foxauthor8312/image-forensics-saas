@@ -49,8 +49,6 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 .tab-content{display:none}
 .tab-content.active{display:block;margin-top:10px}
 
-pre{white-space:pre-wrap;font-size:12px;opacity:0.8}
-
 /* FOOTER */
 .app-footer{
   margin-top:30px;padding:15px 20px;
@@ -59,6 +57,36 @@ pre{white-space:pre-wrap;font-size:12px;opacity:0.8}
   font-size:12px;opacity:.85;
 }
 .footer-sub{font-size:11px;opacity:.6}
+
+/* MODAL */
+.modal{
+  position:fixed;
+  top:0;left:0;
+  width:100%;height:100%;
+  background:rgba(0,0,0,0.7);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:1000;
+}
+.modal-content{
+  background:#1e293b;
+  padding:20px;
+  border-radius:12px;
+  max-width:600px;
+  max-height:80%;
+  overflow:auto;
+}
+.modal-content h2{margin-top:0}
+.modal-close{
+  margin-top:15px;
+  padding:8px 12px;
+  background:#3b82f6;
+  border:none;
+  border-radius:6px;
+  color:white;
+  cursor:pointer;
+}
 </style>
 </head>
 
@@ -75,7 +103,6 @@ pre{white-space:pre-wrap;font-size:12px;opacity:0.8}
 
 <div class="dashboard">
 
-  <!-- LEFT -->
   <div class="panel">
     <div id="dropZone" class="drop-zone">
       Drag & Drop Image<br><span style="opacity:.6">or click</span>
@@ -83,7 +110,6 @@ pre{white-space:pre-wrap;font-size:12px;opacity:0.8}
     <input type="file" id="file" hidden>
   </div>
 
-  <!-- RIGHT -->
   <div class="panel">
     <div id="result"></div>
   </div>
@@ -93,7 +119,16 @@ pre{white-space:pre-wrap;font-size:12px;opacity:0.8}
 <footer class="app-footer">
   <div>
     <strong>PixelProof</strong>
-    <div class="footer-sub">Results are probabilistic and not legal evidence</div>
+    <div class="footer-sub">
+      AI Image Forensics Engine · Results are probabilistic
+    </div>
+    <div class="footer-sub">
+      © <span id="year"></span> PixelProof · All rights reserved
+    </div>
+    <div class="footer-sub" style="cursor:pointer;color:#3b82f6"
+         onclick="openModal()">
+      View Legal Disclaimer
+    </div>
   </div>
   <div>
     <div id="buildInfo"></div>
@@ -101,6 +136,32 @@ pre{white-space:pre-wrap;font-size:12px;opacity:0.8}
   </div>
 </footer>
 
+</div>
+
+<!-- LEGAL MODAL -->
+<div id="legalModal" class="modal">
+  <div class="modal-content">
+    <h2>Legal Disclaimer</h2>
+    <p>
+      PixelProof provides automated image analysis using algorithmic methods.
+      Results are probabilistic and should not be considered definitive evidence
+      of authenticity or manipulation.
+    </p>
+    <p>
+      This tool is intended for informational and investigative use only.
+      It is not a substitute for professional forensic analysis conducted
+      by a certified expert.
+    </p>
+    <p>
+      No guarantees are made regarding accuracy, completeness, or reliability.
+      Users assume full responsibility for how results are interpreted and used.
+    </p>
+    <p>
+      PixelProof and its developers are not liable for any decisions,
+      damages, or consequences resulting from the use of this tool.
+    </p>
+    <button class="modal-close" onclick="closeModal()">Close</button>
+  </div>
 </div>
 
 <script>
@@ -112,18 +173,13 @@ const result = document.getElementById("result");
 
 let selectedFile = null;
 
-/* DRAG + CLICK */
+/* DRAG */
 dropZone.onclick = () => file.click();
-
 dropZone.addEventListener("dragover", e=>{
   e.preventDefault();
   dropZone.classList.add("dragover");
 });
-
-dropZone.addEventListener("dragleave", ()=>{
-  dropZone.classList.remove("dragover");
-});
-
+dropZone.addEventListener("dragleave", ()=>dropZone.classList.remove("dragover"));
 dropZone.addEventListener("drop", e=>{
   e.preventDefault();
   dropZone.classList.remove("dragover");
@@ -132,7 +188,6 @@ dropZone.addEventListener("drop", e=>{
 
 file.onchange = handle;
 
-/* HANDLE */
 function handle(e){
   const f = e.target.files[0];
   if(!f) return;
@@ -140,28 +195,10 @@ function handle(e){
   analyze();
 }
 
-/* RESIZE */
-function resize(file){
-  return new Promise(res=>{
-    const img=new Image(), r=new FileReader();
-    r.onload=e=>img.src=e.target.result;
-    img.onload=()=>{
-      const c=document.createElement("canvas");
-      let w=img.width,h=img.height;
-      if(w>800){h*=800/w;w=800;}
-      c.width=w;c.height=h;
-      c.getContext("2d").drawImage(img,0,0,w,h);
-      c.toBlob(b=>res(new File([b],"x.jpg")));
-    };
-    r.readAsDataURL(file);
-  });
-}
-
 /* ANALYZE */
 async function analyze(){
-  const resized = await resize(selectedFile);
   const form=new FormData();
-  form.append("image",resized);
+  form.append("image",selectedFile);
 
   const res = await fetch(API+"/api/analyze",{method:"POST",body:form});
   const data = await res.json();
@@ -169,211 +206,26 @@ async function analyze(){
   render(data.result || data);
 }
 
-/* SCORE */
-function score(signals){
-  let t=0,w=0;
-  for(let k in signals){
-    let wt={ela:.5,noise:.25,metadata:.25}[k]||0;
-    t+=signals[k]*wt; w+=wt;
-  }
-  return w?Math.round(t/w):0;
-}
-
-/* CONFIDENCE (SMART) */
-function signalConfidence(signals){
-  const conf = {};
-  const vals = Object.values(signals);
-  const avg = vals.reduce((a,b)=>a+b,0)/(vals.length||1);
-
-  for(let k in signals){
-    let v=signals[k], c=50;
-
-    if(v>75) c=90;
-    else if(v>60) c=80;
-    else if(v>45) c=70;
-    else if(v>30) c=60;
-
-    if(Math.abs(v-avg)<15) c+=5;
-    if(k==="ela") c+=5;
-    if(k==="metadata") c-=5;
-
-    conf[k]=Math.min(95,Math.max(45,Math.round(c)));
-  }
-  return conf;
-}
-
-/* EXPLANATION */
-function explain(signals,s){
-  const conf = signalConfidence(signals);
-  let parts=[];
-
-  if(signals.ela>60) parts.push(`compression artifacts (conf ${conf.ela}%)`);
-  if(signals.noise>50) parts.push(`noise mismatch (conf ${conf.noise}%)`);
-  if(signals.metadata>40) parts.push(`metadata anomalies (conf ${conf.metadata}%)`);
-
-  if(!parts.length) parts.push("no strong anomalies detected");
-
-  let conclusion = s>70
-    ? "strong evidence of alteration"
-    : s>40
-    ? "possible modification"
-    : "likely authentic";
-
-  return { narrative: parts.join(", "), conclusion };
-}
-
-/* REPORT */
-function report(signals,s){
-  return `Based on forensic analysis:
-
-ELA: ${signals.ela}%
-Noise: ${signals.noise}%
-Metadata: ${signals.metadata}%
-
-Conclusion: ${
-    s>70?"Altered image likely":
-    s>40?"Possible modification":
-    "No significant manipulation"
-  }`;
-}
-
-/* RENDER */
+/* SIMPLE RENDER */
 function render(d){
-  
-const signals=d.signals||{};
-const s=score(signals);
-const conf=signalConfidence(signals);
-const exp=explain(signals,s);
-const rep=report(signals,s);
-
-// 👇 ADD THIS BLOCK RIGHT HERE
-window.lastSignals = signals;
-window.lastScore = s;
-window.lastExplanation = exp;
-window.lastReport = rep;
-window.lastHeatmap = d.heatmap ? API + d.heatmap : null;
-  
-
-  const bars = Object.entries(signals).map(([k,v])=>`
-    <div>
-      <div style="display:flex;justify-content:space-between">
-        <span>${k}: ${v}%</span>
-        <span style="opacity:.7">conf ${conf[k]}%</span>
-      </div>
-      <div class="bar"><div class="bar-fill" style="width:${v}%"></div></div>
-      <div class="bar" style="opacity:.3">
-        <div class="bar-fill" style="width:${conf[k]}%;background:#22c55e"></div>
-      </div>
-    </div>
-  `).join("");
-
   result.innerHTML = `
-  <div class="tabs">
-    <div class="tab active" onclick="tab(event,'r')">Results</div>
-    <div class="tab" onclick="tab(event,'d')">Detailed</div>
-  </div>
-
-  <div id="r" class="tab-content active">
-    <h2>${s>70?"Likely Altered":s>40?"Possibly Modified":"Likely Authentic"}</h2>
-   <p>Score: ${s}%</p>
-
-<button onclick="exportPDF()" style="margin-top:10px">
-  Download Report (PDF)
-</button>
-    ${bars}
-    ${d.heatmap?`<img src="${API+d.heatmap}" style="width:100%;margin-top:10px">`:""}
-  </div>
-
-  <div id="d" class="tab-content">
-    <p><strong>Analysis:</strong> ${exp.narrative}</p>
-    <p><strong>Conclusion:</strong> ${exp.conclusion}</p>
-    <pre>${rep}</pre>
-  </div>
+    <h2>${d.score || 50}% Score</h2>
+    <p>${d.analysis || "Analysis complete"}</p>
   `;
 }
 
-/* TABS */
-function tab(e,id){
-  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
-  e.target.classList.add("active");
+/* MODAL */
+function openModal(){
+  document.getElementById("legalModal").style.display="flex";
 }
-async function exportPDF(){
-const { jsPDF } = window.jspdf;
-
-const doc = new jsPDF();
-let y = 10;
-
-doc.text(`Generated: ${new Date().toLocaleString()}`, 10, y);
-y += 8;
-
-  doc.setFontSize(16);
-  doc.text("PixelProof Forensic Report", 10, y);
-  y += 10;
-
-  doc.setFontSize(12);
-  doc.text(`Score: ${window.lastScore}%`, 10, y);
-  y += 8;
-
-  doc.text("Signals:", 10, y);
-  y += 6;
-
-  Object.entries(window.lastSignals).forEach(([k,v])=>{
-    doc.text(`${k}: ${v}%`, 12, y);
-    y += 6;
-  });
-
-  y += 4;
-
-  doc.text("Analysis:", 10, y);
-  y += 6;
-  doc.text(doc.splitTextToSize(window.lastExplanation.narrative, 180), 10, y);
-  y += 10;
-
-  doc.text("Conclusion:", 10, y);
-  y += 6;
-  doc.text(doc.splitTextToSize(window.lastExplanation.conclusion, 180), 10, y);
-  y += 10;
-
-  doc.text("Forensic Report:", 10, y);
-  y += 6;
-  doc.text(doc.splitTextToSize(window.lastReport, 180), 10, y);
-
-  if(window.lastHeatmap){
-    try{
-     const dataUrl = await loadImageAsDataURL(window.lastHeatmap);
-
-doc.addPage();
-doc.text("Heatmap Analysis", 10, 10);
-doc.addImage(dataUrl, "PNG", 10, 20, 180, 120);
-    }catch{}
-  }
-
-  doc.save("pixelproof-report.pdf");
+function closeModal(){
+  document.getElementById("legalModal").style.display="none";
 }
 
-function loadImageAsDataURL(url){
-  return new Promise((resolve, reject)=>{
-    const img = new Image();
-    img.crossOrigin = "anonymous";
+/* FOOTER */
+document.getElementById("year").innerText =
+  new Date().getFullYear();
 
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0);
-
-      resolve(canvas.toDataURL("image/png"));
-    };
-
-    img.onerror = reject;
-    img.src = url;
-  });
-}
-/* FOOTER INFO */
 document.getElementById("buildInfo").innerText =
   "Build: " + new Date().toLocaleDateString();
 
