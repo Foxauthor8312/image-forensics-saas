@@ -20,55 +20,10 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 #map{height:400px;border-radius:10px}
 .bar{height:6px;background:#1e293b}
 .bar-fill{height:6px;background:#3b82f6}
-.overlay{position:absolute;inset:0;opacity:0}
-
-/* 🔽 ADD FOOTER STYLES HERE */
-.footer {
-  margin-top:40px;
-  padding:15px 20px;
-  background:#020617;
-  border-top:1px solid #1e293b;
-  font-size:13px;
-  color:#94a3b8;
-}
-
-.footer-inner {
-  max-width:1100px;
-  margin:auto;
-  display:flex;
-  justify-content:space-between;
-}
-
-.footer-right {
-  opacity:0.7;
-}
-.footer-left {
-  display:flex;
-  flex-direction:column;
-  gap:4px;
-}
-
-.footer-version {
-  font-size:11px;
-  opacity:0.6;
-}
-
-.footer-links {
-  display:flex;
-  gap:15px;
-}
-
-.footer-links a {
-  color:#60a5fa;
-  text-decoration:none;
-  font-size:13px;
-}
-
-.footer-links a:hover {
-  text-decoration:underline;
-}
-  
- 
+.footer {margin-top:40px;padding:15px 20px;background:#020617;border-top:1px solid #1e293b;font-size:13px;color:#94a3b8;}
+.footer-inner {max-width:1100px;margin:auto;display:flex;justify-content:space-between;}
+.footer-links {display:flex;gap:15px;}
+.footer-links a {color:#60a5fa;text-decoration:none;}
 </style>
 </head>
 
@@ -78,18 +33,19 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 <h1>PixelProof</h1>
 
 <input type="file" id="file">
-<button onclick="rear.click()">Rear</button>
-<button onclick="front.click()">Front</button>
+<button id="rearBtn">Rear</button>
+<button id="frontBtn">Front</button>
 
 <input id="rear" type="file" accept="image/*" capture="environment" hidden>
 <input id="front" type="file" accept="image/*" capture="user" hidden>
+
 <div id="progress" style="display:none;margin-top:15px;">
   <div style="background:#1e293b;height:8px;border-radius:6px;">
     <div id="bar" style="height:8px;width:0%;background:#3b82f6;"></div>
   </div>
   <div id="progressText" style="font-size:12px;margin-top:5px;">Starting...</div>
 </div>
-  
+
 <div id="result"></div>
 
 </div>
@@ -97,39 +53,52 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 <script>
 const API = "https://pixelproof-backend-v2.onrender.com";
 
-let selectedFile, metadata={}, gps=null, mapInstance;
+// DOM bindings (FIXED)
+const file = document.getElementById("file");
+const rear = document.getElementById("rear");
+const front = document.getElementById("front");
+const rearBtn = document.getElementById("rearBtn");
+const frontBtn = document.getElementById("frontBtn");
+const result = document.getElementById("result");
 
-file.onchange=handle;
-rear.onchange=handle;
-front.onchange=handle;
-  
+rearBtn.onclick = () => rear.click();
+frontBtn.onclick = () => front.click();
+
+let selectedFile, metadata = {}, gps = null, mapInstance;
+
+// Handlers
+file.onchange = handle;
+rear.onchange = handle;
+front.onchange = handle;
+
 function extractGPS(meta){
   if(!meta.GPSLatitude || !meta.GPSLongitude) return null;
 
-  const convert = (coord) => {
-    return coord.reduce((acc, val, i)=>{
-      const v = val.numerator ? val.numerator / val.denominator : val;
-      return acc + v / (i === 0 ? 1 : i === 1 ? 60 : 3600);
+  const convert = (coord) =>
+    coord.reduce((acc,val,i)=>{
+      const v = val.numerator ? val.numerator/val.denominator : val;
+      return acc + v/(i===0?1:i===1?60:3600);
     },0);
-  };
 
   let lat = convert(meta.GPSLatitude);
   let lon = convert(meta.GPSLongitude);
 
-  if(meta.GPSLatitudeRef === "S") lat = -lat;
-  if(meta.GPSLongitudeRef === "W") lon = -lon;
+  if(meta.GPSLatitudeRef==="S") lat=-lat;
+  if(meta.GPSLongitudeRef==="W") lon=-lon;
 
-  return { lat, lon };
+  return {lat,lon};
 }
+
 async function handle(e){
-  const f=e.target.files[0];
+  const f = e.target.files[0];
   if(!f) return;
-  selectedFile=f;
+
+  selectedFile = f;
 
   await new Promise(r=>{
     EXIF.getData(f,function(){
       metadata = EXIF.getAllTags(this) || {};
-      gps = extractGPS(metadata);   // ✅ FIX
+      gps = extractGPS(metadata);
       r();
     });
   });
@@ -145,182 +114,138 @@ async function resizeImage(file){
     img.onload=()=>{
       const canvas=document.createElement("canvas");
       let w=img.width,h=img.height,MAX=1280;
-
       if(w>MAX){h*=MAX/w;w=MAX;}
-
       canvas.width=w;canvas.height=h;
       canvas.getContext("2d").drawImage(img,0,0,w,h);
-
       canvas.toBlob(b=>res(new File([b],"resized.jpg",{type:"image/jpeg"})));
     };
 
     reader.readAsDataURL(file);
   });
 }
-  
-async function analyze(){
-  try {
 
+async function analyze(){
+  try{
     showProgress();
-    setProgress(10, "Preparing...");
+    setProgress(10,"Preparing...");
 
     let finalGPS = gps;
 
     if(!finalGPS){
-      try{
-        finalGPS = await new Promise(res=>{
-          navigator.geolocation.getCurrentPosition(
-            p=>res({
-              lat:p.coords.latitude,
-              lon:p.coords.longitude,
-              accuracy:p.coords.accuracy
-            }),
-            ()=>res(null)
-          );
-        });
-      } catch {}
+      finalGPS = await new Promise(res=>{
+        navigator.geolocation.getCurrentPosition(
+          p=>res({lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy}),
+          ()=>res(null)
+        );
+      });
     }
 
-    setProgress(30, "Resizing image...");
-
+    setProgress(30,"Resizing...");
     const resized = await resizeImage(selectedFile);
 
     const form = new FormData();
-    form.append("image", resized);
-    form.append("metadata", JSON.stringify(metadata));
-    form.append("gps", JSON.stringify(finalGPS));
+    form.append("image",resized);
+    form.append("metadata",JSON.stringify(metadata));
+    form.append("gps",JSON.stringify(finalGPS));
 
-    setProgress(60, "Uploading...");
+    setProgress(60,"Uploading...");
 
-    const res = await fetch(API + "/api/analyze", {
-      method: "POST",
-      body: form
-    });
+    const controller = new AbortController();
+    setTimeout(()=>controller.abort(),30000);
 
-    if (!res.ok) throw new Error("Server error " + res.status);
+    const res = await fetch(API+"/api/analyze",{method:"POST",body:form,signal:controller.signal});
+    if(!res.ok) throw new Error(res.status);
 
-    setProgress(90, "Processing...");
-
+    setProgress(90,"Processing...");
     const data = await res.json();
 
-    setProgress(100, "Done");
-    setTimeout(hideProgress, 500);
+    console.log("FULL RESPONSE:", data);
 
-    render(data.result);
+    setProgress(100,"Done");
+    setTimeout(hideProgress,1200);
 
-  } catch (err) {
-    console.error("ANALYZE ERROR:", err);
+    render(data.result || data);
+
+  }catch(err){
+    console.error("ERROR:",err);
     hideProgress();
-    alert("Something failed. Check console.");
+    alert("Analysis failed. Check console.");
   }
 }
-function render(d){
-  window.lastGPS=d.gps;
 
-  result.innerHTML=`
+function render(d){
+  window.lastGPS = d?.gps || null;
+
+  const signals = d.signals || d.indicators || {};
+  const metadataAll = d.metadata?.all || d.metadata || {};
+
+  result.innerHTML = `
   <div class="tabs">
     <div class="tab active" onclick="tab(event,'r')">Results</div>
     <div class="tab" onclick="tab(event,'mapTab')">Map</div>
     <div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
     <div class="tab" onclick="tab(event,'detailTab')">Detailed</div>
-    <div class="tab" onclick="downloadPDF(d)">PDF</div>
+    <div class="tab" onclick="downloadPDF()">PDF</div>
   </div>
 
   <div id="r" class="tab-content active">
-    <h2>${d.analysis}</h2>
-    <p>Score: ${d.score}%</p>
-    <p>Confidence: ${d.confidence}%</p>
+    <h2>${d.analysis || "No analysis available"}</h2>
+    <p>Score: ${d.score ?? "N/A"}%</p>
+    <p>Confidence: ${d.confidence ?? "N/A"}%</p>
 
-    ${Object.entries(d.signals||{}).map(([k,v])=>`
+    ${Object.entries(signals).map(([k,v])=>`
       <div>${k}: ${v}%</div>
       <div class="bar"><div class="bar-fill" style="width:${v}%"></div></div>
     `).join("")}
 
-    ${d.heatmap?`<img src="${API+d.heatmap}?t=${Date.now()}" style="width:100%">`:""}
+    ${d.heatmap ? `<img src="${API+d.heatmap}?t=${Date.now()}" style="width:100%">` : ""}
   </div>
 
   <div id="mapTab" class="tab-content"><div id="map"></div></div>
 
   <div id="metaTab" class="tab-content">
-    ${Object.entries(d.metadata?.all||{}).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")}
+    ${Object.entries(metadataAll).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")}
   </div>
 
   <div id="detailTab" class="tab-content">
-    <p>${d.technical_explanation}</p>
-    <p>${d.legal_explanation}</p>
+    <p>${d.technical_explanation || d.details?.technical || "No technical explanation."}</p>
+    <p>${d.legal_explanation || d.details?.legal || "No legal explanation."}</p>
   </div>
   `;
-
- 
 }
 
 function initMap(g){
-  if(!g) return;
+  if(!g || !g.lat || !g.lon) return;
   if(mapInstance) mapInstance.remove();
-  mapInstance=L.map('map').setView([g.lat,g.lon],15);
+
+  mapInstance = L.map('map').setView([g.lat,g.lon],15);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapInstance);
   L.marker([g.lat,g.lon]).addTo(mapInstance);
-  if(g.accuracy){
-    L.circle([g.lat,g.lon],{radius:g.accuracy}).addTo(mapInstance);
-  }
 }
 
 function tab(e,id){
   document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+
   document.getElementById(id).classList.add("active");
   e.target.classList.add("active");
 
-if(id==="mapTab"){
-  setTimeout(()=>initMap(window.lastGPS),100);
-}
-}
-function downloadPDF(d){
-  fetch(API+"/api/pdf",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)})
-  .then(r=>r.blob())
-  .then(b=>{
-    const url=URL.createObjectURL(b);
-    const a=document.createElement("a");
-    a.href=url;a.download="report.pdf";a.click();
-  });
-}
-function openPrivacy(){
-  alert("Privacy Policy:\n\nNo images are stored permanently. Analysis is processed securely and not shared.");
+  if(id==="mapTab"){
+    setTimeout(()=>initMap(window.lastGPS),100);
+  }
 }
 
-function openTerms(){
-  alert("Terms of Use:\n\nThis tool provides automated analysis and is not a certified forensic determination.");
-}
-function showProgress(){
-  document.getElementById("progress").style.display="block";
+function downloadPDF(){
+  alert("PDF export coming from backend");
 }
 
-function hideProgress(){
-  document.getElementById("progress").style.display="none";
+function showProgress(){document.getElementById("progress").style.display="block";}
+function hideProgress(){document.getElementById("progress").style.display="none";}
+function setProgress(p,t){
+  document.getElementById("bar").style.width=p+"%";
+  document.getElementById("progressText").innerText=t;
 }
-
-function setProgress(p, text){
-  const bar = document.getElementById("bar");
-  bar.style.transition = "width 0.3s ease";
-  bar.style.width = p + "%";
-  document.getElementById("progressText").innerText = text;
-}
-  
 </script>
-  <footer class="footer">
-  <div class="footer-inner">
 
-    <div class="footer-left">
-      <span>PixelProof © 2026</span>
-      <span class="footer-version">v1.0.0 • Build 2026.04</span>
-    </div>
-
-    <div class="footer-links">
-      <a href="#" onclick="openPrivacy()">Privacy</a>
-      <a href="#" onclick="openTerms()">Terms</a>
-    </div>
-
-  </div>
-</footer>
 </body>
 </html>
