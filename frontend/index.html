@@ -300,11 +300,13 @@ function tab(e,id){
   e.target.classList.add("active");
 }
 async function exportPDF(){
-  const { jsPDF } = window.jspdf;
+const { jsPDF } = window.jspdf;
+
+const doc = new jsPDF();
+let y = 10;
+
 doc.text(`Generated: ${new Date().toLocaleString()}`, 10, y);
 y += 8;
-  const doc = new jsPDF();
-  let y = 10;
 
   doc.setFontSize(16);
   doc.text("PixelProof Forensic Report", 10, y);
