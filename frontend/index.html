@@ -62,219 +62,154 @@ frontBtn.onclick = () => front.click();
 
 let selectedFile, metadata={}, gps=null;
 
-// Signal definitions
+// 🔥 DEBUG SIGNALS
 const SIGNAL_INFO = {
-  ela:{label:"Compression Artifacts",descHigh:"Recompression detected.",descLow:"Compression consistent.",weight:0.25},
-  noise:{label:"Sensor Noise",descHigh:"Noise mismatch.",descLow:"Noise consistent.",weight:0.2},
-  lighting:{label:"Lighting",descHigh:"Lighting mismatch.",descLow:"Lighting natural.",weight:0.2},
-  edges:{label:"Edge Integrity",descHigh:"Edge artifacts.",descLow:"Edges normal.",weight:0.15},
-  metadata:{label:"Metadata",descHigh:"Metadata anomalies.",descLow:"Metadata consistent.",weight:0.2}
+  ela:{label:"Compression Artifacts",weight:0.25},
+  noise:{label:"Sensor Noise",weight:0.2},
+  lighting:{label:"Lighting",weight:0.2},
+  edges:{label:"Edges",weight:0.15},
+  metadata:{label:"Metadata",weight:0.2}
 };
 
 file.onchange=handle;
 rear.onchange=handle;
 front.onchange=handle;
 
-// Retry fetch (handles Render cold starts)
-async function fetchWithRetry(url, options, retries=2){
-  try{
-    const controller = new AbortController();
-    const timeout = setTimeout(()=>controller.abort(), 30000);
-
-    const res = await fetch(url, {...options, signal:controller.signal});
-    clearTimeout(timeout);
-
-    return res;
-
-  }catch(err){
-    if(retries>0){
-      await new Promise(r=>setTimeout(r,1500));
-      return fetchWithRetry(url,options,retries-1);
-    }
-    throw err;
-  }
-}
-
-function extractGPS(meta){
-  if(!meta.GPSLatitude || !meta.GPSLongitude) return null;
-  const convert = c=>c.reduce((a,v,i)=>{
-    const val=v.numerator?v.numerator/v.denominator:v;
-    return a+val/(i===0?1:i===1?60:3600);
-  },0);
-
-  let lat=convert(meta.GPSLatitude);
-  let lon=convert(meta.GPSLongitude);
-  if(meta.GPSLatitudeRef==="S") lat=-lat;
-  if(meta.GPSLongitudeRef==="W") lon=-lon;
-  return {lat,lon};
-}
-
+// 🔍 HANDLE FILE
 async function handle(e){
-  const f=e.target.files[0];
-  if(!f) return;
-  selectedFile=f;
+  console.log("📂 FILE SELECTED");
 
-  await new Promise(r=>{
-    EXIF.getData(f,function(){
-      metadata=EXIF.getAllTags(this)||{};
-      gps=extractGPS(metadata);
-      r();
-    });
-  });
+  const f = e.target.files[0];
+  if(!f) return;
+
+  selectedFile = f;
+
+  // 🔥 BYPASS EXIF (for debugging)
+  metadata = {};
+  gps = null;
 
   analyze();
 }
 
+// 🔄 Resize image
 async function resizeImage(file){
   return new Promise(res=>{
-    const img=new Image(),reader=new FileReader();
+    const img=new Image(), reader=new FileReader();
+
     reader.onload=e=>img.src=e.target.result;
+
     img.onload=()=>{
       const canvas=document.createElement("canvas");
       let w=img.width,h=img.height,MAX=800;
+
       if(w>MAX){h*=MAX/w;w=MAX;}
-      canvas.width=w;canvas.height=h;
+
+      canvas.width=w;
+      canvas.height=h;
+
       canvas.getContext("2d").drawImage(img,0,0,w,h);
-      canvas.toBlob(b=>res(new File([b],"resized.jpg",{type:"image/jpeg"})));
+
+      canvas.toBlob(b=>{
+        console.log("🖼️ Image resized");
+        res(new File([b],"resized.jpg",{type:"image/jpeg"}));
+      });
     };
+
     reader.readAsDataURL(file);
   });
 }
 
+// 🔄 ANALYZE
 async function analyze(){
   try{
+    console.log("🚀 ANALYZE STARTED");
+
     showProgress();
     setProgress(10,"Preparing...");
 
-    let finalGPS=gps;
-
-    if(!finalGPS){
-      finalGPS=await new Promise(res=>{
-        navigator.geolocation.getCurrentPosition(
-          p=>res({lat:p.coords.latitude,lon:p.coords.longitude}),
-          ()=>res(null)
-        );
-      });
-    }
-
     setProgress(30,"Resizing...");
-    const resized=await resizeImage(selectedFile);
+    const resized = await resizeImage(selectedFile);
 
     const form=new FormData();
     form.append("image",resized);
     form.append("metadata",JSON.stringify(metadata));
-    form.append("gps",JSON.stringify(finalGPS));
+    form.append("gps",JSON.stringify(gps));
+
+    console.log("📡 SENDING REQUEST");
 
     setProgress(60,"Uploading...");
 
-    const res=await fetchWithRetry(API+"/api/analyze",{method:"POST",body:form});
+    const res = await fetch(API+"/api/analyze",{
+      method:"POST",
+      body:form
+    });
 
-    if(!res.ok) throw new Error("Server error "+res.status);
-
-    setProgress(90,"Processing...");
-    let data;
+    console.log("📥 RESPONSE RECEIVED");
 
     const text = await res.text();
 
-    try {
-    data = JSON.parse(text);
-    } catch (e) {
-    console.error("NON-JSON RESPONSE:", text);
-    throw new Error("Server returned invalid response");
+    let data;
+    try{
+      data = JSON.parse(text);
+    }catch(e){
+      console.error("❌ NOT JSON:", text);
+      alert("Server returned HTML instead of JSON");
+      return;
     }
 
-    console.log("FULL RESPONSE:",data);
+    console.log("✅ DATA:",data);
 
     setProgress(100,"Done");
-    setTimeout(hideProgress,1200);
+    setTimeout(hideProgress,1000);
 
-    render(data.result||data);
+    render(data.result || data);
 
   }catch(err){
-    console.error("ANALYZE ERROR:",err);
+    console.error("❌ ERROR:",err);
     hideProgress();
-    alert("Server unreachable or crashed. Try again.");
+    alert("Something failed — check console");
   }
 }
 
-// scoring
+// 📊 SCORE
 function computeScore(signals){
   let total=0,weightSum=0;
+
   for(const [k,v] of Object.entries(signals)){
     const def=SIGNAL_INFO[k];
     if(!def) continue;
+
     total+=v*def.weight;
     weightSum+=def.weight;
   }
+
   return weightSum?Math.round(total/weightSum):0;
 }
 
-function getVerdict(score){
-  if(score>70) return "Likely Altered";
-  if(score>40) return "Possibly Modified";
-  return "Likely Authentic";
-}
-
+// 🖼️ RENDER
 function render(d){
-  const signals=d.signals||d.indicators||{};
+  console.log("🎯 RENDERING");
+
+  const signals=d.signals||{};
   const score=computeScore(signals);
 
-  const breakdown=Object.entries(signals).map(([k,v])=>{
-    const def=SIGNAL_INFO[k]||{label:k,descHigh:"Anomaly",descLow:"Normal"};
-    const color=v>70?"#ef4444":v>40?"#f59e0b":"#22c55e";
-    const desc=v>50?def.descHigh:def.descLow;
-
-    return `
-    <div style="margin-bottom:15px">
-      <div style="display:flex;justify-content:space-between">
-        <strong>${def.label}</strong>
-        <span style="color:${color}">${v}%</span>
-      </div>
-      <div class="bar">
-        <div class="bar-fill" style="width:${v}%;background:${color}"></div>
-      </div>
-      <div style="font-size:12px;opacity:0.8">${desc}</div>
-    </div>`;
-  }).join("");
+  const breakdown=Object.entries(signals).map(([k,v])=>`
+    <div>${k}: ${v}%</div>
+    <div class="bar"><div class="bar-fill" style="width:${v}%"></div></div>
+  `).join("");
 
   result.innerHTML=`
-  <div class="tabs">
-    <div class="tab active" onclick="tab(event,'r')">Results</div>
-    <div class="tab" onclick="tab(event,'detail')">Detailed</div>
-  </div>
-
-  <div id="r" class="tab-content active">
-    <h2>${getVerdict(score)}</h2>
-    <p>Forensic Score: ${score}%</p>
+    <h2>Score: ${score}%</h2>
     ${breakdown}
-    ${d.heatmap ? `<img src="${API+d.heatmap}" style="width:100%" onerror="this.style.display='none'">` : ""}
-  </div>
-
-  <div id="detail" class="tab-content">
-    <p>${d.technical_explanation||d.details?.technical||"No technical explanation"}</p>
-    <p>${d.legal_explanation||d.details?.legal||"No legal explanation"}</p>
-  </div>
   `;
 }
 
-function tab(e,id){
-  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
-  e.target.classList.add("active");
-}
-
+// UI helpers
 function showProgress(){document.getElementById("progress").style.display="block";}
 function hideProgress(){document.getElementById("progress").style.display="none";}
 function setProgress(p,t){
   document.getElementById("bar").style.width=p+"%";
   document.getElementById("progressText").innerText=t;
-}
-  <script>
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/sw.js")
-    .then(() => console.log("SW registered"))
-    .catch(err => console.log("SW failed", err));
 }
 </script>
 
