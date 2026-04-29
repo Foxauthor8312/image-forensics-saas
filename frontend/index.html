@@ -301,7 +301,8 @@ function tab(e,id){
 }
 async function exportPDF(){
   const { jsPDF } = window.jspdf;
-
+doc.text(`Generated: ${new Date().toLocaleString()}`, 10, y);
+y += 8;
   const doc = new jsPDF();
   let y = 10;
 
@@ -339,21 +340,33 @@ async function exportPDF(){
 
   if(window.lastHeatmap){
     try{
-      const img = await loadImage(window.lastHeatmap);
-      doc.addPage();
-      doc.text("Heatmap Analysis", 10, 10);
-      doc.addImage(img, "PNG", 10, 20, 180, 120);
+     const dataUrl = await loadImageAsDataURL(window.lastHeatmap);
+
+doc.addPage();
+doc.text("Heatmap Analysis", 10, 10);
+doc.addImage(dataUrl, "PNG", 10, 20, 180, 120);
     }catch{}
   }
 
   doc.save("pixelproof-report.pdf");
 }
 
-function loadImage(url){
-  return new Promise((resolve,reject)=>{
+function loadImageAsDataURL(url){
+  return new Promise((resolve, reject)=>{
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.onload = ()=>resolve(img);
+
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+
+      resolve(canvas.toDataURL("image/png"));
+    };
+
     img.onerror = reject;
     img.src = url;
   });
