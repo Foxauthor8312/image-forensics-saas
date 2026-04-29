@@ -13,12 +13,7 @@ app.get("/", (req, res) => {
   res.send("PixelProof backend running");
 });
 
-// ✅ FIXED ANALYZE ENDPOINT
-const multer = require("multer");
-const exif = require("exif-parser");
-
-const upload = multer({ storage: multer.memoryStorage() });
-
+// ANALYZE ENDPOINT
 app.post("/api/analyze", upload.single("image"), (req, res) => {
   try {
     if (!req.file) {
