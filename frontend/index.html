@@ -2,11 +2,6 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
-<script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
 <link rel="icon" href="/favicon.ico?v=2">
 
 <style>
@@ -16,138 +11,74 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 /* HEADER */
 .app-header{
   display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:15px 20px;
-  margin-bottom:20px;
-  background:linear-gradient(145deg,#1e293b,#0f172a);
-  border-radius:12px;
-  box-shadow:0 10px 30px rgba(0,0,0,0.3);
-}
-
-.logo{
-  display:flex;
   align-items:center;
   gap:12px;
+  padding:15px;
+  margin-bottom:20px;
+  background:#1e293b;
+  border-radius:12px;
 }
-
-.logo img{
-  width:44px;
-  height:44px;
-  border-radius:10px;
-}
-
-.brand{
-  display:flex;
-  flex-direction:column;
-}
-
-.title{font-size:22px;font-weight:600}
-.subtitle{font-size:12px;opacity:0.6}
+.logo img{width:40px;border-radius:8px}
 
 /* DASHBOARD */
 .dashboard{
   display:grid;
-  grid-template-columns:320px 1fr;
+  grid-template-columns:300px 1fr;
   gap:20px;
 }
-
 .panel{
   background:#1e293b;
-  border-radius:12px;
   padding:20px;
-  box-shadow:0 10px 30px rgba(0,0,0,0.3);
+  border-radius:12px;
 }
 
 /* DROP ZONE */
 .drop-zone{
   border:2px dashed rgba(255,255,255,0.2);
-  border-radius:12px;
-  padding:40px 20px;
+  padding:40px;
   text-align:center;
+  border-radius:12px;
   cursor:pointer;
-  transition:0.2s;
-  position:relative;
-  z-index:5;
 }
-
-.drop-zone:hover{
-  border-color:#3b82f6;
-  background:rgba(59,130,246,0.1);
-}
-
 .drop-zone.dragover{
   border-color:#22c55e;
-  background:rgba(34,197,94,0.1);
-}
-
-/* BUTTONS */
-button{
-  padding:10px;
-  background:#3b82f6;
-  color:#fff;
-  border:none;
-  border-radius:8px;
-  margin:5px;
-}
-
-.upload-actions{
-  margin-top:15px;
-  display:flex;
-  gap:10px;
-  justify-content:center;
 }
 
 /* RESULTS */
-.tabs{display:flex;gap:10px;margin-top:20px}
-.tab{padding:8px;background:#1e293b;border-radius:6px;cursor:pointer}
+.bar{height:6px;background:#111;margin:5px 0}
+.bar-fill{height:6px;background:#3b82f6}
+
+.tabs{display:flex;gap:10px;margin-top:15px}
+.tab{padding:6px 10px;background:#111;border-radius:6px;cursor:pointer}
 .tab.active{background:#3b82f6}
 .tab-content{display:none}
-.tab-content.active{display:block;margin-top:20px}
+.tab-content.active{display:block;margin-top:10px}
 
-.bar{height:6px;background:#1e293b}
-.bar-fill{height:6px}
-
-#map{height:400px;border-radius:10px}
-
-@media(max-width:900px){
-  .dashboard{grid-template-columns:1fr}
-}
+pre{white-space:pre-wrap;font-size:12px;opacity:0.8}
 </style>
 </head>
 
 <body>
 <div class="container">
 
-<!-- HEADER -->
 <header class="app-header">
   <div class="logo">
     <img src="/icon-192.png">
-    <div class="brand">
-      <div class="title">PixelProof</div>
-      <div class="subtitle">AI-powered image forensic analysis</div>
-    </div>
+  </div>
+  <div>
+    <div style="font-size:20px;font-weight:600;">PixelProof</div>
+    <div style="font-size:12px;opacity:0.6;">AI forensic image analysis</div>
   </div>
 </header>
 
-<!-- DASHBOARD -->
 <div class="dashboard">
 
   <!-- LEFT PANEL -->
   <div class="panel">
-
     <div id="dropZone" class="drop-zone">
-      <p>Drag & Drop Image</p>
-      <span>or click to upload</span>
+      Drag & Drop Image<br><span style="opacity:.6">or click</span>
     </div>
-
     <input type="file" id="file" hidden>
-
-    <div class="upload-actions">
-      <button id="rearBtn">Rear Camera</button>
-      <button id="frontBtn">Front Camera</button>
-    </div>
-
   </div>
 
   <!-- RIGHT PANEL -->
@@ -157,169 +88,234 @@ button{
 
 </div>
 
-<input id="rear" type="file" accept="image/*" capture="environment" hidden>
-<input id="front" type="file" accept="image/*" capture="user" hidden>
-
-<div id="progress" style="display:none;margin-top:15px;">
-  <div style="background:#1e293b;height:8px;border-radius:6px;">
-    <div id="bar" style="height:8px;width:0%;background:#3b82f6;"></div>
-  </div>
-  <div id="progressText" style="font-size:12px;margin-top:5px;">Starting...</div>
-</div>
-
 </div>
 
 <script>
 const API = "https://pixelproof-backend-v2.onrender.com";
 
-// DOM
 const file = document.getElementById("file");
-const rear = document.getElementById("rear");
-const front = document.getElementById("front");
-const rearBtn = document.getElementById("rearBtn");
-const frontBtn = document.getElementById("frontBtn");
-const result = document.getElementById("result");
 const dropZone = document.getElementById("dropZone");
+const result = document.getElementById("result");
 
 let selectedFile = null;
-let metadata = {};
-let gps = null;
-let mapInstance = null;
 
-// DRAG + CLICK
+/* ======================
+   DRAG + CLICK
+====================== */
 dropZone.onclick = () => file.click();
 
-dropZone.addEventListener("dragover", (e) => {
+dropZone.addEventListener("dragover", e=>{
   e.preventDefault();
   dropZone.classList.add("dragover");
 });
 
-dropZone.addEventListener("dragleave", () => {
+dropZone.addEventListener("dragleave", ()=>{
   dropZone.classList.remove("dragover");
 });
 
-dropZone.addEventListener("drop", (e) => {
+dropZone.addEventListener("drop", e=>{
   e.preventDefault();
   dropZone.classList.remove("dragover");
-
-  const files = e.dataTransfer.files;
-  if(files.length){
-    handle({ target: { files } });
-  }
+  handle({target:{files:e.dataTransfer.files}});
 });
 
-// FILE EVENTS
-file.onchange=handle;
-rear.onchange=handle;
-front.onchange=handle;
+file.onchange = handle;
 
-// HANDLE FILE
-async function handle(e){
+/* ======================
+   FILE HANDLING
+====================== */
+function handle(e){
   const f = e.target.files[0];
   if(!f) return;
-
   selectedFile = f;
-  metadata = {};
-  gps = null;
-
   analyze();
 }
 
-// RESIZE
-async function resizeImage(file){
+/* ======================
+   RESIZE IMAGE
+====================== */
+function resize(file){
   return new Promise(res=>{
-    const img=new Image(), reader=new FileReader();
-
-    reader.onload=e=>img.src=e.target.result;
-
+    const img=new Image(), r=new FileReader();
+    r.onload=e=>img.src=e.target.result;
     img.onload=()=>{
-      const canvas=document.createElement("canvas");
-      let w=img.width,h=img.height,MAX=800;
-
-      if(w>MAX){h*=MAX/w;w=MAX;}
-
-      canvas.width=w;
-      canvas.height=h;
-
-      canvas.getContext("2d").drawImage(img,0,0,w,h);
-
-      canvas.toBlob(b=>{
-        res(new File([b],"resized.jpg",{type:"image/jpeg"}));
-      });
+      const c=document.createElement("canvas");
+      let w=img.width,h=img.height;
+      if(w>800){h*=800/w;w=800;}
+      c.width=w;c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      c.toBlob(b=>res(new File([b],"x.jpg")));
     };
-
-    reader.readAsDataURL(file);
+    r.readAsDataURL(file);
   });
 }
 
-// ANALYZE
+/* ======================
+   ANALYZE
+====================== */
 async function analyze(){
-  try{
-    showProgress();
-    setProgress(30,"Processing...");
+  const resized = await resize(selectedFile);
 
-    const resized = await resizeImage(selectedFile);
+  const form=new FormData();
+  form.append("image",resized);
 
-    const form=new FormData();
-    form.append("image",resized);
+  const res = await fetch(API+"/api/analyze",{method:"POST",body:form});
+  const data = await res.json();
 
-    const res = await fetch(API+"/api/analyze",{
-      method:"POST",
-      body:form
-    });
-
-    const data = await res.json();
-
-    setProgress(100,"Done");
-    setTimeout(hideProgress,800);
-
-    render(data.result || data);
-
-  }catch(err){
-    console.error(err);
-    hideProgress();
-    alert("Analysis failed");
-  }
+  render(data.result || data);
 }
 
-// SCORE
-function computeScore(signals){
-  let total=0,weightSum=0;
-  for(const [k,v] of Object.entries(signals)){
-    const w={ela:0.25,noise:0.2,lighting:0.2,edges:0.15,metadata:0.2}[k];
-    if(!w) continue;
-    total+=v*w;
-    weightSum+=w;
+/* ======================
+   SCORING
+====================== */
+function score(signals){
+  let t=0,w=0;
+  for(let k in signals){
+    let wt={ela:.5,noise:.25,metadata:.25}[k]||0;
+    t+=signals[k]*wt; w+=wt;
   }
-  return weightSum?Math.round(total/weightSum):0;
+  return w?Math.round(t/w):0;
 }
 
-// RENDER
+/* ======================
+   CONFIDENCE PER SIGNAL
+====================== */
+function signalConfidence(signals){
+  const conf = {};
+
+  const values = Object.values(signals);
+  const avg = values.reduce((a,b)=>a+b,0) / (values.length || 1);
+
+  for(let k in signals){
+    const v = signals[k];
+
+    let c = 50;
+
+    // 🔹 strength of signal
+    if(v > 75) c = 90;
+    else if(v > 60) c = 80;
+    else if(v > 45) c = 70;
+    else if(v > 30) c = 60;
+    else c = 50;
+
+    // 🔹 consistency boost (signals agreeing = more confidence)
+    if(Math.abs(v - avg) < 15) c += 5;
+
+    // 🔹 reliability weighting
+    if(k === "ela") c += 5;        // strongest indicator
+    if(k === "noise") c += 3;
+    if(k === "metadata") c -= 5;   // weakest
+
+    // 🔹 clamp
+    conf[k] = Math.min(95, Math.max(45, Math.round(c)));
+  }
+
+  return conf;
+}
+
+/* ======================
+   AI EXPLANATION
+====================== */
+function explain(signals,s){
+  const conf = signalConfidence(signals);
+  let parts=[];
+
+  if(signals.ela>60)
+    parts.push(`compression artifacts detected (confidence ${conf.ela}%)`);
+
+  if(signals.noise>50)
+    parts.push(`noise inconsistency observed (confidence ${conf.noise}%)`);
+
+  if(signals.metadata>40)
+    parts.push(`metadata anomalies present (confidence ${conf.metadata}%)`);
+
+  if(!parts.length)
+    parts.push("no strong anomalies detected");
+
+  let conclusion = s>70
+    ? "strong evidence of digital alteration"
+    : s>40
+    ? "possible modification detected"
+    : "image appears authentic";
+
+  return { narrative: parts.join(", "), conclusion };
+}
+
+/* ======================
+   COURT REPORT
+====================== */
+function report(signals,s){
+  return `Based on forensic analysis, the image shows ${
+    s>70?"significant":"limited"
+  } indicators of manipulation.
+
+ELA: ${signals.ela}%
+Noise: ${signals.noise}%
+Metadata: ${signals.metadata}%
+
+Conclusion: ${
+    s>70?"Altered image likely":
+    s>40?"Possible modification":
+    "No significant manipulation"
+  }`;
+}
+
+/* ======================
+   RENDER
+====================== */
 function render(d){
-  const signals = d.signals || {};
-  const score = computeScore(signals);
+  const signals=d.signals||{};
+  const s=score(signals);
+  const conf=signalConfidence(signals);
+  const exp=explain(signals,s);
+  const rep=report(signals,s);
 
   const bars = Object.entries(signals).map(([k,v])=>`
-    <div>
-      <strong>${k}</strong> ${v}%
-      <div class="bar"><div class="bar-fill" style="width:${v}%;background:#3b82f6"></div></div>
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between">
+        <span>${k}: ${v}%</span>
+        <span style="opacity:.7">conf ${conf[k]}%</span>
+      </div>
+
+      <div class="bar">
+        <div class="bar-fill" style="width:${v}%"></div>
+      </div>
+
+      <div class="bar" style="opacity:.3">
+        <div class="bar-fill" style="width:${conf[k]}%;background:#22c55e"></div>
+      </div>
     </div>
   `).join("");
 
   result.innerHTML = `
-    <h2>${score>70?"Likely Altered":score>40?"Possibly Modified":"Likely Authentic"}</h2>
-    <p>Score: ${score}%</p>
+  <div class="tabs">
+    <div class="tab active" onclick="tab(event,'r')">Results</div>
+    <div class="tab" onclick="tab(event,'d')">Detailed</div>
+  </div>
+
+  <div id="r" class="tab-content active">
+    <h2>${s>70?"Likely Altered":s>40?"Possibly Modified":"Likely Authentic"}</h2>
+    <p>Score: ${s}%</p>
     ${bars}
     ${d.heatmap?`<img src="${API+d.heatmap}" style="width:100%;margin-top:10px">`:""}
+  </div>
+
+  <div id="d" class="tab-content">
+    <p><strong>Analysis:</strong> ${exp.narrative}</p>
+    <p><strong>Conclusion:</strong> ${exp.conclusion}</p>
+    <pre>${rep}</pre>
+  </div>
   `;
 }
 
-// PROGRESS
-function showProgress(){document.getElementById("progress").style.display="block";}
-function hideProgress(){document.getElementById("progress").style.display="none";}
-function setProgress(p,t){
-  document.getElementById("bar").style.width=p+"%";
-  document.getElementById("progressText").innerText=t;
+/* ======================
+   TABS
+====================== */
+function tab(e,id){
+  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  e.target.classList.add("active");
 }
 </script>
 
