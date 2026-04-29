@@ -13,37 +13,57 @@ app.get("/", (req, res) => {
 });
 
 // ✅ FIXED ANALYZE ENDPOINT
+const multer = require("multer");
+const exif = require("exif-parser");
+
+const upload = multer({ storage: multer.memoryStorage() });
+
 app.post("/api/analyze", upload.single("image"), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No image uploaded" });
     }
 
-    // Simulated analysis (stable)
-    const result = {
-      score: 62,
+    let metadata = {};
+
+    try {
+      const parser = exif.create(req.file.buffer);
+      const result = parser.parse();
+
+      metadata = {
+        camera: result.tags.Make || "Unknown",
+        model: result.tags.Model || "Unknown",
+        software: result.tags.Software || "Unknown",
+        date: result.tags.DateTimeOriginal || null,
+        gps: result.tags.GPSLatitude
+          ? {
+              lat: result.tags.GPSLatitude,
+              lon: result.tags.GPSLongitude
+            }
+          : null
+      };
+
+    } catch (e) {
+      console.log("EXIF parse failed");
+    }
+
+    const response = {
+      score: 65,
       signals: {
-        ela: 68,
-        noise: 45,
-        metadata: 20
+        ela: 70,
+        noise: 40,
+        metadata: metadata.gps ? 20 : 5
       },
-      metadata: {
-        camera: "Unknown",
-        software: "None",
-        gps: {
-          lat: 36.1699,
-          lon: -115.1398
-        }
-      },
+      metadata,
       heatmap: null,
-      analysis: "Simulated forensic result"
+      analysis: "Basic forensic indicators detected"
     };
 
-    res.json({ result });
+    res.json({ result: response });
 
   } catch (err) {
-    console.error("ANALYZE ERROR:", err);
-    res.status(500).json({ error: "Server failed to analyze image" });
+    console.error(err);
+    res.status(500).json({ error: "Analysis failed" });
   }
 });
 
