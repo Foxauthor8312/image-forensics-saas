@@ -3,6 +3,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="/favicon.ico?v=2">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
 body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
@@ -10,13 +11,9 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 
 /* HEADER */
 .app-header{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:15px;
-  margin-bottom:20px;
-  background:#1e293b;
-  border-radius:12px;
+  display:flex;align-items:center;gap:12px;
+  padding:15px;margin-bottom:20px;
+  background:#1e293b;border-radius:12px;
 }
 .logo img{width:40px;border-radius:8px}
 
@@ -40,9 +37,7 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
   border-radius:12px;
   cursor:pointer;
 }
-.drop-zone.dragover{
-  border-color:#22c55e;
-}
+.drop-zone.dragover{border-color:#22c55e}
 
 /* RESULTS */
 .bar{height:6px;background:#111;margin:5px 0}
@@ -55,6 +50,15 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 .tab-content.active{display:block;margin-top:10px}
 
 pre{white-space:pre-wrap;font-size:12px;opacity:0.8}
+
+/* FOOTER */
+.app-footer{
+  margin-top:30px;padding:15px 20px;
+  display:flex;justify-content:space-between;
+  background:#1e293b;border-radius:12px;
+  font-size:12px;opacity:.85;
+}
+.footer-sub{font-size:11px;opacity:.6}
 </style>
 </head>
 
@@ -62,9 +66,7 @@ pre{white-space:pre-wrap;font-size:12px;opacity:0.8}
 <div class="container">
 
 <header class="app-header">
-  <div class="logo">
-    <img src="/icon-192.png">
-  </div>
+  <div class="logo"><img src="/icon-192.png"></div>
   <div>
     <div style="font-size:20px;font-weight:600;">PixelProof</div>
     <div style="font-size:12px;opacity:0.6;">AI forensic image analysis</div>
@@ -73,7 +75,7 @@ pre{white-space:pre-wrap;font-size:12px;opacity:0.8}
 
 <div class="dashboard">
 
-  <!-- LEFT PANEL -->
+  <!-- LEFT -->
   <div class="panel">
     <div id="dropZone" class="drop-zone">
       Drag & Drop Image<br><span style="opacity:.6">or click</span>
@@ -81,12 +83,23 @@ pre{white-space:pre-wrap;font-size:12px;opacity:0.8}
     <input type="file" id="file" hidden>
   </div>
 
-  <!-- RIGHT PANEL -->
+  <!-- RIGHT -->
   <div class="panel">
     <div id="result"></div>
   </div>
 
 </div>
+
+<footer class="app-footer">
+  <div>
+    <strong>PixelProof</strong>
+    <div class="footer-sub">Results are probabilistic and not legal evidence</div>
+  </div>
+  <div>
+    <div id="buildInfo"></div>
+    <div id="backendStatus">Backend: checking…</div>
+  </div>
+</footer>
 
 </div>
 
@@ -99,9 +112,7 @@ const result = document.getElementById("result");
 
 let selectedFile = null;
 
-/* ======================
-   DRAG + CLICK
-====================== */
+/* DRAG + CLICK */
 dropZone.onclick = () => file.click();
 
 dropZone.addEventListener("dragover", e=>{
@@ -121,9 +132,7 @@ dropZone.addEventListener("drop", e=>{
 
 file.onchange = handle;
 
-/* ======================
-   FILE HANDLING
-====================== */
+/* HANDLE */
 function handle(e){
   const f = e.target.files[0];
   if(!f) return;
@@ -131,9 +140,7 @@ function handle(e){
   analyze();
 }
 
-/* ======================
-   RESIZE IMAGE
-====================== */
+/* RESIZE */
 function resize(file){
   return new Promise(res=>{
     const img=new Image(), r=new FileReader();
@@ -150,12 +157,9 @@ function resize(file){
   });
 }
 
-/* ======================
-   ANALYZE
-====================== */
+/* ANALYZE */
 async function analyze(){
   const resized = await resize(selectedFile);
-
   const form=new FormData();
   form.append("image",resized);
 
@@ -165,9 +169,7 @@ async function analyze(){
   render(data.result || data);
 }
 
-/* ======================
-   SCORING
-====================== */
+/* SCORE */
 function score(signals){
   let t=0,w=0;
   for(let k in signals){
@@ -177,77 +179,52 @@ function score(signals){
   return w?Math.round(t/w):0;
 }
 
-/* ======================
-   CONFIDENCE PER SIGNAL
-====================== */
+/* CONFIDENCE (SMART) */
 function signalConfidence(signals){
   const conf = {};
-
-  const values = Object.values(signals);
-  const avg = values.reduce((a,b)=>a+b,0) / (values.length || 1);
+  const vals = Object.values(signals);
+  const avg = vals.reduce((a,b)=>a+b,0)/(vals.length||1);
 
   for(let k in signals){
-    const v = signals[k];
+    let v=signals[k], c=50;
 
-    let c = 50;
+    if(v>75) c=90;
+    else if(v>60) c=80;
+    else if(v>45) c=70;
+    else if(v>30) c=60;
 
-    // 🔹 strength of signal
-    if(v > 75) c = 90;
-    else if(v > 60) c = 80;
-    else if(v > 45) c = 70;
-    else if(v > 30) c = 60;
-    else c = 50;
+    if(Math.abs(v-avg)<15) c+=5;
+    if(k==="ela") c+=5;
+    if(k==="metadata") c-=5;
 
-    // 🔹 consistency boost (signals agreeing = more confidence)
-    if(Math.abs(v - avg) < 15) c += 5;
-
-    // 🔹 reliability weighting
-    if(k === "ela") c += 5;        // strongest indicator
-    if(k === "noise") c += 3;
-    if(k === "metadata") c -= 5;   // weakest
-
-    // 🔹 clamp
-    conf[k] = Math.min(95, Math.max(45, Math.round(c)));
+    conf[k]=Math.min(95,Math.max(45,Math.round(c)));
   }
-
   return conf;
 }
 
-/* ======================
-   AI EXPLANATION
-====================== */
+/* EXPLANATION */
 function explain(signals,s){
   const conf = signalConfidence(signals);
   let parts=[];
 
-  if(signals.ela>60)
-    parts.push(`compression artifacts detected (confidence ${conf.ela}%)`);
+  if(signals.ela>60) parts.push(`compression artifacts (conf ${conf.ela}%)`);
+  if(signals.noise>50) parts.push(`noise mismatch (conf ${conf.noise}%)`);
+  if(signals.metadata>40) parts.push(`metadata anomalies (conf ${conf.metadata}%)`);
 
-  if(signals.noise>50)
-    parts.push(`noise inconsistency observed (confidence ${conf.noise}%)`);
-
-  if(signals.metadata>40)
-    parts.push(`metadata anomalies present (confidence ${conf.metadata}%)`);
-
-  if(!parts.length)
-    parts.push("no strong anomalies detected");
+  if(!parts.length) parts.push("no strong anomalies detected");
 
   let conclusion = s>70
-    ? "strong evidence of digital alteration"
+    ? "strong evidence of alteration"
     : s>40
-    ? "possible modification detected"
-    : "image appears authentic";
+    ? "possible modification"
+    : "likely authentic";
 
   return { narrative: parts.join(", "), conclusion };
 }
 
-/* ======================
-   COURT REPORT
-====================== */
+/* REPORT */
 function report(signals,s){
-  return `Based on forensic analysis, the image shows ${
-    s>70?"significant":"limited"
-  } indicators of manipulation.
+  return `Based on forensic analysis:
 
 ELA: ${signals.ela}%
 Noise: ${signals.noise}%
@@ -260,27 +237,30 @@ Conclusion: ${
   }`;
 }
 
-/* ======================
-   RENDER
-====================== */
+/* RENDER */
 function render(d){
-  const signals=d.signals||{};
-  const s=score(signals);
-  const conf=signalConfidence(signals);
-  const exp=explain(signals,s);
-  const rep=report(signals,s);
+  
+const signals=d.signals||{};
+const s=score(signals);
+const conf=signalConfidence(signals);
+const exp=explain(signals,s);
+const rep=report(signals,s);
+
+// 👇 ADD THIS BLOCK RIGHT HERE
+window.lastSignals = signals;
+window.lastScore = s;
+window.lastExplanation = exp;
+window.lastReport = rep;
+window.lastHeatmap = d.heatmap ? API + d.heatmap : null;
+  
 
   const bars = Object.entries(signals).map(([k,v])=>`
-    <div style="margin-bottom:10px">
+    <div>
       <div style="display:flex;justify-content:space-between">
         <span>${k}: ${v}%</span>
         <span style="opacity:.7">conf ${conf[k]}%</span>
       </div>
-
-      <div class="bar">
-        <div class="bar-fill" style="width:${v}%"></div>
-      </div>
-
+      <div class="bar"><div class="bar-fill" style="width:${v}%"></div></div>
       <div class="bar" style="opacity:.3">
         <div class="bar-fill" style="width:${conf[k]}%;background:#22c55e"></div>
       </div>
@@ -295,7 +275,11 @@ function render(d){
 
   <div id="r" class="tab-content active">
     <h2>${s>70?"Likely Altered":s>40?"Possibly Modified":"Likely Authentic"}</h2>
-    <p>Score: ${s}%</p>
+   <p>Score: ${s}%</p>
+
+<button onclick="exportPDF()" style="margin-top:10px">
+  Download Report (PDF)
+</button>
     ${bars}
     ${d.heatmap?`<img src="${API+d.heatmap}" style="width:100%;margin-top:10px">`:""}
   </div>
@@ -308,15 +292,86 @@ function render(d){
   `;
 }
 
-/* ======================
-   TABS
-====================== */
+/* TABS */
 function tab(e,id){
   document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.getElementById(id).classList.add("active");
   e.target.classList.add("active");
 }
+async function exportPDF(){
+  const { jsPDF } = window.jspdf;
+
+  const doc = new jsPDF();
+  let y = 10;
+
+  doc.setFontSize(16);
+  doc.text("PixelProof Forensic Report", 10, y);
+  y += 10;
+
+  doc.setFontSize(12);
+  doc.text(`Score: ${window.lastScore}%`, 10, y);
+  y += 8;
+
+  doc.text("Signals:", 10, y);
+  y += 6;
+
+  Object.entries(window.lastSignals).forEach(([k,v])=>{
+    doc.text(`${k}: ${v}%`, 12, y);
+    y += 6;
+  });
+
+  y += 4;
+
+  doc.text("Analysis:", 10, y);
+  y += 6;
+  doc.text(doc.splitTextToSize(window.lastExplanation.narrative, 180), 10, y);
+  y += 10;
+
+  doc.text("Conclusion:", 10, y);
+  y += 6;
+  doc.text(doc.splitTextToSize(window.lastExplanation.conclusion, 180), 10, y);
+  y += 10;
+
+  doc.text("Forensic Report:", 10, y);
+  y += 6;
+  doc.text(doc.splitTextToSize(window.lastReport, 180), 10, y);
+
+  if(window.lastHeatmap){
+    try{
+      const img = await loadImage(window.lastHeatmap);
+      doc.addPage();
+      doc.text("Heatmap Analysis", 10, 10);
+      doc.addImage(img, "PNG", 10, 20, 180, 120);
+    }catch{}
+  }
+
+  doc.save("pixelproof-report.pdf");
+}
+
+function loadImage(url){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = ()=>resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+/* FOOTER INFO */
+document.getElementById("buildInfo").innerText =
+  "Build: " + new Date().toLocaleDateString();
+
+async function checkBackend(){
+  try{
+    const r=await fetch(API);
+    document.getElementById("backendStatus").innerText =
+      r.ok?"Backend: online":"Backend: error";
+  }catch{
+    document.getElementById("backendStatus").innerText = "Backend: offline";
+  }
+}
+checkBackend();
 </script>
 
 </body>
