@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
+const exif = require("exif-parser");
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
