@@ -17,13 +17,9 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 .tab.active{background:#3b82f6}
 .tab-content{display:none}
 .tab-content.active{display:block;margin-top:20px}
-#map{height:400px;border-radius:10px}
 .bar{height:6px;background:#1e293b}
-.bar-fill{height:6px;background:#3b82f6}
-.footer {margin-top:40px;padding:15px 20px;background:#020617;border-top:1px solid #1e293b;font-size:13px;color:#94a3b8;}
-.footer-inner {max-width:1100px;margin:auto;display:flex;justify-content:space-between;}
-.footer-links {display:flex;gap:15px;}
-.footer-links a {color:#60a5fa;text-decoration:none;}
+.bar-fill{height:6px}
+#map{height:400px;border-radius:10px}
 </style>
 </head>
 
@@ -53,7 +49,7 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 <script>
 const API = "https://pixelproof-backend-v2.onrender.com";
 
-// DOM bindings (FIXED)
+// DOM
 const file = document.getElementById("file");
 const rear = document.getElementById("rear");
 const front = document.getElementById("front");
@@ -64,41 +60,44 @@ const result = document.getElementById("result");
 rearBtn.onclick = () => rear.click();
 frontBtn.onclick = () => front.click();
 
-let selectedFile, metadata = {}, gps = null, mapInstance;
+let selectedFile, metadata={}, gps=null, mapInstance;
 
-// Handlers
-file.onchange = handle;
-rear.onchange = handle;
-front.onchange = handle;
+// 📊 Signal definitions
+const SIGNAL_INFO = {
+  ela:{label:"Compression Artifacts",descHigh:"Recompression or edits detected.",descLow:"Compression consistent.",weight:0.25},
+  noise:{label:"Sensor Noise",descHigh:"Noise mismatch detected.",descLow:"Noise consistent.",weight:0.2},
+  lighting:{label:"Lighting Consistency",descHigh:"Lighting mismatch detected.",descLow:"Lighting natural.",weight:0.2},
+  edges:{label:"Edge Integrity",descHigh:"Edge artifacts detected.",descLow:"Edges natural.",weight:0.15},
+  metadata:{label:"Metadata Integrity",descHigh:"Metadata anomalies detected.",descLow:"Metadata consistent.",weight:0.2}
+};
+
+file.onchange=handle;
+rear.onchange=handle;
+front.onchange=handle;
 
 function extractGPS(meta){
   if(!meta.GPSLatitude || !meta.GPSLongitude) return null;
+  const convert = (c)=>c.reduce((a,v,i)=>{
+    const val=v.numerator?v.numerator/v.denominator:v;
+    return a+val/(i===0?1:i===1?60:3600);
+  },0);
 
-  const convert = (coord) =>
-    coord.reduce((acc,val,i)=>{
-      const v = val.numerator ? val.numerator/val.denominator : val;
-      return acc + v/(i===0?1:i===1?60:3600);
-    },0);
-
-  let lat = convert(meta.GPSLatitude);
-  let lon = convert(meta.GPSLongitude);
-
+  let lat=convert(meta.GPSLatitude);
+  let lon=convert(meta.GPSLongitude);
   if(meta.GPSLatitudeRef==="S") lat=-lat;
   if(meta.GPSLongitudeRef==="W") lon=-lon;
-
   return {lat,lon};
 }
 
 async function handle(e){
-  const f = e.target.files[0];
+  const f=e.target.files[0];
   if(!f) return;
-
-  selectedFile = f;
+  selectedFile=f;
 
   await new Promise(r=>{
     EXIF.getData(f,function(){
-      metadata = EXIF.getAllTags(this) || {};
-      gps = extractGPS(metadata);
+      metadata=EXIF.getAllTags(this)||{};
+      gps=extractGPS(metadata);
       r();
     });
   });
@@ -108,9 +107,8 @@ async function handle(e){
 
 async function resizeImage(file){
   return new Promise(res=>{
-    const img=new Image(), reader=new FileReader();
+    const img=new Image(),reader=new FileReader();
     reader.onload=e=>img.src=e.target.result;
-
     img.onload=()=>{
       const canvas=document.createElement("canvas");
       let w=img.width,h=img.height,MAX=1280;
@@ -119,7 +117,6 @@ async function resizeImage(file){
       canvas.getContext("2d").drawImage(img,0,0,w,h);
       canvas.toBlob(b=>res(new File([b],"resized.jpg",{type:"image/jpeg"})));
     };
-
     reader.readAsDataURL(file);
   });
 }
@@ -129,114 +126,110 @@ async function analyze(){
     showProgress();
     setProgress(10,"Preparing...");
 
-    let finalGPS = gps;
+    let finalGPS=gps;
 
     if(!finalGPS){
-      finalGPS = await new Promise(res=>{
+      finalGPS=await new Promise(res=>{
         navigator.geolocation.getCurrentPosition(
-          p=>res({lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy}),
+          p=>res({lat:p.coords.latitude,lon:p.coords.longitude}),
           ()=>res(null)
         );
       });
     }
 
     setProgress(30,"Resizing...");
-    const resized = await resizeImage(selectedFile);
+    const resized=await resizeImage(selectedFile);
 
-    const form = new FormData();
+    const form=new FormData();
     form.append("image",resized);
     form.append("metadata",JSON.stringify(metadata));
     form.append("gps",JSON.stringify(finalGPS));
 
     setProgress(60,"Uploading...");
 
-    const controller = new AbortController();
-    setTimeout(()=>controller.abort(),30000);
+    const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+    const data=await res.json();
 
-    const res = await fetch(API+"/api/analyze",{method:"POST",body:form,signal:controller.signal});
-    if(!res.ok) throw new Error(res.status);
-
-    setProgress(90,"Processing...");
-    const data = await res.json();
-
-    console.log("FULL RESPONSE:", data);
+    console.log("FULL RESPONSE:",data);
 
     setProgress(100,"Done");
-    setTimeout(hideProgress,1200);
+    setTimeout(hideProgress,1000);
 
-    render(data.result || data);
+    render(data.result||data);
 
   }catch(err){
-    console.error("ERROR:",err);
+    console.error(err);
     hideProgress();
-    alert("Analysis failed. Check console.");
+    alert("Analysis failed");
   }
 }
 
+// 🧮 scoring
+function computeScore(signals){
+  let total=0,weightSum=0;
+  for(const [k,v] of Object.entries(signals)){
+    const def=SIGNAL_INFO[k];
+    if(!def) continue;
+    total+=v*def.weight;
+    weightSum+=def.weight;
+  }
+  return weightSum?Math.round(total/weightSum):0;
+}
+
+function getVerdict(score){
+  if(score>70) return "Likely Altered";
+  if(score>40) return "Possibly Modified";
+  return "Likely Authentic";
+}
+
 function render(d){
-  window.lastGPS = d?.gps || null;
+  const signals=d.signals||d.indicators||{};
+  const score=computeScore(signals);
 
-  const signals = d.signals || d.indicators || {};
-  const metadataAll = d.metadata?.all || d.metadata || {};
+  const breakdown=Object.entries(signals).map(([k,v])=>{
+    const def=SIGNAL_INFO[k]||{label:k,descHigh:"Anomaly detected",descLow:"Normal",weight:0.1};
 
-  result.innerHTML = `
+    const level=v>70?"HIGH":v>40?"MED":"LOW";
+    const color=v>70?"#ef4444":v>40?"#f59e0b":"#22c55e";
+    const desc=v>50?def.descHigh:def.descLow;
+
+    return `
+    <div style="margin-bottom:15px">
+      <div style="display:flex;justify-content:space-between">
+        <strong>${def.label}</strong>
+        <span style="color:${color}">${level}</span>
+      </div>
+      <div class="bar">
+        <div class="bar-fill" style="width:${v}%;background:${color}"></div>
+      </div>
+      <div style="font-size:12px;opacity:0.8">${desc}</div>
+    </div>`;
+  }).join("");
+
+  result.innerHTML=`
   <div class="tabs">
     <div class="tab active" onclick="tab(event,'r')">Results</div>
-    <div class="tab" onclick="tab(event,'mapTab')">Map</div>
-    <div class="tab" onclick="tab(event,'metaTab')">Metadata</div>
-    <div class="tab" onclick="tab(event,'detailTab')">Detailed</div>
-    <div class="tab" onclick="downloadPDF()">PDF</div>
+    <div class="tab" onclick="tab(event,'detail')">Detailed</div>
   </div>
 
   <div id="r" class="tab-content active">
-    <h2>${d.analysis || "No analysis available"}</h2>
-    <p>Score: ${d.score ?? "N/A"}%</p>
-    <p>Confidence: ${d.confidence ?? "N/A"}%</p>
-
-    ${Object.entries(signals).map(([k,v])=>`
-      <div>${k}: ${v}%</div>
-      <div class="bar"><div class="bar-fill" style="width:${v}%"></div></div>
-    `).join("")}
-
-    ${d.heatmap ? `<img src="${API+d.heatmap}?t=${Date.now()}" style="width:100%">` : ""}
+    <h2>${getVerdict(score)}</h2>
+    <p>Forensic Score: ${score}%</p>
+    ${breakdown}
   </div>
 
-  <div id="mapTab" class="tab-content"><div id="map"></div></div>
-
-  <div id="metaTab" class="tab-content">
-    ${Object.entries(metadataAll).map(([k,v])=>`<p>${k}: ${v}</p>`).join("")}
-  </div>
-
-  <div id="detailTab" class="tab-content">
-    <p>${d.technical_explanation || d.details?.technical || "No technical explanation."}</p>
-    <p>${d.legal_explanation || d.details?.legal || "No legal explanation."}</p>
+  <div id="detail" class="tab-content">
+    <p>${d.technical_explanation||d.details?.technical||"No technical explanation"}</p>
+    <p>${d.legal_explanation||d.details?.legal||"No legal explanation"}</p>
   </div>
   `;
-}
-
-function initMap(g){
-  if(!g || !g.lat || !g.lon) return;
-  if(mapInstance) mapInstance.remove();
-
-  mapInstance = L.map('map').setView([g.lat,g.lon],15);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapInstance);
-  L.marker([g.lat,g.lon]).addTo(mapInstance);
 }
 
 function tab(e,id){
   document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-
   document.getElementById(id).classList.add("active");
   e.target.classList.add("active");
-
-  if(id==="mapTab"){
-    setTimeout(()=>initMap(window.lastGPS),100);
-  }
-}
-
-function downloadPDF(){
-  alert("PDF export coming from backend");
 }
 
 function showProgress(){document.getElementById("progress").style.display="block";}
