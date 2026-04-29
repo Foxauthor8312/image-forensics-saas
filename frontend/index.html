@@ -172,7 +172,16 @@ async function analyze(){
     if(!res.ok) throw new Error("Server error "+res.status);
 
     setProgress(90,"Processing...");
-    const data=await res.json();
+    let data;
+
+    const text = await res.text();
+
+    try {
+    data = JSON.parse(text);
+    } catch (e) {
+    console.error("NON-JSON RESPONSE:", text);
+    throw new Error("Server returned invalid response");
+    }
 
     console.log("FULL RESPONSE:",data);
 
