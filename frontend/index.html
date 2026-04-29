@@ -42,19 +42,73 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center}
 .modal-content{background:#1e293b;padding:20px;border-radius:12px;max-width:600px}
 .modal-close{margin-top:10px;padding:6px 10px;background:#3b82f6;border:none;border-radius:6px;color:white}
+/* 🔷 PRO HEADER */
+.pro-header{
+  position:relative;
+  overflow:hidden;
+  border-radius:14px;
+  background:linear-gradient(135deg,#1e293b,#0f172a);
+}
+
+/* glow background */
+.pro-header::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:radial-gradient(circle at 20% 50%,rgba(59,130,246,0.25),transparent 60%);
+  opacity:.6;
+  pointer-events:none;
+}
+
+.logo-badge{
+  width:48px;
+  height:48px;
+  border-radius:12px;
+  background:rgba(255,255,255,0.05);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:0 0 12px rgba(59,130,246,0.5);
+}
+
+.logo-badge img{
+  width:28px;
+  height:28px;
+}
+
+.brand-text{
+  display:flex;
+  flex-direction:column;
+}
+
+.brand-title{
+  font-size:22px;
+  font-weight:700;
+  letter-spacing:0.5px;
+}
+
+.brand-sub{
+  font-size:12px;
+  opacity:0.7;
+  margin-top:2px;
+}
+  
 </style>
 </head>
 
 <body>
 <div class="container">
 
-<header class="app-header">
-  <div class="logo"><img src="/icon-192.png"></div>
-  <div>
-    <div style="font-size:22px;font-weight:700;letter-spacing:0.5px;">
-  PixelProof
-</div>
-    <div style="font-size:12px;opacity:0.6;">AI forensic image analysis</div>
+<header class="app-header pro-header">
+  <div class="logo-badge">
+    <img src="/icon-192.png" alt="PixelProof logo">
+  </div>
+
+  <div class="brand-text">
+    <div class="brand-title">PixelProof</div>
+    <div class="brand-sub">
+      AI Image Forensics Engine · Integrity Analysis Platform
+    </div>
   </div>
 </header>
 
