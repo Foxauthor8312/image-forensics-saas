@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
+<link rel="icon" href="/icon-192.png">
+
 <style>
 body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 .container{padding:20px;max-width:1100px;margin:auto}
@@ -60,22 +62,22 @@ const result = document.getElementById("result");
 rearBtn.onclick = () => rear.click();
 frontBtn.onclick = () => front.click();
 
-let selectedFile, metadata={}, gps=null;
+let selectedFile, metadata={}, gps=null, mapInstance;
 
-// 🔥 DEBUG SIGNALS
+// Signals
 const SIGNAL_INFO = {
-  ela:{label:"Compression Artifacts",weight:0.25},
-  noise:{label:"Sensor Noise",weight:0.2},
-  lighting:{label:"Lighting",weight:0.2},
-  edges:{label:"Edges",weight:0.15},
-  metadata:{label:"Metadata",weight:0.2}
+  ela:{weight:0.25},
+  noise:{weight:0.2},
+  lighting:{weight:0.2},
+  edges:{weight:0.15},
+  metadata:{weight:0.2}
 };
 
+// File handlers
 file.onchange=handle;
 rear.onchange=handle;
 front.onchange=handle;
 
-// 🔍 HANDLE FILE
 async function handle(e){
   console.log("📂 FILE SELECTED");
 
@@ -84,14 +86,14 @@ async function handle(e){
 
   selectedFile = f;
 
-  // 🔥 BYPASS EXIF (for debugging)
+  // 🔥 Stable: skip EXIF for now
   metadata = {};
   gps = null;
 
   analyze();
 }
 
-// 🔄 Resize image
+// Resize image
 async function resizeImage(file){
   return new Promise(res=>{
     const img=new Image(), reader=new FileReader();
@@ -119,7 +121,7 @@ async function resizeImage(file){
   });
 }
 
-// 🔄 ANALYZE
+// Analyze
 async function analyze(){
   try{
     console.log("🚀 ANALYZE STARTED");
@@ -153,7 +155,7 @@ async function analyze(){
       data = JSON.parse(text);
     }catch(e){
       console.error("❌ NOT JSON:", text);
-      alert("Server returned HTML instead of JSON");
+      alert("Server returned invalid response");
       return;
     }
 
@@ -167,11 +169,11 @@ async function analyze(){
   }catch(err){
     console.error("❌ ERROR:",err);
     hideProgress();
-    alert("Something failed — check console");
+    alert("Server error — check console");
   }
 }
 
-// 📊 SCORE
+// Score
 function computeScore(signals){
   let total=0,weightSum=0;
 
@@ -186,22 +188,95 @@ function computeScore(signals){
   return weightSum?Math.round(total/weightSum):0;
 }
 
-// 🖼️ RENDER
+// Render full UI
 function render(d){
-  console.log("🎯 RENDERING");
+  console.log("🎯 FULL RENDER", d);
 
-  const signals=d.signals||{};
-  const score=computeScore(signals);
+  window.lastGPS = d?.gps || null;
 
-  const breakdown=Object.entries(signals).map(([k,v])=>`
-    <div>${k}: ${v}%</div>
-    <div class="bar"><div class="bar-fill" style="width:${v}%"></div></div>
-  `).join("");
+  const signals = d.signals || {};
+  const metadataAll = d.metadata?.all || d.metadata || {};
+  const score = computeScore(signals);
 
-  result.innerHTML=`
-    <h2>Score: ${score}%</h2>
+  const breakdown = Object.entries(signals).map(([k,v])=>{
+    const color = v>70?"#ef4444":v>40?"#f59e0b":"#22c55e";
+
+    return `
+    <div style="margin-bottom:15px">
+      <div style="display:flex;justify-content:space-between">
+        <strong>${k}</strong>
+        <span style="color:${color}">${v}%</span>
+      </div>
+      <div class="bar">
+        <div class="bar-fill" style="width:${v}%;background:${color}"></div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const metadataHTML = Object.entries(metadataAll).map(([k,v])=>{
+    return `<p><strong>${k}:</strong> ${v}</p>`;
+  }).join("");
+
+  result.innerHTML = `
+  <div class="tabs">
+    <div class="tab active" onclick="tab(event,'r')">Results</div>
+    <div class="tab" onclick="tab(event,'detail')">Detailed</div>
+    <div class="tab" onclick="tab(event,'meta')">Metadata</div>
+    <div class="tab" onclick="tab(event,'mapTab')">Map</div>
+  </div>
+
+  <div id="r" class="tab-content active">
+    <h2>${score>70?"Likely Altered":score>40?"Possibly Modified":"Likely Authentic"}</h2>
+    <p>Score: ${score}%</p>
     ${breakdown}
+
+    ${d.heatmap ? `
+      <img src="${API + d.heatmap}?t=${Date.now()}" 
+           style="width:100%;margin-top:15px;border-radius:10px"
+           onerror="this.style.display='none'">
+    ` : `<p style="opacity:0.6">No heatmap available</p>`}
+  </div>
+
+  <div id="detail" class="tab-content">
+    <p>${d.technical_explanation || d.details?.technical || "No technical explanation"}</p>
+    <p>${d.legal_explanation || d.details?.legal || "No legal explanation"}</p>
+  </div>
+
+  <div id="meta" class="tab-content">
+    ${metadataHTML || "<p>No metadata found</p>"}
+  </div>
+
+  <div id="mapTab" class="tab-content">
+    <div id="map"></div>
+  </div>
   `;
+}
+
+// Tabs
+function tab(e,id){
+  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+
+  document.getElementById(id).classList.add("active");
+  e.target.classList.add("active");
+
+  if(id==="mapTab"){
+    setTimeout(()=>initMap(window.lastGPS),100);
+  }
+}
+
+// Map
+function initMap(g){
+  if(!g || !g.lat || !g.lon) return;
+
+  if(mapInstance) mapInstance.remove();
+
+  mapInstance = L.map('map').setView([g.lat,g.lon],15);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+    .addTo(mapInstance);
+
+  L.marker([g.lat,g.lon]).addTo(mapInstance);
 }
 
 // UI helpers
@@ -211,8 +286,14 @@ function setProgress(p,t){
   document.getElementById("bar").style.width=p+"%";
   document.getElementById("progressText").innerText=t;
 }
-</script>
 
+// Service Worker
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js")
+    .then(() => console.log("SW registered"))
+    .catch(err => console.log("SW failed", err));
+}
+</script>
 
 </body>
 </html>
