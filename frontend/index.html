@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<header class="app-header">
+
   <div class="logo">
     <img src="/icon-192.png" alt="PixelProof logo">
     <div class="brand">
@@ -156,7 +156,15 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 
 <body>
 <div class="container">
-
+<header class="app-header">
+  <div class="logo">
+    <img src="/icon-192.png">
+    <div class="brand">
+      <div class="title">PixelProof</div>
+      <div class="subtitle">AI-powered image forensic analysis</div>
+    </div>
+  </div>
+</header>
 <h1 style="display:flex;align-items:center;gap:10px;">
   <img src="/icon-192.png" style="width:40px;height:40px;">
   PixelProof
@@ -183,7 +191,7 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 
   <!-- RIGHT PANEL -->
   <div class="panel result-panel">
-    <div id="result"></div>
+    
   </div>
 
 </div>
@@ -205,8 +213,6 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 <script>
 const API = "https://pixelproof-backend-v2.onrender.com";
 
-const API = "https://pixelproof-backend-v2.onrender.com";
-
 // DOM
 const file = document.getElementById("file");
 const rear = document.getElementById("rear");
@@ -215,30 +221,42 @@ const rearBtn = document.getElementById("rearBtn");
 const frontBtn = document.getElementById("frontBtn");
 const result = document.getElementById("result");
 
+let selectedFile = null;
+let metadata = {};
+let gps = null;
+let mapInstance = null;
+  
 // 👇 ADD THIS RIGHT HERE
 const dropZone = document.getElementById("dropZone");
 
-dropZone.onclick = () => file.click();
+if (dropZone && file) {
 
-dropZone.addEventListener("dragover", (e) => {
-  e.preventDefault();
-  dropZone.classList.add("dragover");
-});
+  dropZone.addEventListener("click", () => file.click());
 
-dropZone.addEventListener("dragleave", () => {
-  dropZone.classList.remove("dragover");
-});
+  dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("dragover");
+  });
 
-dropZone.addEventListener("drop", (e) => {
-  e.preventDefault();
-  dropZone.classList.remove("dragover");
+  dropZone.addEventListener("dragleave", () => {
+    dropZone.classList.remove("dragover");
+  });
 
-  const files = e.dataTransfer.files;
-  if(files.length){
-    file.files = files;
-    handle({ target: { files } });
-  }
-});
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+
+    const files = e.dataTransfer.files;
+
+    if (files && files.length) {
+      console.log("📥 DROP WORKING");
+      handle({ target: { files } });
+    }
+  });
+
+} else {
+  console.error("❌ DropZone or file input missing");
+}
 
 // Signals
 const SIGNAL_INFO = {
