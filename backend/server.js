@@ -16,24 +16,44 @@ app.get("/", (req, res) => {
 
 // Analyze endpoint (temporary working version)
 app.post("/api/analyze", upload.single("image"), (req, res) => {
-  console.log("FILE:", req.file);
+
+  const fakeGPS = {
+    lat: 36.1699,
+    lon: -115.1398,
+    accuracy: 50
+  };
+
+  const fakeMetadata = {
+    Camera: "iPhone 13",
+    ISO: 200,
+    Exposure: "1/120",
+    Software: "Photoshop"
+  };
 
   res.json({
     result: {
-      analysis: "Upload received",
-      score: 55,
-      confidence: 85,
+      analysis: "Possibly Modified",
+      score: 62,
+      confidence: 88,
+
       signals: {
-        ela: 60,
-        noise: 20,
-        lighting: 40,
-        edges: 30,
-        metadata: 10
+        ela: 75,
+        noise: 35,
+        lighting: 55,
+        edges: 40,
+        metadata: 65
       },
-      details: {
-        technical: "File successfully processed.",
-        legal: "Not a forensic determination."
-      },
+
+      technical_explanation:
+        "Compression artifacts and metadata inconsistencies suggest possible recompression or editing.",
+
+      legal_explanation:
+        "This image may not be admissible as original evidence without further forensic validation.",
+
+      metadata: fakeMetadata,
+
+      gps: fakeGPS,
+
       heatmap: null
     }
   });
