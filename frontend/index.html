@@ -60,24 +60,44 @@ const result = document.getElementById("result");
 rearBtn.onclick = () => rear.click();
 frontBtn.onclick = () => front.click();
 
-let selectedFile, metadata={}, gps=null, mapInstance;
+let selectedFile, metadata={}, gps=null;
 
-// 📊 Signal definitions
+// Signal definitions
 const SIGNAL_INFO = {
-  ela:{label:"Compression Artifacts",descHigh:"Recompression or edits detected.",descLow:"Compression consistent.",weight:0.25},
-  noise:{label:"Sensor Noise",descHigh:"Noise mismatch detected.",descLow:"Noise consistent.",weight:0.2},
-  lighting:{label:"Lighting Consistency",descHigh:"Lighting mismatch detected.",descLow:"Lighting natural.",weight:0.2},
-  edges:{label:"Edge Integrity",descHigh:"Edge artifacts detected.",descLow:"Edges natural.",weight:0.15},
-  metadata:{label:"Metadata Integrity",descHigh:"Metadata anomalies detected.",descLow:"Metadata consistent.",weight:0.2}
+  ela:{label:"Compression Artifacts",descHigh:"Recompression detected.",descLow:"Compression consistent.",weight:0.25},
+  noise:{label:"Sensor Noise",descHigh:"Noise mismatch.",descLow:"Noise consistent.",weight:0.2},
+  lighting:{label:"Lighting",descHigh:"Lighting mismatch.",descLow:"Lighting natural.",weight:0.2},
+  edges:{label:"Edge Integrity",descHigh:"Edge artifacts.",descLow:"Edges normal.",weight:0.15},
+  metadata:{label:"Metadata",descHigh:"Metadata anomalies.",descLow:"Metadata consistent.",weight:0.2}
 };
 
 file.onchange=handle;
 rear.onchange=handle;
 front.onchange=handle;
 
+// Retry fetch (handles Render cold starts)
+async function fetchWithRetry(url, options, retries=2){
+  try{
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(), 30000);
+
+    const res = await fetch(url, {...options, signal:controller.signal});
+    clearTimeout(timeout);
+
+    return res;
+
+  }catch(err){
+    if(retries>0){
+      await new Promise(r=>setTimeout(r,1500));
+      return fetchWithRetry(url,options,retries-1);
+    }
+    throw err;
+  }
+}
+
 function extractGPS(meta){
   if(!meta.GPSLatitude || !meta.GPSLongitude) return null;
-  const convert = (c)=>c.reduce((a,v,i)=>{
+  const convert = c=>c.reduce((a,v,i)=>{
     const val=v.numerator?v.numerator/v.denominator:v;
     return a+val/(i===0?1:i===1?60:3600);
   },0);
@@ -111,7 +131,7 @@ async function resizeImage(file){
     reader.onload=e=>img.src=e.target.result;
     img.onload=()=>{
       const canvas=document.createElement("canvas");
-      let w=img.width,h=img.height,MAX=1280;
+      let w=img.width,h=img.height,MAX=800;
       if(w>MAX){h*=MAX/w;w=MAX;}
       canvas.width=w;canvas.height=h;
       canvas.getContext("2d").drawImage(img,0,0,w,h);
@@ -147,24 +167,28 @@ async function analyze(){
 
     setProgress(60,"Uploading...");
 
-    const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+    const res=await fetchWithRetry(API+"/api/analyze",{method:"POST",body:form});
+
+    if(!res.ok) throw new Error("Server error "+res.status);
+
+    setProgress(90,"Processing...");
     const data=await res.json();
 
     console.log("FULL RESPONSE:",data);
 
     setProgress(100,"Done");
-    setTimeout(hideProgress,1000);
+    setTimeout(hideProgress,1200);
 
     render(data.result||data);
 
   }catch(err){
-    console.error(err);
+    console.error("ANALYZE ERROR:",err);
     hideProgress();
-    alert("Analysis failed");
+    alert("Server unreachable or crashed. Try again.");
   }
 }
 
-// 🧮 scoring
+// scoring
 function computeScore(signals){
   let total=0,weightSum=0;
   for(const [k,v] of Object.entries(signals)){
@@ -187,9 +211,7 @@ function render(d){
   const score=computeScore(signals);
 
   const breakdown=Object.entries(signals).map(([k,v])=>{
-    const def=SIGNAL_INFO[k]||{label:k,descHigh:"Anomaly detected",descLow:"Normal",weight:0.1};
-
-    const level=v>70?"HIGH":v>40?"MED":"LOW";
+    const def=SIGNAL_INFO[k]||{label:k,descHigh:"Anomaly",descLow:"Normal"};
     const color=v>70?"#ef4444":v>40?"#f59e0b":"#22c55e";
     const desc=v>50?def.descHigh:def.descLow;
 
@@ -197,7 +219,7 @@ function render(d){
     <div style="margin-bottom:15px">
       <div style="display:flex;justify-content:space-between">
         <strong>${def.label}</strong>
-        <span style="color:${color}">${level}</span>
+        <span style="color:${color}">${v}%</span>
       </div>
       <div class="bar">
         <div class="bar-fill" style="width:${v}%;background:${color}"></div>
@@ -216,6 +238,7 @@ function render(d){
     <h2>${getVerdict(score)}</h2>
     <p>Forensic Score: ${score}%</p>
     ${breakdown}
+    ${d.heatmap ? `<img src="${API+d.heatmap}" style="width:100%" onerror="this.style.display='none'">` : ""}
   </div>
 
   <div id="detail" class="tab-content">
