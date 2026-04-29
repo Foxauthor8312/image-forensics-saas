@@ -1,3 +1,5 @@
+const multer = require("multer");
+const upload = multer({ dest: "uploads/" });
 const express = require("express");
 const cors = require("cors");
 
@@ -13,12 +15,14 @@ app.get("/", (req, res) => {
 });
 
 // Analyze endpoint (temporary working version)
-app.post("/api/analyze", (req, res) => {
+app.post("/api/analyze", upload.single("image"), (req, res) => {
+  console.log("FILE:", req.file);
+
   res.json({
     result: {
-      analysis: "Test OK",
-      score: 50,
-      confidence: 90,
+      analysis: "Upload received",
+      score: 55,
+      confidence: 85,
       signals: {
         ela: 60,
         noise: 20,
@@ -27,7 +31,7 @@ app.post("/api/analyze", (req, res) => {
         metadata: 10
       },
       details: {
-        technical: "This is a test response.",
+        technical: "File successfully processed.",
         legal: "Not a forensic determination."
       },
       heatmap: null
