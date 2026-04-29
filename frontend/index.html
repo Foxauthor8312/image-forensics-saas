@@ -2,7 +2,19 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PixelProof</title>
+<header class="app-header">
+  <div class="logo">
+    <img src="/icon-192.png" alt="PixelProof logo">
+    <div class="brand">
+      <div class="title">PixelProof</div>
+      <div class="subtitle">AI-powered image forensic analysis</div>
+    </div>
+  </div>
+
+  <div class="header-actions">
+    <button class="header-btn">New Scan</button>
+  </div>
+</header>
 
 <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
@@ -22,6 +34,123 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 .bar{height:6px;background:#1e293b}
 .bar-fill{height:6px}
 #map{height:400px;border-radius:10px}
+
+/* 👇 ADD THIS BELOW EVERYTHING */
+
+.app-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:15px 20px;
+  margin-bottom:20px;
+  background:linear-gradient(145deg,#1e293b,#0f172a);
+  border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.3);
+}
+
+.logo{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.logo img{
+  width:44px;
+  height:44px;
+  border-radius:10px;
+}
+
+.brand{
+  display:flex;
+  flex-direction:column;
+}
+
+.title{
+  font-size:22px;
+  font-weight:600;
+}
+
+.subtitle{
+  font-size:12px;
+  opacity:0.6;
+}
+
+.header-actions{
+  display:flex;
+  gap:10px;
+}
+
+.header-btn{
+  background:#3b82f6;
+  border:none;
+  color:white;
+  padding:8px 14px;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+.header-btn:hover{
+  background:#2563eb;
+}
+/* Layout */
+.dashboard{
+  display:grid;
+  grid-template-columns: 320px 1fr;
+  gap:20px;
+}
+
+/* Panels */
+.panel{
+  background:#1e293b;
+  border-radius:12px;
+  padding:20px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.3);
+}
+
+/* Drop zone */
+.drop-zone{
+  border:2px dashed rgba(255,255,255,0.2);
+  border-radius:12px;
+  padding:40px 20px;
+  text-align:center;
+  cursor:pointer;
+  transition:0.2s;
+}
+
+.drop-zone p{
+  margin:0;
+  font-size:16px;
+}
+
+.drop-zone span{
+  font-size:12px;
+  opacity:0.6;
+}
+
+.drop-zone:hover{
+  border-color:#3b82f6;
+  background:rgba(59,130,246,0.1);
+}
+
+.drop-zone.dragover{
+  border-color:#22c55e;
+  background:rgba(34,197,94,0.1);
+}
+
+/* Upload buttons */
+.upload-actions{
+  margin-top:15px;
+  display:flex;
+  gap:10px;
+  justify-content:center;
+}
+
+/* Responsive */
+@media(max-width:900px){
+  .dashboard{
+    grid-template-columns:1fr;
+  }
+}
 </style>
 </head>
 
@@ -33,9 +162,31 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
   PixelProof
 </h1>
 
-<input type="file" id="file">
-<button id="rearBtn">Rear</button>
-<button id="frontBtn">Front</button>
+<div class="dashboard">
+
+  <!-- LEFT PANEL -->
+  <div class="panel upload-panel">
+
+    <div id="dropZone" class="drop-zone">
+      <p>Drag & Drop Image</p>
+      <span>or click to upload</span>
+    </div>
+
+    <input type="file" id="file" hidden>
+
+    <div class="upload-actions">
+      <button id="rearBtn">Rear Camera</button>
+      <button id="frontBtn">Front Camera</button>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel result-panel">
+    <div id="result"></div>
+  </div>
+
+</div>
 
 <input id="rear" type="file" accept="image/*" capture="environment" hidden>
 <input id="front" type="file" accept="image/*" capture="user" hidden>
@@ -54,6 +205,8 @@ button{padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;
 <script>
 const API = "https://pixelproof-backend-v2.onrender.com";
 
+const API = "https://pixelproof-backend-v2.onrender.com";
+
 // DOM
 const file = document.getElementById("file");
 const rear = document.getElementById("rear");
@@ -62,10 +215,30 @@ const rearBtn = document.getElementById("rearBtn");
 const frontBtn = document.getElementById("frontBtn");
 const result = document.getElementById("result");
 
-rearBtn.onclick = () => rear.click();
-frontBtn.onclick = () => front.click();
+// 👇 ADD THIS RIGHT HERE
+const dropZone = document.getElementById("dropZone");
 
-let selectedFile, metadata={}, gps=null, mapInstance;
+dropZone.onclick = () => file.click();
+
+dropZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  dropZone.classList.add("dragover");
+});
+
+dropZone.addEventListener("dragleave", () => {
+  dropZone.classList.remove("dragover");
+});
+
+dropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropZone.classList.remove("dragover");
+
+  const files = e.dataTransfer.files;
+  if(files.length){
+    file.files = files;
+    handle({ target: { files } });
+  }
+});
 
 // Signals
 const SIGNAL_INFO = {
