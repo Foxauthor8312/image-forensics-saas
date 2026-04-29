@@ -9,37 +9,15 @@
 body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 .container{padding:20px;max-width:1100px;margin:auto}
 
-/* HEADER */
-.app-header{
-  display:flex;align-items:center;gap:12px;
-  padding:15px;margin-bottom:20px;
-  background:#1e293b;border-radius:12px;
-}
+.app-header{display:flex;align-items:center;gap:12px;padding:15px;margin-bottom:20px;background:#1e293b;border-radius:12px}
 .logo img{width:40px;border-radius:8px}
 
-/* DASHBOARD */
-.dashboard{
-  display:grid;
-  grid-template-columns:300px 1fr;
-  gap:20px;
-}
-.panel{
-  background:#1e293b;
-  padding:20px;
-  border-radius:12px;
-}
+.dashboard{display:grid;grid-template-columns:300px 1fr;gap:20px}
+.panel{background:#1e293b;padding:20px;border-radius:12px}
 
-/* DROP ZONE */
-.drop-zone{
-  border:2px dashed rgba(255,255,255,0.2);
-  padding:40px;
-  text-align:center;
-  border-radius:12px;
-  cursor:pointer;
-}
+.drop-zone{border:2px dashed rgba(255,255,255,0.2);padding:40px;text-align:center;border-radius:12px;cursor:pointer}
 .drop-zone.dragover{border-color:#22c55e}
 
-/* RESULTS */
 .bar{height:6px;background:#111;margin:5px 0}
 .bar-fill{height:6px;background:#3b82f6}
 
@@ -49,44 +27,13 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 .tab-content{display:none}
 .tab-content.active{display:block;margin-top:10px}
 
-/* FOOTER */
-.app-footer{
-  margin-top:30px;padding:15px 20px;
-  display:flex;justify-content:space-between;
-  background:#1e293b;border-radius:12px;
-  font-size:12px;opacity:.85;
-}
+.app-footer{margin-top:30px;padding:15px 20px;display:flex;justify-content:space-between;background:#1e293b;border-radius:12px;font-size:12px;opacity:.85}
 .footer-sub{font-size:11px;opacity:.6}
 
 /* MODAL */
-.modal{
-  position:fixed;
-  top:0;left:0;
-  width:100%;height:100%;
-  background:rgba(0,0,0,0.7);
-  display:none;
-  align-items:center;
-  justify-content:center;
-  z-index:1000;
-}
-.modal-content{
-  background:#1e293b;
-  padding:20px;
-  border-radius:12px;
-  max-width:600px;
-  max-height:80%;
-  overflow:auto;
-}
-.modal-content h2{margin-top:0}
-.modal-close{
-  margin-top:15px;
-  padding:8px 12px;
-  background:#3b82f6;
-  border:none;
-  border-radius:6px;
-  color:white;
-  cursor:pointer;
-}
+.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:1000}
+.modal-content{background:#1e293b;padding:20px;border-radius:12px;max-width:600px;max-height:80%;overflow:auto}
+.modal-close{margin-top:15px;padding:8px 12px;background:#3b82f6;border:none;border-radius:6px;color:white;cursor:pointer}
 </style>
 </head>
 
@@ -102,33 +49,22 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 </header>
 
 <div class="dashboard">
-
   <div class="panel">
-    <div id="dropZone" class="drop-zone">
-      Drag & Drop Image<br><span style="opacity:.6">or click</span>
-    </div>
+    <div id="dropZone" class="drop-zone">Drag & Drop Image<br><span style="opacity:.6">or click</span></div>
     <input type="file" id="file" hidden>
   </div>
 
   <div class="panel">
     <div id="result"></div>
   </div>
-
 </div>
 
 <footer class="app-footer">
   <div>
     <strong>PixelProof</strong>
-    <div class="footer-sub">
-      AI Image Forensics Engine · Results are probabilistic
-    </div>
-    <div class="footer-sub">
-      © <span id="year"></span> PixelProof · All rights reserved
-    </div>
-    <div class="footer-sub" style="cursor:pointer;color:#3b82f6"
-         onclick="openModal()">
-      View Legal Disclaimer
-    </div>
+    <div class="footer-sub">AI Image Forensics Engine · Results are probabilistic</div>
+    <div class="footer-sub">© <span id="year"></span> PixelProof · All rights reserved</div>
+    <div class="footer-sub" style="cursor:pointer;color:#3b82f6" onclick="openModal()">View Legal Disclaimer</div>
   </div>
   <div>
     <div id="buildInfo"></div>
@@ -138,28 +74,14 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 
 </div>
 
-<!-- LEGAL MODAL -->
+<!-- MODAL -->
 <div id="legalModal" class="modal">
   <div class="modal-content">
     <h2>Legal Disclaimer</h2>
-    <p>
-      PixelProof provides automated image analysis using algorithmic methods.
-      Results are probabilistic and should not be considered definitive evidence
-      of authenticity or manipulation.
-    </p>
-    <p>
-      This tool is intended for informational and investigative use only.
-      It is not a substitute for professional forensic analysis conducted
-      by a certified expert.
-    </p>
-    <p>
-      No guarantees are made regarding accuracy, completeness, or reliability.
-      Users assume full responsibility for how results are interpreted and used.
-    </p>
-    <p>
-      PixelProof and its developers are not liable for any decisions,
-      damages, or consequences resulting from the use of this tool.
-    </p>
+    <p>PixelProof provides automated image analysis. Results are probabilistic and not definitive forensic evidence.</p>
+    <p>This tool does not replace certified forensic examination.</p>
+    <p>No guarantees of accuracy. Use at your own risk.</p>
+    <p>No liability is assumed for decisions made using this tool.</p>
     <button class="modal-close" onclick="closeModal()">Close</button>
   </div>
 </div>
@@ -171,27 +93,24 @@ const file = document.getElementById("file");
 const dropZone = document.getElementById("dropZone");
 const result = document.getElementById("result");
 
-let selectedFile = null;
+let selectedFile=null;
 
-/* DRAG */
-dropZone.onclick = () => file.click();
-dropZone.addEventListener("dragover", e=>{
-  e.preventDefault();
-  dropZone.classList.add("dragover");
-});
-dropZone.addEventListener("dragleave", ()=>dropZone.classList.remove("dragover"));
-dropZone.addEventListener("drop", e=>{
+/* DROP */
+dropZone.onclick=()=>file.click();
+dropZone.ondragover=e=>{e.preventDefault();dropZone.classList.add("dragover");};
+dropZone.ondragleave=()=>dropZone.classList.remove("dragover");
+dropZone.ondrop=e=>{
   e.preventDefault();
   dropZone.classList.remove("dragover");
   handle({target:{files:e.dataTransfer.files}});
-});
+};
 
-file.onchange = handle;
+file.onchange=handle;
 
 function handle(e){
-  const f = e.target.files[0];
-  if(!f) return;
-  selectedFile = f;
+  const f=e.target.files[0];
+  if(!f)return;
+  selectedFile=f;
   analyze();
 }
 
@@ -200,42 +119,74 @@ async function analyze(){
   const form=new FormData();
   form.append("image",selectedFile);
 
-  const res = await fetch(API+"/api/analyze",{method:"POST",body:form});
-  const data = await res.json();
+  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+  const data=await res.json();
 
-  render(data.result || data);
+  render(data.result||data);
 }
 
-/* SIMPLE RENDER */
+/* SCORE */
+function score(s){
+  return Math.round((s.ela*0.5 + s.noise*0.25 + s.metadata*0.25));
+}
+
+/* CONF */
+function conf(s){
+  let c={};
+  for(let k in s){
+    let v=s[k];
+    c[k]=v>70?90:v>50?75:v>30?60:45;
+  }
+  return c;
+}
+
+/* RENDER */
 function render(d){
-  result.innerHTML = `
-    <h2>${d.score || 50}% Score</h2>
-    <p>${d.analysis || "Analysis complete"}</p>
+  const s=score(d.signals||{ela:50,noise:50,metadata:50});
+  const c=conf(d.signals||{});
+  
+  window.lastData=d;
+
+  result.innerHTML=`
+  <h2>${s>70?"Likely Altered":s>40?"Possibly Modified":"Likely Authentic"}</h2>
+  <p>Score: ${s}%</p>
+
+  <button onclick="exportPDF()">Download PDF</button>
+
+  ${Object.entries(d.signals||{}).map(([k,v])=>`
+    <div>${k}: ${v}% (conf ${c[k]}%)</div>
+  `).join("")}
+
+  ${d.heatmap?`<img src="${API+d.heatmap}" style="width:100%;margin-top:10px">`:""}
   `;
 }
 
+/* PDF */
+async function exportPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc=new jsPDF();
+  let y=10;
+
+  doc.text("PixelProof Report",10,y);y+=10;
+  doc.text(JSON.stringify(window.lastData,null,2),10,y);
+
+  doc.save("report.pdf");
+}
+
 /* MODAL */
-function openModal(){
-  document.getElementById("legalModal").style.display="flex";
-}
-function closeModal(){
-  document.getElementById("legalModal").style.display="none";
-}
+function openModal(){document.getElementById("legalModal").style.display="flex";}
+function closeModal(){document.getElementById("legalModal").style.display="none";}
 
 /* FOOTER */
-document.getElementById("year").innerText =
-  new Date().getFullYear();
-
-document.getElementById("buildInfo").innerText =
-  "Build: " + new Date().toLocaleDateString();
+document.getElementById("year").innerText=new Date().getFullYear();
+document.getElementById("buildInfo").innerText="Build: "+new Date().toLocaleDateString();
 
 async function checkBackend(){
   try{
     const r=await fetch(API);
-    document.getElementById("backendStatus").innerText =
-      r.ok?"Backend: online":"Backend: error";
+    document.getElementById("backendStatus").innerText=r.ok?"Backend: online":"Backend: error";
   }catch{
-    document.getElementById("backendStatus").innerText = "Backend: offline";
+    document.getElementById("backendStatus").innerText="Backend: offline";
   }
 }
 checkBackend();
