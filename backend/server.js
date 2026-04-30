@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const exif = require("exif-parser");
+const sharp = require("sharp");
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -13,17 +14,43 @@ app.get("/", (req, res) => {
   res.send("PixelProof backend running");
 });
 
-// ANALYZE ENDPOINT
-app.post("/api/analyze", upload.single("image"), (req, res) => {
+// 🧠 REAL ELA ANALYSIS
+app.post("/api/analyze", upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No image uploaded" });
     }
 
-    let metadata = {};
+    const original = req.file.buffer;
 
+    // STEP 1: recompress
+    const recompressed = await sharp(original)
+      .jpeg({ quality: 70 })
+      .toBuffer();
+
+    // STEP 2: raw pixel data
+    const origRaw = await sharp(original).raw().toBuffer({ resolveWithObject: true });
+    const recomRaw = await sharp(recompressed).raw().toBuffer({ resolveWithObject: true });
+
+    const oData = origRaw.data;
+    const rData = recomRaw.data;
+
+    let diffSum = 0;
+
+    // STEP 3: pixel difference
+    for (let i = 0; i < oData.length; i++) {
+      diffSum += Math.abs(oData[i] - rData[i]);
+    }
+
+    const avgDiff = diffSum / oData.length;
+
+    // STEP 4: normalize score
+    const elaScore = Math.min(100, Math.round(avgDiff * 2));
+
+    // 🧠 METADATA
+    let metadata = {};
     try {
-      const parser = exif.create(req.file.buffer);
+      const parser = exif.create(original);
       const result = parser.parse();
 
       metadata = {
@@ -38,28 +65,55 @@ app.post("/api/analyze", upload.single("image"), (req, res) => {
             }
           : null
       };
-
     } catch (e) {
       console.log("EXIF parse failed");
     }
 
+    // 🧠 SIGNALS
+    const signals = {
+      ela: elaScore,
+      noise: Math.max(20, Math.min(80, elaScore - 10)),
+      metadata: metadata.gps ? 20 : 5
+    };
+
+    const score = Math.round(
+      signals.ela * 0.5 +
+      signals.noise * 0.25 +
+      signals.metadata * 0.25
+    );
+
+    // 🧠 EXPLANATION
+    let analysis = "";
+
+    if (elaScore > 70) {
+      analysis = "High compression inconsistencies detected across the image.";
+    } else if (elaScore > 40) {
+      analysis = "Moderate compression variation observed.";
+    } else {
+      analysis = "Compression appears consistent across the image.";
+    }
+
+    const conclusion =
+      score > 70
+        ? "Strong evidence of alteration"
+        : score > 40
+        ? "Possible modification detected"
+        : "Likely authentic image";
+
     const response = {
-      score: 65,
-      signals: {
-        ela: 70,
-        noise: 40,
-        metadata: metadata.gps ? 20 : 5
-      },
+      score,
+      signals,
       metadata,
       heatmap: null,
-      analysis: "Basic forensic indicators detected"
+      analysis,
+      conclusion
     };
 
     res.json({ result: response });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Analysis failed" });
+    console.error("ELA ERROR:", err);
+    res.status(500).json({ error: "ELA analysis failed" });
   }
 });
 
