@@ -202,6 +202,25 @@ document.getElementById("year").innerText=new Date().getFullYear();
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("/sw.js").catch(()=>{});
 }
+let deferredPrompt;
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+
+  const btn = document.createElement("button");
+  btn.innerText = "📲 Install PixelProof";
+  btn.style.marginTop = "10px";
+
+  btn.onclick = async () => {
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    btn.remove();
+  };
+
+  document.querySelector(".panel").prepend(btn);
+});
 </script>
 
 </body>
