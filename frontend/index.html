@@ -6,6 +6,10 @@
 
 <link rel="icon" href="/favicon.ico?v=2">
 
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0f172a">
+
 <!-- PDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
@@ -17,17 +21,8 @@
 body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 .container{padding:20px;max-width:1100px;margin:auto}
 
-.app-header{
-  display:flex;align-items:center;gap:12px;
-  padding:15px;margin-bottom:20px;
-  background:linear-gradient(135deg,#1e293b,#0f172a);
-  border-radius:14px;
-}
-.logo-badge{
-  width:48px;height:48px;border-radius:12px;
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:0 0 12px rgba(59,130,246,0.5);
-}
+.app-header{display:flex;align-items:center;gap:12px;padding:15px;margin-bottom:20px;background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:14px}
+.logo-badge{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 12px rgba(59,130,246,0.5)}
 .logo-badge img{width:28px}
 .brand-title{font-size:22px;font-weight:700}
 .brand-sub{font-size:12px;opacity:.7}
@@ -51,7 +46,12 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 
 button{margin-top:10px;padding:6px 10px;border:none;border-radius:6px;background:#3b82f6;color:white;cursor:pointer}
 
-/* MODAL */
+.progress-bar{width:100%;height:6px;background:#111;border-radius:6px;margin:10px 0;display:none}
+.progress-fill{height:100%;width:0%;background:#3b82f6;transition:width .3s}
+
+.app-footer{margin-top:30px;padding:15px;display:flex;justify-content:space-between;background:#1e293b;border-radius:12px;font-size:12px}
+.footer-sub{font-size:11px;opacity:.6}
+
 .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center}
 .modal-content{background:#1e293b;padding:20px;border-radius:12px;max-width:600px}
 .modal-close{margin-top:10px;padding:6px 10px;background:#3b82f6;border:none;border-radius:6px;color:white}
@@ -62,9 +62,7 @@ button{margin-top:10px;padding:6px 10px;border:none;border-radius:6px;background
 <div class="container">
 
 <header class="app-header">
-  <div class="logo-badge">
-    <img src="/icon-192.png">
-  </div>
+  <div class="logo-badge"><img src="/icon-192.png"></div>
   <div>
     <div class="brand-title">PixelProof</div>
     <div class="brand-sub">AI Image Forensics Engine</div>
@@ -78,9 +76,26 @@ button{margin-top:10px;padding:6px 10px;border:none;border-radius:6px;background
   </div>
 
   <div class="panel">
+    <div id="status"></div>
+    <div class="progress-bar" id="progressBar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
     <div id="result"></div>
   </div>
 </div>
+
+<footer class="app-footer">
+  <div>
+    <strong>PixelProof</strong>
+    <div class="footer-sub">AI Image Forensics Engine · Results are probabilistic</div>
+    <div class="footer-sub">© <span id="year"></span> PixelProof</div>
+    <div class="footer-sub" style="cursor:pointer;color:#3b82f6" onclick="openModal()">Legal Disclaimer</div>
+  </div>
+  <div>
+    <div id="buildInfo"></div>
+    <div id="backendStatus">Backend: checking…</div>
+  </div>
+</footer>
 
 </div>
 
@@ -98,30 +113,17 @@ const API="https://pixelproof-backend-v2.onrender.com";
 const dropZone=document.getElementById("dropZone");
 const file=document.getElementById("file");
 const result=document.getElementById("result");
+const statusEl=document.getElementById("status");
+const progressBar=document.getElementById("progressBar");
+const progressFill=document.getElementById("progressFill");
 
 dropZone.onclick=()=>file.click();
-dropZone.ondragover=e=>{e.preventDefault();dropZone.classList.add("dragover");};
-dropZone.ondragleave=()=>dropZone.classList.remove("dragover");
-dropZone.ondrop=e=>{
-  e.preventDefault();
-  dropZone.classList.remove("dragover");
-  handle({target:{files:e.dataTransfer.files}});
-};
 
-file.onchange=handle;
+file.onchange=e=>handle(e.target.files[0]);
 
-function handle(e){
-  const f = e.target.files[0];
+function handle(f){
   if(!f) return;
-
-  // 🖼️ SHOW PREVIEW
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const img = document.getElementById("preview");
-    if(img) img.src = ev.target.result;
-  };
-  reader.readAsDataURL(f);
-
+  window.lastFile=f;
   analyze(f);
 }
 
@@ -129,118 +131,55 @@ async function analyze(f){
   const form=new FormData();
   form.append("image",f);
 
-  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-  const data=await res.json();
+  statusEl.innerHTML="⏳ Analyzing...";
+  progressBar.style.display="block";
+  progressFill.style.width="10%";
 
-  render(data.result||data);
+  let p=10;
+  const interval=setInterval(()=>{
+    p+=Math.random()*10;
+    if(p<90) progressFill.style.width=p+"%";
+  },300);
+
+  try{
+    const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+    const data=await res.json();
+
+    clearInterval(interval);
+    progressFill.style.width="100%";
+    statusEl.innerHTML="✅ Done";
+
+    setTimeout(()=>progressBar.style.display="none",500);
+
+    render(data.result||data);
+
+  }catch{
+    clearInterval(interval);
+    statusEl.innerHTML="❌ Error";
+  }
 }
 
 function render(d){
-  const signals=d.signals||{};
-  const meta=d.metadata||{};
-  const gps=meta.gps||null;
-
-  window.last=d;
-
-  const bars=Object.entries(signals).map(([k,v])=>`
-    <div>${k}: ${v}%<div class="bar"><div class="bar-fill" style="width:${v}%"></div></div></div>
-  `).join("");
+  const preview = window.lastFile
+    ? `<img src="${URL.createObjectURL(window.lastFile)}" style="width:100%;margin-bottom:10px">`
+    : "";
 
   result.innerHTML=`
-  <div class="tabs">
-    <div class="tab active" onclick="tab(event,'r')">Results</div>
-    <div class="tab" onclick="tab(event,'d')">Detailed</div>
-    <div class="tab" onclick="tab(event,'m')">Metadata</div>
-    <div class="tab" onclick="tab(event,'mapTab')">Map</div>
-  </div>
-
-  <div id="r" class="tab-content active">
+    ${preview}
     <h2>${d.conclusion}</h2>
-    <img id="preview" style="width:100%;margin-bottom:10px">
-    <p>Score: ${d.score}%</p>
-    <p><strong>${d.analysis}</strong></p>
-    <button onclick="exportPDF()">Download Report</button>
-    ${bars}
-  </div>
-
-  <div id="d" class="tab-content">
-    <h3>Forensic Analysis</h3>
     <p>${d.analysis}</p>
-
-    ${Object.entries(signals).map(([k,v])=>`
-      <div><strong>${k}</strong>: ${v}%</div>
-    `).join("")}
-  </div>
-
-  <div id="m" class="tab-content">
-    ${Object.keys(meta).length
-      ? Object.entries(meta).map(([k,v])=>`
-        <div><strong>${k}</strong>: ${typeof v==="object" ? JSON.stringify(v) : v}</div>
-      `).join("")
-      : "No metadata"}
-  </div>
-
-  <div id="mapTab" class="tab-content">
-    ${gps ? `
-      <button onclick="setMapLayer('street')">Street</button>
-      <button onclick="setMapLayer('satellite')">Satellite</button>
-      <div id="map"></div>
-    ` : "No GPS data"}
-  </div>
   `;
-
-  if(gps){
-    setTimeout(()=>{
-      const map=L.map('map').setView([gps.lat,gps.lon],13);
-      window._mapInstance=map;
-
-      window._streetLayer=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-      window._satLayer=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
-
-      window._streetLayer.addTo(map);
-      L.marker([gps.lat,gps.lon]).addTo(map);
-    },200);
-  }
-}
-
-function tab(e,id){
-  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
-  e.target.classList.add("active");
-
-  if(id==="mapTab" && window._mapInstance){
-    setTimeout(()=>window._mapInstance.invalidateSize(),200);
-  }
-}
-
-function setMapLayer(type){
-  if(!window._mapInstance)return;
-
-  window._mapInstance.eachLayer(layer=>{
-    if(layer instanceof L.TileLayer){
-      window._mapInstance.removeLayer(layer);
-    }
-  });
-
-  if(type==="satellite"){
-    window._satLayer.addTo(window._mapInstance);
-  } else {
-    window._streetLayer.addTo(window._mapInstance);
-  }
-}
-
-function exportPDF(){
-  const { jsPDF }=window.jspdf;
-  const doc=new jsPDF();
-
-  doc.text("PixelProof Report",10,10);
-  doc.text(window.last.analysis,10,20);
-  doc.save("report.pdf");
 }
 
 function openModal(){document.getElementById("legalModal").style.display="flex";}
 function closeModal(){document.getElementById("legalModal").style.display="none";}
+
+document.getElementById("year").innerText=new Date().getFullYear();
+document.getElementById("buildInfo").innerText="Build: "+new Date().toLocaleDateString();
+
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("/sw.js");
+}
 </script>
 
 </body>
