@@ -180,6 +180,26 @@ document.getElementById("buildInfo").innerText="Build: "+new Date().toLocaleDate
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("/sw.js");
 }
+  let deferredPrompt;
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+
+  // create install button
+  const btn = document.createElement("button");
+  btn.innerText = "📲 Install PixelProof";
+  btn.style.marginTop = "10px";
+
+  btn.onclick = async () => {
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    btn.remove();
+  };
+
+  document.querySelector(".container").prepend(btn);
+});
 </script>
 
 </body>
