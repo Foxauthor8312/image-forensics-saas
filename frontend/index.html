@@ -37,8 +37,7 @@ img.preview{
   border-radius:8px;
 }
 
-footer{margin-top:20px;font-size:12px;opacity:.6}
-  .app-footer{
+.app-footer{
   margin-top:20px;
   padding:12px;
   background:#1e293b;
@@ -49,7 +48,7 @@ footer{margin-top:20px;font-size:12px;opacity:.6}
   opacity:.6;
   font-size:11px;
 }
-  <style>
+</style>
 body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 .container{padding:20px;max-width:1100px;margin:auto}
 .panel{background:#1e293b;padding:20px;border-radius:12px}
@@ -103,7 +102,7 @@ img.preview{
   <div>
     <div class="brand-title">PixelProof</div>
     <div class="brand-sub">AI Image Forensics Engine</div>
-    <div class="footer-sub">© <span id="year"></span></div>
+ 
   </div>
 </header>
 
@@ -119,8 +118,12 @@ img.preview{
   <div id="result"></div>
 </div>
 
-<footer>
-  © <span id="year"></span> PixelProof
+<footer class="app-footer">
+  <div>
+    <strong>PixelProof</strong>
+    <div class="footer-sub">AI Image Forensics Engine</div>
+    <div class="footer-sub">© <span id="year"></span></div>
+  </div>
 </footer>
 
 </div>
