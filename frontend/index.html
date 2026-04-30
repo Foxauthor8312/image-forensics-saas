@@ -111,8 +111,17 @@ dropZone.ondrop=e=>{
 file.onchange=handle;
 
 function handle(e){
-  const f=e.target.files[0];
-  if(!f)return;
+  const f = e.target.files[0];
+  if(!f) return;
+
+  // 🖼️ SHOW PREVIEW
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = document.getElementById("preview");
+    if(img) img.src = ev.target.result;
+  };
+  reader.readAsDataURL(f);
+
   analyze(f);
 }
 
@@ -147,6 +156,7 @@ function render(d){
 
   <div id="r" class="tab-content active">
     <h2>${d.conclusion}</h2>
+    <img id="preview" style="width:100%;margin-bottom:10px">
     <p>Score: ${d.score}%</p>
     <p><strong>${d.analysis}</strong></p>
     <button onclick="exportPDF()">Download Report</button>
