@@ -43,6 +43,15 @@ footer{margin-top:20px;font-size:12px;opacity:.6}
 
 <body>
 <div class="container">
+<header class="app-header">
+  <div class="logo-badge">
+    <img src="/icon-192.png">
+  </div>
+  <div>
+    <div class="brand-title">PixelProof</div>
+    <div class="brand-sub">AI Image Forensics Engine</div>
+  </div>
+</header>
 
 <div class="panel">
   <h2>PixelProof</h2>
@@ -141,8 +150,30 @@ function render(d){
     </div>
 
     <div id="d" class="tab-content">
-      <pre>${JSON.stringify(d,null,2)}</pre>
-    </div>
+  <h3>Forensic Analysis</h3>
+
+  <p><strong>Conclusion:</strong> ${d.conclusion || "N/A"}</p>
+
+  <p><strong>Summary:</strong><br>
+  ${d.analysis || "No analysis available"}
+  </p>
+
+  <h4>Signal Breakdown</h4>
+  ${
+    d.signals
+      ? Object.entries(d.signals).map(([k,v])=>`
+          <div>${k.toUpperCase()}: ${v}%</div>
+        `).join("")
+      : "<div>No signal data</div>"
+  }
+
+  <h4>Technical Notes</h4>
+  <p style="opacity:.7">
+    This analysis evaluates compression artifacts, noise distribution,
+    and metadata consistency. These indicators are suggestive and not
+    independently conclusive.
+  </p>
+</div>
 
     <div id="m" class="tab-content">
       ${
@@ -222,6 +253,12 @@ window.addEventListener("beforeinstallprompt", (e) => {
   document.querySelector(".panel").prepend(btn);
 });
 </script>
-
+<footer class="app-footer">
+  <div>
+    <strong>PixelProof</strong>
+    <div class="footer-sub">AI Image Forensics Engine</div>
+    <div class="footer-sub">© <span id="year"></span></div>
+  </div>
+</footer>
 </body>
 </html>
