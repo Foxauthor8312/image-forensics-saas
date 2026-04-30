@@ -5,56 +5,39 @@
 <title>PixelProof — AI Image Forensics</title>
 
 <link rel="icon" href="/favicon.ico?v=2">
-
-<!-- PWA -->
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#0f172a">
 
-<!-- PDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-<!-- MAP -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <style>
 body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 .container{padding:20px;max-width:1100px;margin:auto}
-
 .app-header{display:flex;align-items:center;gap:12px;padding:15px;margin-bottom:20px;background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:14px}
 .logo-badge{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 12px rgba(59,130,246,0.5)}
 .logo-badge img{width:28px}
 .brand-title{font-size:22px;font-weight:700}
 .brand-sub{font-size:12px;opacity:.7}
-
 .dashboard{display:grid;grid-template-columns:300px 1fr;gap:20px}
 .panel{background:#1e293b;padding:20px;border-radius:12px}
-
 .drop-zone{border:2px dashed #555;padding:40px;text-align:center;border-radius:12px;cursor:pointer}
-.drop-zone.dragover{border-color:#22c55e}
-
 .tabs{display:flex;gap:10px;margin-top:15px}
 .tab{padding:6px 10px;background:#111;border-radius:6px;cursor:pointer}
 .tab.active{background:#3b82f6}
 .tab-content{display:none}
 .tab-content.active{display:block;margin-top:10px}
-
 .bar{height:6px;background:#111;margin:5px 0}
 .bar-fill{height:6px;background:#3b82f6}
-
 #map{height:300px;border-radius:10px;margin-top:10px}
-
-button{margin-top:10px;padding:6px 10px;border:none;border-radius:6px;background:#3b82f6;color:white;cursor:pointer}
-
-.progress-bar{width:100%;height:6px;background:#111;border-radius:6px;margin:10px 0;display:none}
-.progress-fill{height:100%;width:0%;background:#3b82f6;transition:width .3s}
-
+.progress-bar{height:6px;background:#111;margin:10px 0;display:none}
+.progress-fill{height:100%;width:0;background:#3b82f6}
 .app-footer{margin-top:30px;padding:15px;display:flex;justify-content:space-between;background:#1e293b;border-radius:12px;font-size:12px}
 .footer-sub{font-size:11px;opacity:.6}
-
 .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center}
-.modal-content{background:#1e293b;padding:20px;border-radius:12px;max-width:600px}
-.modal-close{margin-top:10px;padding:6px 10px;background:#3b82f6;border:none;border-radius:6px;color:white}
+.modal-content{background:#1e293b;padding:20px;border-radius:12px}
 </style>
 </head>
 
@@ -71,15 +54,13 @@ button{margin-top:10px;padding:6px 10px;border:none;border-radius:6px;background
 
 <div class="dashboard">
   <div class="panel">
-    <div id="dropZone" class="drop-zone">Drag & Drop Image</div>
+    <div id="dropZone" class="drop-zone">Upload Image</div>
     <input type="file" id="file" hidden>
   </div>
 
   <div class="panel">
     <div id="status"></div>
-    <div class="progress-bar" id="progressBar">
-      <div class="progress-fill" id="progressFill"></div>
-    </div>
+    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
     <div id="result"></div>
   </div>
 </div>
@@ -87,14 +68,10 @@ button{margin-top:10px;padding:6px 10px;border:none;border-radius:6px;background
 <footer class="app-footer">
   <div>
     <strong>PixelProof</strong>
-    <div class="footer-sub">AI Image Forensics Engine · Results are probabilistic</div>
-    <div class="footer-sub">© <span id="year"></span> PixelProof</div>
-    <div class="footer-sub" style="cursor:pointer;color:#3b82f6" onclick="openModal()">Legal Disclaimer</div>
+    <div class="footer-sub">AI Image Forensics Engine</div>
+    <div class="footer-sub">© <span id="year"></span></div>
   </div>
-  <div>
-    <div id="buildInfo"></div>
-    <div id="backendStatus">Backend: checking…</div>
-  </div>
+  <div id="backendStatus">Checking...</div>
 </footer>
 
 </div>
@@ -102,27 +79,24 @@ button{margin-top:10px;padding:6px 10px;border:none;border-radius:6px;background
 <div id="legalModal" class="modal">
   <div class="modal-content">
     <h2>Legal Disclaimer</h2>
-    <p>Results are probabilistic and not definitive forensic evidence.</p>
-    <button class="modal-close" onclick="closeModal()">Close</button>
+    <p>Results are probabilistic.</p>
   </div>
 </div>
 
 <script>
 const API="https://pixelproof-backend-v2.onrender.com";
-
-const dropZone=document.getElementById("dropZone");
 const file=document.getElementById("file");
+const drop=document.getElementById("dropZone");
 const result=document.getElementById("result");
 const statusEl=document.getElementById("status");
-const progressBar=document.getElementById("progressBar");
-const progressFill=document.getElementById("progressFill");
+const bar=document.getElementById("progressBar");
+const fill=document.getElementById("progressFill");
 
-dropZone.onclick=()=>file.click();
-
+drop.onclick=()=>file.click();
 file.onchange=e=>handle(e.target.files[0]);
 
 function handle(f){
-  if(!f) return;
+  if(!f)return;
   window.lastFile=f;
   analyze(f);
 }
@@ -131,75 +105,63 @@ async function analyze(f){
   const form=new FormData();
   form.append("image",f);
 
-  statusEl.innerHTML="⏳ Analyzing...";
-  progressBar.style.display="block";
-  progressFill.style.width="10%";
+  bar.style.display="block";
+  fill.style.width="10%";
+  statusEl.innerHTML="Analyzing...";
 
-  let p=10;
-  const interval=setInterval(()=>{
-    p+=Math.random()*10;
-    if(p<90) progressFill.style.width=p+"%";
-  },300);
+  const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
+  const data=await res.json();
 
-  try{
-    const res=await fetch(API+"/api/analyze",{method:"POST",body:form});
-    const data=await res.json();
+  fill.style.width="100%";
+  setTimeout(()=>bar.style.display="none",500);
 
-    clearInterval(interval);
-    progressFill.style.width="100%";
-    statusEl.innerHTML="✅ Done";
-
-    setTimeout(()=>progressBar.style.display="none",500);
-
-    render(data.result||data);
-
-  }catch{
-    clearInterval(interval);
-    statusEl.innerHTML="❌ Error";
-  }
+  render(data.result||data);
 }
 
 function render(d){
-  const preview = window.lastFile
-    ? `<img src="${URL.createObjectURL(window.lastFile)}" style="width:100%;margin-bottom:10px">`
-    : "";
+  const preview = `<img src="${URL.createObjectURL(window.lastFile)}" style="width:100%">`;
 
   result.innerHTML=`
-    ${preview}
+  ${preview}
+
+  <div class="tabs">
+    <div class="tab active" onclick="tab(event,'r')">Results</div>
+    <div class="tab" onclick="tab(event,'d')">Detailed</div>
+    <div class="tab" onclick="tab(event,'m')">Metadata</div>
+    <div class="tab" onclick="tab(event,'mapTab')">Map</div>
+  </div>
+
+  <div id="r" class="tab-content active">
     <h2>${d.conclusion}</h2>
     <p>${d.analysis}</p>
+  </div>
+
+  <div id="d" class="tab-content"><pre>${JSON.stringify(d,null,2)}</pre></div>
+  <div id="m" class="tab-content">${JSON.stringify(d.metadata)}</div>
+  <div id="mapTab" class="tab-content"><div id="map"></div></div>
   `;
+
+  if(d.metadata?.gps){
+    setTimeout(()=>{
+      const map=L.map('map').setView([d.metadata.gps.lat,d.metadata.gps.lon],13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+      L.marker([d.metadata.gps.lat,d.metadata.gps.lon]).addTo(map);
+    },200);
+  }
 }
 
-function openModal(){document.getElementById("legalModal").style.display="flex";}
-function closeModal(){document.getElementById("legalModal").style.display="none";}
+function tab(e,id){
+  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  e.target.classList.add("active");
+}
 
 document.getElementById("year").innerText=new Date().getFullYear();
-document.getElementById("buildInfo").innerText="Build: "+new Date().toLocaleDateString();
 
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("/sw.js");
 }
-  let deferredPrompt;
-
-window.addEventListener("beforeinstallprompt", (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-
-  // create install button
-  const btn = document.createElement("button");
-  btn.innerText = "📲 Install PixelProof";
-  btn.style.marginTop = "10px";
-
-  btn.onclick = async () => {
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    btn.remove();
-  };
-
-  document.querySelector(".container").prepend(btn);
-});
 </script>
 
 </body>
