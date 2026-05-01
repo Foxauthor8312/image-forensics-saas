@@ -208,7 +208,7 @@ if(d.score > 70){
   // reset map for new image
   window._mapInstance = null;
 
-  const preview = window.lastFile
+  const preview = window.lastFilehttps://github.com/Foxauthor8312/image-forensics-saas/blob/main/frontend/index.html
     ? `<img class="preview" src="${URL.createObjectURL(window.lastFile)}">`
     : "";
 
@@ -225,6 +225,20 @@ if(d.score > 70){
 
     <div id="r" class="tab-content active">
     <h3 style="color:${scoreColor}">
+    <div style="
+  margin-top:6px;
+  font-size:14px;
+  font-weight:500;
+  opacity:.9;
+">
+  ${
+    d.score > 70
+      ? "This image likely contains altered or recompressed regions."
+      : d.score > 40
+      ? "This image shows some inconsistencies that may indicate edits."
+      : "This image appears consistent with an unedited original."
+  }
+</div>
   ${d.conclusion || ""}
     </h3>
     <div style="
