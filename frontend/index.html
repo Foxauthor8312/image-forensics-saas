@@ -196,6 +196,15 @@ if(d.score > 70){
 }else if(d.score > 40){
   scoreColor = "#facc15"; // yellow
 }
+  let explanation = "";
+
+if(d.score > 70){
+  explanation = "This image shows strong signs of possible editing. Areas highlighted in red may indicate parts of the image that were altered or recompressed differently than the rest.";
+}else if(d.score > 40){
+  explanation = "This image shows some irregularities. While it may be authentic, certain areas could have been modified or processed differently.";
+}else{
+  explanation = "This image appears consistent. No strong signs of manipulation were detected, and compression patterns look uniform.";
+}
   // reset map for new image
   window._mapInstance = null;
 
@@ -229,7 +238,21 @@ if(d.score > 70){
 ">
   Score: ${d.score || 0}%
 </div>
-      <p>${d.analysis || ""}</p>
+     <div style="margin-top:8px">
+  ${d.analysis || ""}
+</div>
+
+<div style="
+  margin-top:10px;
+  padding:10px;
+  background:#020617;
+  border-radius:8px;
+  font-size:13px;
+  line-height:1.4;
+">
+  <strong>What this means:</strong><br>
+  ${explanation}
+</div>
       ${
         d.signals
         ? Object.entries(d.signals).map(([k,v])=>`<div>${k}: ${v}%</div>`).join("")
@@ -277,12 +300,17 @@ if(d.score > 70){
     </div>
 
     <div id="mapTab" class="tab-content">
-      ${
-        d.metadata?.gps
-        ? `<div id="map"></div>`
-        : "No GPS data available"
-      }
-    </div>
+  ${
+    d.metadata?.gps
+    ? `
+      <div id="map"></div>
+      <div id="locationLabel" style="margin-top:8px;opacity:.8;font-size:12px;">
+        Resolving location...
+      </div>
+    `
+    : "No GPS data available"
+  }
+</div>
     <div id="mapTab" class="tab-content">
   ${
     d.metadata?.gps
@@ -316,6 +344,27 @@ if(d.score > 70){
   <input type="range" id="heatSlider"
     min="0" max="100" value="50"
     style="width:100%;margin-top:10px;">
+
+  <!-- 👇 ADD THIS PART -->
+  <div style="
+    margin-top:10px;
+    font-size:12px;
+    opacity:.85;
+    line-height:1.4;
+  ">
+    <strong>How to read this:</strong><br>
+    Red areas show stronger compression differences. These can indicate
+    edits, overlays, or regions saved differently from the rest of the image.
+    <br><br>
+    Use the slider to compare the original image with the heatmap overlay.
+  </div>
+
+  <div style="margin-top:6px;font-size:12px;">
+    <span style="color:#ef4444">■</span> High variation (possible edits)
+    &nbsp;&nbsp;
+    <span style="color:#22c55e">■</span> Low variation (consistent areas)
+  </div>
+
 </div>
   `;
 
@@ -419,6 +468,27 @@ function tab(e,id){
   L.marker([gps.lat, gps.lon]).addTo(map);
 
   window._mapInstance = map;
+   const label = document.getElementById("locationLabel");
+
+if(label){
+  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${gps.lat}&lon=${gps.lon}`)
+    .then(res => res.json())
+    .then(data => {
+
+      const addr = data.address || {};
+
+      const locationText = [
+        addr.city || addr.town || addr.village,
+        addr.state,
+        addr.country
+      ].filter(Boolean).join(", ");
+
+      label.innerText = locationText || "Location not found";
+    })
+    .catch(()=>{
+      label.innerText = "Location lookup failed";
+    });
+}
 
   setTimeout(()=>map.invalidateSize(),200);
   }
