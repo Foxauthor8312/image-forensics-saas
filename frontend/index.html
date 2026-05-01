@@ -207,7 +207,6 @@ function render(d){
     <div id="r" class="tab-content active">
       <h3>${d.conclusion || ""}</h3>
       <p>${d.analysis || ""}</p>
-
       ${
         d.signals
         ? Object.entries(d.signals).map(([k,v])=>`<div>${k}: ${v}%</div>`).join("")
@@ -216,39 +215,40 @@ function render(d){
     </div>
 
     <div id="d" class="tab-content">
-  <h3>Forensic Analysis</h3>
+      <h3>Forensic Analysis</h3>
+      <p><strong>Conclusion:</strong> ${d.conclusion || "N/A"}</p>
+      <p><strong>Summary:</strong><br>${d.analysis || "No analysis available"}</p>
 
-  <p><strong>Conclusion:</strong> ${d.conclusion || "N/A"}</p>
+      <h4>Signal Breakdown</h4>
+      ${
+        d.signals
+          ? Object.entries(d.signals).map(([k,v])=>`
+              <div>${k.toUpperCase()}: ${v}%</div>
+            `).join("")
+          : "<div>No signal data</div>"
+      }
 
-  <p><strong>Summary:</strong><br>
-  ${d.analysis || "No analysis available"}
-  </p>
-
-  <h4>Signal Breakdown</h4>
-  ${
-    d.signals
-      ? Object.entries(d.signals).map(([k,v])=>`
-          <div>${k.toUpperCase()}: ${v}%</div>
-        `).join("")
-      : "<div>No signal data</div>"
-  }
-
-  <h4>Technical Notes</h4>
-  <p style="opacity:.7">
-    This analysis evaluates compression artifacts, noise distribution,
-    and metadata consistency. These indicators are suggestive and not
-    independently conclusive.
-  </p>
-</div>
+      <h4>Technical Notes</h4>
+      <p style="opacity:.7">
+        This analysis evaluates compression artifacts, noise distribution,
+        and metadata consistency. These indicators are suggestive and not
+        independently conclusive.
+      </p>
+    </div>
 
     <div id="m" class="tab-content">
       ${
-        d.metadata && Object.keys(d.metadata).length
-        ? Object.entries(d.metadata).map(([k,v])=>`
-            <div><strong>${k}</strong>: ${
-              typeof v === "object" ? JSON.stringify(v) : v
-            }</div>
-          `).join("")
+        d.metadata
+        ? `
+          <div><strong>Camera:</strong> ${d.metadata.camera || "Unknown"}</div>
+          <div><strong>Model:</strong> ${d.metadata.model || "Unknown"}</div>
+          <div><strong>Date:</strong> ${d.metadata.date || "N/A"}</div>
+          ${
+            d.metadata.gps
+            ? `<div><strong>GPS:</strong> ${d.metadata.gps.lat}, ${d.metadata.gps.lon}</div>`
+            : `<div>No GPS metadata</div>`
+          }
+        `
         : "No metadata available"
       }
     </div>
@@ -262,12 +262,14 @@ function render(d){
     </div>
   `;
 
-  // MAP INIT (safe + stable)
-// store GPS only (do NOT create map here)
-if(d.metadata?.gps){
-  window._gpsData = d.metadata.gps;
+  // STORE GPS ONLY (do NOT create map here)
+  if(d.metadata?.gps){
+    window._gpsData = d.metadata.gps;
+  }
 }
 
+
+// TAB FUNCTION (OUTSIDE render)
 function tab(e,id){
   document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
@@ -275,7 +277,7 @@ function tab(e,id){
   document.getElementById(id).classList.add("active");
   e.target.classList.add("active");
 
-  // ONLY create map when map tab is opened
+  // CREATE MAP ONLY WHEN TAB IS OPENED
   if(id==="mapTab" && window._gpsData){
 
     const gps = window._gpsData;
