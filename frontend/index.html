@@ -263,22 +263,9 @@ function render(d){
   `;
 
   // MAP INIT (safe + stable)
-  if(d.metadata?.gps){
-    setTimeout(()=>{
-      const map=L.map('map').setView(
-        [d.metadata.gps.lat, d.metadata.gps.lon],
-        13
-      );
-
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
-        .addTo(map);
-
-      L.marker([d.metadata.gps.lat, d.metadata.gps.lon])
-        .addTo(map);
-
-      window._mapInstance = map;
-    },200);
-  }
+// store GPS only (do NOT create map here)
+if(d.metadata?.gps){
+  window._gpsData = d.metadata.gps;
 }
 
 function tab(e,id){
@@ -288,8 +275,22 @@ function tab(e,id){
   document.getElementById(id).classList.add("active");
   e.target.classList.add("active");
 
-  if(id==="mapTab" && window._mapInstance){
-    setTimeout(()=>window._mapInstance.invalidateSize(),200);
+  // ONLY create map when map tab is opened
+  if(id==="mapTab" && window._gpsData){
+
+    const gps = window._gpsData;
+
+    const map = L.map('map').setView(
+      [gps.lat, gps.lon],
+      13
+    );
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+      .addTo(map);
+
+    L.marker([gps.lat, gps.lon]).addTo(map);
+
+    setTimeout(()=>map.invalidateSize(),200);
   }
 }
 
