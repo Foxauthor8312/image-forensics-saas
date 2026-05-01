@@ -311,13 +311,7 @@ if(d.score > 70){
     : "No GPS data available"
   }
 </div>
-    <div id="mapTab" class="tab-content">
-  ${
-    d.metadata?.gps
-    ? `<div id="map"></div>`
-    : "No GPS data available"
-  }
-</div>
+ 
 
 <div id="h" class="tab-content">
 
@@ -329,32 +323,36 @@ if(d.score > 70){
       border-radius:10px;
     ">
 
+    <canvas id="heatmapCanvas" style="
+      position:absolute;
+      top:0;
+      left:0;
+      width:100%;
+      height:100%;
+      opacity:0.5;
+      border-radius:10px;
+    "></canvas>
+
+  </div>
+
+  <input type="range" id="heatSlider"
+    min="0" max="100" value="50"
+    style="width:100%;margin-top:10px;">
+
   <div style="
-  margin-top:12px;
-  font-size:13px;
-  line-height:1.5;
-  background:#020617;
-  padding:10px;
-  border-radius:8px;
-">
-
-  <strong>How to interpret this visualization</strong><br><br>
-
-  This heatmap highlights differences in how parts of the image were compressed.
-
-  <ul style="margin-top:6px;padding-left:18px;">
-    <li><strong style="color:#ef4444;">Brighter areas:</strong> regions that compress differently — these may indicate edits or reprocessing.</li>
-    <li><strong>Darker areas:</strong> more uniform compression — typical of consistent regions.</li>
-  </ul>
-
-  <strong>Important:</strong><br>
-  Bright areas do <em>not automatically mean manipulation</em>. Natural features like edges,
-  textures, or lighting changes can also appear highlighted.
-
-  <br><br>
-
-  Use this together with the score and summary above.
-
+    margin-top:12px;
+    font-size:13px;
+    line-height:1.5;
+    background:#020617;
+    padding:10px;
+    border-radius:8px;
+  ">
+    <strong>How to interpret this visualization</strong><br><br>
+    Bright areas show stronger compression differences. These may indicate edits,
+    but can also come from natural image detail like edges or texture.
+    <br><br>
+    Use the slider to compare the heatmap with the original image.
+  </div>
 
 </div>
   `;
@@ -363,7 +361,7 @@ if(d.score > 70){
   if(d.metadata?.gps){
     window._gpsData = d.metadata.gps;
   }
-  if(window.lastFile){
+ if(window.lastFile){
 
   const img = new Image();
 
@@ -373,7 +371,10 @@ if(d.score > 70){
     const canvas = document.getElementById("heatmapCanvas");
     const slider = document.getElementById("heatSlider");
 
-    if(!canvas || !base || !slider) return;
+    if(!canvas || !base || !slider){
+      console.log("Heatmap elements missing");
+      return;
+    }
 
     const url = URL.createObjectURL(window.lastFile);
     base.src = url;
@@ -398,6 +399,7 @@ if(d.score > 70){
 
     ctx.putImageData(imageData, 0, 0);
 
+    // 👇 THIS IS WHAT MAKES THE SLIDER WORK
     slider.oninput = () => {
       canvas.style.opacity = slider.value / 100;
     };
