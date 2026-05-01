@@ -295,8 +295,26 @@ function tab(e,id){
       13
     );
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
-      .addTo(map);
+  // Street layer
+const street = L.tileLayer(
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+);
+
+// Satellite layer (ESRI)
+const satellite = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+);
+
+// Default to street
+street.addTo(map);
+
+// Layer control
+L.control.layers(
+  {
+    "Street": street,
+    "Satellite": satellite
+  }
+).addTo(map);
 
     L.marker([gps.lat, gps.lon]).addTo(map);
 
