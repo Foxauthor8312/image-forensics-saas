@@ -190,6 +190,9 @@ const data = await res.json();
 
 function render(d){
 
+  // reset map for new image
+  window._mapInstance = null;
+
   const preview = window.lastFile
     ? `<img class="preview" src="${URL.createObjectURL(window.lastFile)}">`
     : "";
