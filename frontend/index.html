@@ -208,9 +208,9 @@ if(d.score > 70){
   // reset map for new image
   window._mapInstance = null;
 
-  const preview = window.lastFilehttps://github.com/Foxauthor8312/image-forensics-saas/blob/main/frontend/index.html
-    ? `<img class="preview" src="${URL.createObjectURL(window.lastFile)}">`
-    : "";
+ const preview = window.lastFile
+  ? `<img class="preview" src="${URL.createObjectURL(window.lastFile)}">`
+  : "";
 
   result.innerHTML = `
     ${preview}
