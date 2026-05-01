@@ -141,6 +141,12 @@ file.onchange=e=>{
 };
 
 async function analyze(f){
+
+  // WAKE BACKEND FIRST
+  try {
+    await fetch(API);
+  } catch(e){}
+
   const form=new FormData();
   form.append("image",f);
 
