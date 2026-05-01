@@ -281,49 +281,52 @@ function tab(e,id){
   e.target.classList.add("active");
 
   // CREATE MAP ONLY WHEN TAB IS OPENED
-  if(id==="mapTab" && window._gpsData){
+ if(id==="mapTab" && window._gpsData){
 
-    const gps = window._gpsData;
+  const gps = window._gpsData;
 
-    // prevent duplicate maps
-    if(window._mapInstance){
-      return;
-    }
-
-    const map = L.map('map').setView(
-      [gps.lat, gps.lon],
-      13
-    );
-
-  // Street layer
-const street = L.tileLayer(
-  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-);
-
-// Satellite layer (ESRI)
-const satellite = L.tileLayer(
-  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-);
-
-// Default to street
-street.addTo(map);
-
-// Layer control
-L.control.layers(
-  {
-    "Street": street,
-    "Satellite": satellite
-  }
-).addTo(map);
-
-    L.marker([gps.lat, gps.lon]).addTo(map);
-
-    window._mapInstance = map;
-
-    setTimeout(()=>map.invalidateSize(),200);
+  if(window._mapInstance){
+    return;
   }
 
-}  // ✅ THIS WAS MISSING
+  // street layer
+  const street = L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 19 }
+  );
+
+  // satellite layer
+  const satellite = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19 }
+  );
+
+  // create map WITH street layer
+  const map = L.map('map', {
+    center: [gps.lat, gps.lon],
+    zoom: 13,
+    layers: [street]
+  });
+
+  // toggle control
+  L.control.layers(
+    {
+      "Street": street,
+      "Satellite": satellite
+    },
+    null,
+    { collapsed: false }
+  ).addTo(map);
+
+  // marker
+  L.marker([gps.lat, gps.lon]).addTo(map);
+
+  window._mapInstance = map;
+
+  setTimeout(()=>map.invalidateSize(),200);
+  }
+}
+    
 document.getElementById("year").innerText=new Date().getFullYear();
 
 // SERVICE WORKER (safe)
