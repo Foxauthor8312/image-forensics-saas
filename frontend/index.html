@@ -189,7 +189,13 @@ const data = await res.json();
 }
 
 function render(d){
+let scoreColor = "#22c55e"; // green default
 
+if(d.score > 70){
+  scoreColor = "#ef4444"; // red
+}else if(d.score > 40){
+  scoreColor = "#facc15"; // yellow
+}
   // reset map for new image
   window._mapInstance = null;
 
@@ -205,10 +211,24 @@ function render(d){
       <div class="tab" onclick="tab(event,'d')">Detailed</div>
       <div class="tab" onclick="tab(event,'m')">Metadata</div>
       <div class="tab" onclick="tab(event,'mapTab')">Map</div>
+      <div class="tab" onclick="tab(event,'h')">Heatmap</div>
     </div>
 
     <div id="r" class="tab-content active">
-      <h3>${d.conclusion || ""}</h3>
+    <h3 style="color:${scoreColor}">
+  ${d.conclusion || ""}
+    </h3>
+    <div style="
+  display:inline-block;
+  padding:6px 10px;
+  border-radius:6px;
+  background:${scoreColor}20;
+  color:${scoreColor};
+  font-weight:600;
+  margin-top:6px;
+">
+  Score: ${d.score || 0}%
+</div>
       <p>${d.analysis || ""}</p>
       ${
         d.signals
@@ -263,6 +283,17 @@ function render(d){
         : "No GPS data available"
       }
     </div>
+    <div id="mapTab" class="tab-content">
+  ${
+    d.metadata?.gps
+    ? `<div id="map"></div>`
+    : "No GPS data available"
+  }
+</div>
+
+<div id="h" class="tab-content">
+  <canvas id="heatmapCanvas" style="width:100%;border-radius:10px;"></canvas>
+</div>
   `;
 
   // STORE GPS ONLY (do NOT create map here)
