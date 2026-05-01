@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
-const exif = require("exif-parser");
+const parser = exif.create(original);
 const sharp = require("sharp");
 
 const app = express();
