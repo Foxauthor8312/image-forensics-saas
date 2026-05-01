@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,80 +15,32 @@
 body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 .container{padding:20px;max-width:1100px;margin:auto}
 .panel{background:#1e293b;padding:20px;border-radius:12px}
-
 .drop{border:2px dashed #555;padding:30px;text-align:center;cursor:pointer}
-
 .tabs{display:flex;gap:10px;margin-top:15px}
 .tab{padding:6px 10px;background:#111;border-radius:6px;cursor:pointer}
 .tab.active{background:#3b82f6}
-
 .tab-content{display:none;margin-top:10px}
 .tab-content.active{display:block}
-
 #map{height:300px;border-radius:10px;margin-top:10px}
-
 .progress{height:6px;background:#111;margin:10px 0;display:none}
 .fill{height:100%;width:0;background:#3b82f6}
+img.preview{max-width:100%;max-height:300px;object-fit:contain;margin-bottom:10px;border-radius:8px}
 
-img.preview{
-  max-width:100%;
-  max-height:300px;
-  object-fit:contain;
-  margin-bottom:10px;
-  border-radius:8px;
-}
+.app-header{display:flex;align-items:center;gap:12px;padding:12px;margin-bottom:15px;background:#1e293b;border-radius:10px}
+.logo-badge{width:40px;height:40px;background:#0f172a;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.logo-badge img{width:24px}
+.brand-title{font-weight:600}
+.brand-sub{font-size:11px;opacity:.6}
 
-.app-footer{
-  margin-top:20px;
-  padding:12px;
-  background:#1e293b;
-  border-radius:10px;
-  font-size:12px;
-}
-.footer-sub{
-  opacity:.6;
-  font-size:11px;
-}
-  /* HEADER STYLES — ADD RIGHT HERE */
-.app-header{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:12px;
-  margin-bottom:15px;
-  background:#1e293b;
-  border-radius:10px;
-}
-
-.logo-badge{
-  width:40px;
-  height:40px;
-  background:#0f172a;
-  border-radius:8px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-
-.logo-badge img{
-  width:24px;
-}
-
-.brand-title{
-  font-weight:600;
-}
-
-.brand-sub{
-  font-size:11px;
-  opacity:.6;
-}
-/* END HEADER STYLES */
+.app-footer{margin-top:20px;padding:12px;background:#1e293b;border-radius:10px;font-size:12px}
+.footer-sub{opacity:.6;font-size:11px}
 </style>
 
 </head>
 
 <body>
 <div class="container">
+
 <header class="app-header">
   <div class="logo-badge">
     <img src="/icon-192.png">
@@ -95,7 +48,6 @@ img.preview{
   <div>
     <div class="brand-title">PixelProof</div>
     <div class="brand-sub">AI Image Forensics Engine</div>
- 
   </div>
 </header>
 
@@ -112,11 +64,9 @@ img.preview{
 </div>
 
 <footer class="app-footer">
-  <div>
-    <strong>PixelProof</strong>
-    <div class="footer-sub">AI Image Forensics Engine</div>
-    <div class="footer-sub">© <span id="year"></span></div>
-  </div>
+  <strong>PixelProof</strong>
+  <div class="footer-sub">AI Image Forensics Engine</div>
+  <div class="footer-sub">© <span id="year"></span></div>
 </footer>
 
 </div>
@@ -141,11 +91,7 @@ file.onchange=e=>{
 };
 
 async function analyze(f){
-
-  // WAKE BACKEND FIRST
-  try {
-    await fetch(API);
-  } catch(e){}
+  try { await fetch(API); } catch(e){}
 
   const form=new FormData();
   form.append("image",f);
@@ -161,56 +107,45 @@ async function analyze(f){
   },300);
 
   try{
-   const res = await fetch(API + "/api/analyze", {
-  method: "POST",
-  body: form,
-  mode: "cors"
-});
+    const res = await fetch(API + "/api/analyze", {
+      method: "POST",
+      body: form,
+      mode: "cors"
+    });
 
-if (!res.ok) {
-  throw new Error("Request blocked: " + res.status);
-}
+    if (!res.ok) throw new Error("Request failed");
 
-const data = await res.json();
+    const data = await res.json();
 
     clearInterval(int);
     fill.style.width="100%";
     status.innerText="Done";
     setTimeout(()=>bar.style.display="none",500);
-    
-    console.log("FULL RESULT:", JSON.stringify(data, null, 2));
+
     render(data.result || data);
 
   }catch(err){
     clearInterval(int);
-    status.innerText="Error";
+    status.innerText="Error loading image";
     console.error(err);
   }
 }
 
 function render(d){
-let scoreColor = "#22c55e"; // green default
 
-if(d.score > 70){
-  scoreColor = "#ef4444"; // red
-}else if(d.score > 40){
-  scoreColor = "#facc15"; // yellow
-}
-let explanation = "";
+  let scoreColor = d.score > 70 ? "#ef4444" : d.score > 40 ? "#facc15" : "#22c55e";
 
-if(d.score > 70){
-  explanation = "The image shows strong inconsistencies in compression patterns. If bright areas in the heatmap stand out from surrounding regions, those areas may have been edited or inserted.";
-}else if(d.score > 40){
-  explanation = "Some regions differ slightly in how they were compressed. Compare the heatmap to the original image to see if any areas stand out more than expected.";
-}else{
-  explanation = "Compression patterns are consistent across the image. Any bright areas in the heatmap are most likely caused by natural details such as edges, textures, or lighting.";
-}
-  // reset map for new image
+  let explanation = d.score > 70
+    ? "Significant inconsistencies detected. Regions may have been altered or recompressed."
+    : d.score > 40
+    ? "Moderate variation detected. Some regions differ in processing."
+    : "Compression patterns appear consistent across the image.";
+
   window._mapInstance = null;
 
- const preview = window.lastFile
-  ? `<img class="preview" src="${URL.createObjectURL(window.lastFile)}">`
-  : "";
+  const preview = window.lastFile
+    ? `<img class="preview" src="${URL.createObjectURL(window.lastFile)}">`
+    : "";
 
   result.innerHTML = `
     ${preview}
@@ -224,162 +159,43 @@ if(d.score > 70){
     </div>
 
     <div id="r" class="tab-content active">
-    <h3 style="color:${scoreColor}">
-    <div style="
-  margin-top:6px;
-  font-size:14px;
-  font-weight:500;
-  opacity:.9;
-">
-  ${
-    d.score > 70
-      ? "This image likely contains altered or recompressed regions."
-      : d.score > 40
-      ? "This image shows some inconsistencies that may indicate edits."
-      : "This image appears consistent with an unedited original."
-  }
-</div>
-  ${d.conclusion || ""}
-    </h3>
-    <div style="
-  display:inline-block;
-  padding:6px 10px;
-  border-radius:6px;
-  background:${scoreColor}20;
-  color:${scoreColor};
-  font-weight:600;
-  margin-top:6px;
-">
-  Score: ${d.score || 0}%
-</div>
-     <div style="margin-top:8px">
-  ${d.analysis || ""}
-</div>
 
-<div style="
-  margin-top:10px;
-  padding:10px;
-  background:#020617;
-  border-radius:8px;
-  font-size:13px;
-  line-height:1.4;
-">
-  <strong>What this means:</strong><br>
-  ${explanation}
-</div>
-      ${
-        d.signals
-        ? Object.entries(d.signals).map(([k,v])=>`<div>${k}: ${v}%</div>`).join("")
-        : ""
-      }
-    </div>
+      <div style="font-size:15px;font-weight:600;color:${scoreColor}">
+        ${d.score > 70 ? "High likelihood of manipulation" : d.score > 40 ? "Possible modification detected" : "No strong indicators of manipulation"}
+      </div>
 
-    <div id="d" class="tab-content">
-      <h3>Forensic Analysis</h3>
-      <p><strong>Conclusion:</strong> ${d.conclusion || "N/A"}</p>
-      <p><strong>Summary:</strong><br>${d.analysis || "No analysis available"}</p>
+      <div style="opacity:.8;margin-top:4px">${d.conclusion || ""}</div>
 
-      <h4>Signal Breakdown</h4>
-      ${
-        d.signals
-          ? Object.entries(d.signals).map(([k,v])=>`
-              <div>${k.toUpperCase()}: ${v}%</div>
-            `).join("")
-          : "<div>No signal data</div>"
-      }
+      <div style="margin-top:8px;padding:6px 10px;border-radius:6px;background:${scoreColor}20;color:${scoreColor};display:inline-block;font-weight:600">
+        Score: ${d.score || 0}%
+      </div>
 
-      <h4>Technical Notes</h4>
-      <p style="opacity:.7">
-        This analysis evaluates compression artifacts, noise distribution,
-        and metadata consistency. These indicators are suggestive and not
-        independently conclusive.
-      </p>
-    </div>
+      <div style="margin-top:10px;padding:12px;background:#020617;border-radius:8px">
+        <strong>Interpretation</strong><br>
+        ${explanation}
+      </div>
 
-    <div id="m" class="tab-content">
-      ${
-        d.metadata
-        ? `
-          <div><strong>Camera:</strong> ${d.metadata.camera || "Unknown"}</div>
-          <div><strong>Model:</strong> ${d.metadata.model || "Unknown"}</div>
-          <div><strong>Date:</strong> ${d.metadata.date || "N/A"}</div>
-          ${
-            d.metadata.gps
-            ? `<div><strong>GPS:</strong> ${d.metadata.gps.lat}, ${d.metadata.gps.lon}</div>`
-            : `<div>No GPS metadata</div>`
-          }
-        `
-        : "No metadata available"
-      }
     </div>
 
     <div id="mapTab" class="tab-content">
-  ${
-    d.metadata?.gps
-    ? `
-      <div id="map"></div>
-      <div id="locationLabel" style="margin-top:8px;opacity:.8;font-size:12px;">
-        Resolving location...
+      ${d.metadata?.gps ? `<div id="map"></div><div id="locationLabel">Loading...</div>` : "No GPS"}
+    </div>
+
+    <div id="h" class="tab-content">
+      <div style="position:relative">
+        <img id="heatmapBase" style="width:100%">
+        <canvas id="heatmapCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:.6"></canvas>
       </div>
-    `
-    : "No GPS data available"
-  }
-</div>
- 
 
-<div id="h" class="tab-content">
-
-  <div style="position:relative;max-width:100%;">
-
-    <img id="heatmapBase" style="
-      width:100%;
-      display:block;
-      border-radius:10px;
-    ">
-
-    <canvas id="heatmapCanvas" style="
-      position:absolute;
-      top:0;
-      left:0;
-      width:100%;
-      height:100%;
-      opacity:0.5;
-      border-radius:10px;
-    "></canvas>
-
-  </div>
-
-  <input type="range" id="heatSlider"
-    min="0" max="100" value="50"
-    style="width:100%;margin-top:10px;">
-
-  <div style="
-    margin-top:12px;
-    font-size:13px;
-    line-height:1.5;
-    background:#020617;
-    padding:10px;
-    border-radius:8px;
-  ">
-    <strong>How to interpret this visualization</strong><br><br>
-    Bright areas show stronger compression differences. These may indicate edits,
-    but can also come from natural image detail like edges or texture.
-    <br><br>
-    Use the slider to compare the heatmap with the original image.
-  </div>
-
-</div>
+      <input type="range" id="heatSlider" min="0" max="100" value="50" style="width:100%">
+    </div>
   `;
 
-  // STORE GPS ONLY (do NOT create map here)
   if(d.metadata?.gps){
     window._gpsData = d.metadata.gps;
   }
-
 }
 
-
-// TAB FUNCTION (OUTSIDE render)
 function tab(e,id){
   document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
@@ -387,143 +203,63 @@ function tab(e,id){
   document.getElementById(id).classList.add("active");
   e.target.classList.add("active");
 
-  // =========================
-  // MAP
-  // =========================
   if(id==="mapTab" && window._gpsData){
+
+    if(window._mapInstance) return;
 
     const gps = window._gpsData;
 
-    if(window._mapInstance){
-      return;
-    }
-
-    const street = L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { maxZoom: 19 }
-    );
-
-    const satellite = L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 19 }
-    );
-
-    const map = L.map('map', {
-      center: [gps.lat, gps.lon],
-      zoom: 13,
-      layers: [street]
-    });
-
-    L.control.layers(
-      { "Street": street, "Satellite": satellite },
-      null,
-      { collapsed: false }
-    ).addTo(map);
-
-    L.marker([gps.lat, gps.lon]).addTo(map);
-
+    const map = L.map('map').setView([gps.lat,gps.lon],13);
     window._mapInstance = map;
 
-    const label = document.getElementById("locationLabel");
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.marker([gps.lat,gps.lon]).addTo(map);
 
-    if(label){
-      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${gps.lat}&lon=${gps.lon}`)
-        .then(res => res.json())
-        .then(data => {
-          const addr = data.address || {};
-          const locationText = [
-            addr.city || addr.town || addr.village,
-            addr.state,
-            addr.country
-          ].filter(Boolean).join(", ");
-
-          label.innerText = locationText || "Location not found";
-        })
-        .catch(()=>{
-          label.innerText = "Location lookup failed";
-        });
-    }
-
-    setTimeout(()=>map.invalidateSize(),200);
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${gps.lat}&lon=${gps.lon}`)
+      .then(r=>r.json())
+      .then(d=>{
+        const label = document.getElementById("locationLabel");
+        if(label) label.innerText = d.display_name || "Location unknown";
+      });
   }
 
-  // =========================
-  // HEATMAP
-  // =========================
   if(id==="h" && window.lastFile){
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.getElementById("heatmapCanvas");
+      if(!canvas) return;
 
-    const img = new Image();
+      const ctx=canvas.getContext("2d");
 
-    img.onload = () => {
+      canvas.width=img.width;
+      canvas.height=img.height;
 
-      const base = document.getElementById("heatmapBase");
-      const canvas = document.getElementById("heatmapCanvas");
+      ctx.drawImage(img,0,0);
+
+      let data=ctx.getImageData(0,0,canvas.width,canvas.height);
+
+      for(let i=0;i<data.data.length;i+=4){
+        let avg=(data.data[i]+data.data[i+1]+data.data[i+2])/3;
+        data.data[i]=Math.min(255, avg*3);
+      }
+
+      ctx.putImageData(data,0,0);
+
       const slider = document.getElementById("heatSlider");
-
-      if(!canvas || !base || !slider){
-        console.log("Heatmap elements missing");
-        return;
+      if(slider){
+        slider.oninput=e=>{
+          canvas.style.opacity=e.target.value/100;
+        };
       }
-
-      const url = URL.createObjectURL(window.lastFile);
-      base.src = url;
-
-      const ctx = canvas.getContext("2d");
-
-      canvas.width = img.width;
-      canvas.height = img.height;
-
-      ctx.drawImage(img, 0, 0);
-
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-
-      for(let i = 0; i < data.length; i += 4){
-        const avg = (data[i] + data[i+1] + data[i+2]) / 3;
-
-        data[i] = Math.min(255, avg * 2);
-        data[i+1] = avg * 0.4;
-        data[i+2] = avg * 0.4;
-      }
-
-      ctx.putImageData(imageData, 0, 0);
-
-      slider.oninput = () => {
-        canvas.style.opacity = slider.value / 100;
-      };
-
     };
+    img.src=URL.createObjectURL(window.lastFile);
 
-    img.src = URL.createObjectURL(window.lastFile);
+    const base = document.getElementById("heatmapBase");
+    if(base) base.src = img.src;
   }
 }
 
-    
 document.getElementById("year").innerText=new Date().getFullYear();
-
-// SERVICE WORKER (safe)
-if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("/sw.js").catch(()=>{});
-}
-let deferredPrompt;
-
-window.addEventListener("beforeinstallprompt", (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-
-  const btn = document.createElement("button");
-  btn.innerText = "📲 Install PixelProof";
-  btn.style.marginTop = "10px";
-
-  btn.onclick = async () => {
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    btn.remove();
-  };
-
-  document.querySelector(".panel").prepend(btn);
-});
 </script>
 
 </body>
