@@ -7,7 +7,13 @@ const sharp = require("sharp");
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    "https://image-forensics-saas.vercel.app"
+  ],
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type"]
+}));
 
 // ROOT TEST
 app.get("/", (req, res) => {
