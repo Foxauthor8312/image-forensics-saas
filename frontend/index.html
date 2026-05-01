@@ -280,20 +280,26 @@ function tab(e,id){
   // CREATE MAP ONLY WHEN TAB IS OPENED
   if(id==="mapTab" && window._gpsData){
 
-    const gps = window._gpsData;
+  const gps = window._gpsData;
 
-    const map = L.map('map').setView(
-      [gps.lat, gps.lon],
-      13
-    );
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
-      .addTo(map);
-
-    L.marker([gps.lat, gps.lon]).addTo(map);
-
-    setTimeout(()=>map.invalidateSize(),200);
+  // prevent duplicate maps
+  if(window._mapInstance){
+    return;
   }
+
+  const map = L.map('map').setView(
+    [gps.lat, gps.lon],
+    13
+  );
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+    .addTo(map);
+
+  L.marker([gps.lat, gps.lon]).addTo(map);
+
+  window._mapInstance = map;
+
+  setTimeout(()=>map.invalidateSize(),200);
 }
 
 document.getElementById("year").innerText=new Date().getFullYear();
