@@ -178,7 +178,7 @@ const data = await res.json();
     status.innerText="Done";
     setTimeout(()=>bar.style.display="none",500);
     
-    console.log("RESULT DATA:", data);
+    console.log("FULL RESULT:", JSON.stringify(data, null, 2));
     render(data.result || data);
 
   }catch(err){
