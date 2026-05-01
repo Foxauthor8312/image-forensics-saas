@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
-const parser = exif.create(original);
+const exifr = require("exifr");
 const sharp = require("sharp");
 
 const app = express();
@@ -48,26 +48,27 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
     const elaScore = Math.min(100, Math.round(avgDiff * 2));
 
     // 🧠 METADATA
-    let metadata = {};
-    try {
-      const parser = exif.create(original);
-      const result = parser.parse();
+   let metadata = {};
 
-      metadata = {
-        camera: result.tags.Make || "Unknown",
-        model: result.tags.Model || "Unknown",
-        software: result.tags.Software || "Unknown",
-        date: result.tags.DateTimeOriginal || null,
-        gps: result.tags.GPSLatitude
-          ? {
-              lat: result.tags.GPSLatitude,
-              lon: result.tags.GPSLongitude
-            }
-          : null
-      };
-    } catch (e) {
-      console.log("EXIF parse failed");
-    }
+try {
+  const exifData = await exifr.parse(original);
+
+  metadata = {
+    camera: exifData?.Make || "Unknown",
+    model: exifData?.Model || "Unknown",
+    software: exifData?.Software || "Unknown",
+    date: exifData?.DateTimeOriginal || null,
+    gps: (exifData?.latitude && exifData?.longitude)
+      ? {
+          lat: exifData.latitude,
+          lon: exifData.longitude
+        }
+      : null
+  };
+
+} catch (e) {
+  console.log("EXIF parse failed:", e.message);
+}
 
     // 🧠 SIGNALS
     const signals = {
