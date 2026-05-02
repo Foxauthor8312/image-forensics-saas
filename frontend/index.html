@@ -49,12 +49,12 @@ img.preview{max-width:100%;max-height:300px;object-fit:contain;margin-bottom:10p
   color:white;
   font-size:16px;
   font-weight:700;
-  display:block;
 ">
-  📷 Take Photo (Use Camera)
+  📷 Take Photo
 </button>
 
-<input type="file" id="file" accept="image/*" capture="environment" hidden>
+<input type="file" id="file" accept="image/*" hidden>
+<input type="file" id="camera" accept="image/*" capture="environment" hidden>
 
   <div id="status"></div>
   <div class="progress" id="bar"><div class="fill" id="fill"></div></div>
@@ -74,11 +74,20 @@ img.preview{max-width:100%;max-height:300px;object-fit:contain;margin-bottom:10p
 const API="https://pixelproof-backend-v2.onrender.com";
 
 const file=document.getElementById("file");
+const camera=document.getElementById("camera");  // 👈 new
 const drop=document.getElementById("drop");
 const result=document.getElementById("result");
 const bar=document.getElementById("bar");
 const fill=document.getElementById("fill");
 const status=document.getElementById("status");
+
+// 👇 new block
+camera.onchange = e => {
+  const f = e.target.files[0];
+  if(!f) return;
+  window.lastFile = f;
+  analyze(f);
+};
 
 drop.onclick=()=>file.click();
 
