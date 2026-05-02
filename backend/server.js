@@ -23,36 +23,37 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
 
     const original = req.file.buffer;
 
-    // 🧠 METADATA FIRST
-    let metadata = {};
+// 🧠 METADATA (stable version)
+let metadata = {};
 
-    try {
-   const exifData = await exifr.parse(original, {
-  gps: true
-});
-      const lat =
-        exifData?.latitude ??
-        exifData?.Latitude ??
-        exifData?.GPSLatitude;
+try {
+  const exifData = await exifr.parse(original);
 
-      const lon =
-        exifData?.longitude ??
-        exifData?.Longitude ??
-        exifData?.GPSLongitude;
+  // 🔍 DEBUG (leave for now)
+  console.log("EXIF FULL:", exifData);
 
-      metadata = {
-        camera: exifData?.Make || "Unknown",
-        model: exifData?.Model || "Unknown",
-        software: exifData?.Software || "Unknown",
-        date: exifData?.DateTimeOriginal || exifData?.CreateDate || null,
-        gps: (lat && lon) ? { lat, lon } : null
-      };
+  // robust GPS extraction (handles Android + iPhone)
+  const lat =
+    exifData?.latitude ??
+    exifData?.GPSLatitude ??
+    (Array.isArray(exifData?.gps?.latitude) ? exifData.gps.latitude[0] : undefined);
 
-      console.log("EXIF:", exifData);
+  const lon =
+    exifData?.longitude ??
+    exifData?.GPSLongitude ??
+    (Array.isArray(exifData?.gps?.longitude) ? exifData.gps.longitude[0] : undefined);
 
-    } catch (e) {
-      console.log("EXIF parse failed:", e.message);
-    }
+  metadata = {
+    camera: exifData?.Make || "Unknown",
+    model: exifData?.Model || "Unknown",
+    software: exifData?.Software || "Unknown",
+    date: exifData?.DateTimeOriginal || exifData?.CreateDate || null,
+    gps: (lat && lon) ? { lat, lon } : null
+  };
+
+} catch (e) {
+  console.log("EXIF parse failed:", e.message);
+}
 
     // STEP 1: recompress
     const recompressed = await sharp(original)
