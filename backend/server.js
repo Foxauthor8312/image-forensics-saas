@@ -7,9 +7,7 @@ const sharp = require("sharp");
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
-app.use(cors({
-  origin: "*"
-}));
+app.use(cors({ origin: "*" }));
 
 // ROOT TEST
 app.get("/", (req, res) => {
@@ -25,6 +23,36 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
 
     const original = req.file.buffer;
 
+    // 🧠 METADATA FIRST
+    let metadata = {};
+
+    try {
+      const exifData = await exifr.parse(original);
+
+      const lat =
+        exifData?.latitude ??
+        exifData?.Latitude ??
+        exifData?.GPSLatitude;
+
+      const lon =
+        exifData?.longitude ??
+        exifData?.Longitude ??
+        exifData?.GPSLongitude;
+
+      metadata = {
+        camera: exifData?.Make || "Unknown",
+        model: exifData?.Model || "Unknown",
+        software: exifData?.Software || "Unknown",
+        date: exifData?.DateTimeOriginal || exifData?.CreateDate || null,
+        gps: (lat && lon) ? { lat, lon } : null
+      };
+
+      console.log("EXIF:", exifData);
+
+    } catch (e) {
+      console.log("EXIF parse failed:", e.message);
+    }
+
     // STEP 1: recompress
     const recompressed = await sharp(original)
       .jpeg({ quality: 70 })
@@ -39,54 +67,13 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
 
     let diffSum = 0;
 
-    // STEP 3: pixel difference
     for (let i = 0; i < oData.length; i++) {
       diffSum += Math.abs(oData[i] - rData[i]);
     }
 
     const avgDiff = diffSum / oData.length;
-
-    // STEP 4: normalize score
     const elaScore = Math.min(100, Math.round(avgDiff * 2));
 
-    // 🧠 METADATA
-  // 🧠 METADATA
-let metadata = {};
-
-try {
-  // parse everything reliably
-  const exifData = await exifr.parse(original);
-
-  // 🔍 robust GPS extraction (handles multiple formats)
-  const lat =
-    exifData?.latitude ??
-    exifData?.Latitude ??
-    exifData?.GPSLatitude;
-
-  const lon =
-    exifData?.longitude ??
-    exifData?.Longitude ??
-    exifData?.GPSLongitude;
-
-  metadata = {
-    camera: exifData?.Make || "Unknown",
-    model: exifData?.Model || "Unknown",
-    software: exifData?.Software || "Unknown",
-    date: exifData?.DateTimeOriginal || exifData?.CreateDate || null,
-    gps: (lat && lon)
-      ? {
-          lat,
-          lon
-        }
-      : null
-  };
-
-  // 🔍 debug (leave this in for now)
-  console.log("EXIF:", exifData);
-
-} catch (e) {
-  console.log("EXIF parse failed:", e.message);
-}
     // 🧠 SIGNALS
     const signals = {
       ela: elaScore,
@@ -118,16 +105,16 @@ try {
         ? "Possible modification detected"
         : "Likely authentic image";
 
-    const response = {
-      score,
-      signals,
-      metadata,
-      heatmap: null,
-      analysis,
-      conclusion
-    };
-
-    res.json({ result: response });
+    res.json({
+      result: {
+        score,
+        signals,
+        metadata,
+        heatmap: null,
+        analysis,
+        conclusion
+      }
+    });
 
   } catch (err) {
     console.error("ELA ERROR:", err);
