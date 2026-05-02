@@ -4,7 +4,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PixelProof</title>
-<div style="color:red;font-size:20px;">NEW VERSION</div>
+
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#0f172a">
 
@@ -25,8 +25,6 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
 .progress{height:6px;background:#111;margin:10px 0;display:none}
 .fill{height:100%;width:0;background:#3b82f6}
 img.preview{max-width:100%;max-height:300px;object-fit:contain;margin-bottom:10px;border-radius:8px}
-.app-footer{margin-top:20px;padding:12px;background:#1e293b;border-radius:10px;font-size:12px}
-.footer-sub{opacity:.6;font-size:11px}
 </style>
 
 </head>
@@ -37,24 +35,23 @@ img.preview{max-width:100%;max-height:300px;object-fit:contain;margin-bottom:10p
 <div class="panel">
   <h2>PixelProof</h2>
 
-  <div id="drop" class="drop">Click or Drop Image</div>
-  
-<button onclick="camera.click()" style="
-  margin-top:15px;
-  padding:14px;
-  width:100%;
-  background:#2563eb;
-  border:none;
-  border-radius:10px;
-  color:white;
-  font-size:16px;
-  font-weight:700;
-">
-  📷 Take Photo
-</button>
+  <div id="drop" class="drop">Tap to Upload Image</div>
 
-<input type="file" id="file" accept="image/*" hidden>
-<input type="file" id="camera" accept="image/*" capture="environment" hidden>
+<button onclick="camera.click()" style="
+ margin-top:15px;
+ padding:14px;
+ width:100%;
+ background:#2563eb;
+ border:none;
+ border-radius:10px;
+ color:white;
+ font-size:16px;
+ font-weight:700;
+">
+📷 Take Photo </button>
+
+  <input type="file" id="file" accept="image/*" hidden>
+  <input type="file" id="camera" accept="image/*" capture="environment" hidden>
 
   <div id="status"></div>
   <div class="progress" id="bar"><div class="fill" id="fill"></div></div>
@@ -62,36 +59,29 @@ img.preview{max-width:100%;max-height:300px;object-fit:contain;margin-bottom:10p
   <div id="result"></div>
 </div>
 
-<footer class="app-footer">
-  <strong>PixelProof</strong>
-  <div class="footer-sub">AI Image Forensics Engine</div>
-  <div class="footer-sub">© <span id="year"></span></div>
-</footer>
-
 </div>
 
 <script>
 const API="https://pixelproof-backend-v2.onrender.com";
 
 const file=document.getElementById("file");
-const camera=document.getElementById("camera");  // 👈 new
+const camera=document.getElementById("camera");
 const drop=document.getElementById("drop");
 const result=document.getElementById("result");
 const bar=document.getElementById("bar");
 const fill=document.getElementById("fill");
 const status=document.getElementById("status");
 
-// 👇 new block
-camera.onchange = e => {
-  const f = e.target.files[0];
-  if(!f) return;
-  window.lastFile = f;
-  analyze(f);
-};
-
 drop.onclick=()=>file.click();
 
 file.onchange=e=>{
+  const f=e.target.files[0];
+  if(!f) return;
+  window.lastFile=f;
+  analyze(f);
+};
+
+camera.onchange=e=>{
   const f=e.target.files[0];
   if(!f) return;
   window.lastFile=f;
@@ -105,34 +95,21 @@ async function analyze(f){
 
   bar.style.display="block";
   fill.style.width="10%";
-  status.innerText="Connecting to server...";
-
-  let p=10;
-  const int=setInterval(()=>{
-    p+=Math.random()*10;
-    if(p<90) fill.style.width=p+"%";
-  },300);
+  status.innerText="Connecting...";
 
   try{
-
-    // 🔧 wake backend (Render fix)
     try{
       await fetch(API);
-      await new Promise(r=>setTimeout(r,1500));
+      await new Promise(r=>setTimeout(r,1200));
     }catch(e){}
-
-    status.innerText="Analyzing image...";
 
     const res = await fetch(API + "/api/analyze", {
       method: "POST",
       body: form
     });
 
-    if (!res.ok) throw new Error("Server error");
-
     const data = await res.json();
 
-    clearInterval(int);
     fill.style.width="100%";
     status.innerText="Done";
     setTimeout(()=>bar.style.display="none",500);
@@ -140,14 +117,9 @@ async function analyze(f){
     render(data.result || data);
 
   }catch(err){
-
     console.error(err);
-
-    clearInterval(int);
+    status.innerText="Server waking up... try again";
     bar.style.display="none";
-
-    status.innerText="Server waking up... tap again";
-
   }
 }
 
@@ -166,24 +138,40 @@ function render(d){
 
     <div class="tabs">
       <div class="tab active" onclick="tab(event,'r')">Results</div>
+      <div class="tab" onclick="tab(event,'m')">Metadata</div>
       <div class="tab" onclick="tab(event,'mapTab')">Map</div>
       <div class="tab" onclick="tab(event,'h')">Heatmap</div>
     </div>
 
     <div id="r" class="tab-content active">
-      <div style="font-size:15px;font-weight:600;color:${scoreColor}">
-        ${d.score > 70 ? "High likelihood of manipulation" : d.score > 40 ? "Possible modification detected" : "No strong indicators of manipulation"}
+      <div style="font-weight:600;color:${scoreColor}">
+        ${d.score > 70 ? "High likelihood of manipulation" : d.score > 40 ? "Possible modification detected" : "Likely authentic"}
       </div>
-
-      <div style="margin-top:6px">${d.conclusion || ""}</div>
-
-      <div style="margin-top:8px;padding:6px 10px;border-radius:6px;background:${scoreColor}20;color:${scoreColor};display:inline-block">
+      <div>${d.conclusion || ""}</div>
+      <div style="margin-top:8px;color:${scoreColor}">
         Score: ${d.score || 0}%
       </div>
     </div>
 
+    <div id="m" class="tab-content">
+      <div>Camera: ${d.metadata?.camera || "Unknown"}</div>
+      <div>Model: ${d.metadata?.model || "Unknown"}</div>
+      <div>Date: ${d.metadata?.date || "Unknown"}</div>
+      <div>
+        GPS: ${
+          d.metadata?.gps
+            ? d.metadata.gps.lat + ", " + d.metadata.gps.lon
+            : "Not available"
+        }
+      </div>
+    </div>
+
     <div id="mapTab" class="tab-content">
-      ${d.metadata?.gps ? `<div id="map"></div>` : "No GPS data"}
+      ${
+        d.metadata?.gps
+          ? `<div id="map"></div>`
+          : "No GPS data"
+      }
     </div>
 
     <div id="h" class="tab-content">
@@ -209,15 +197,20 @@ function tab(e,id){
 
   if(id==="mapTab" && window._gpsData){
 
-    if(window._mapInstance) return;
+    if(window._mapInstance){
+      setTimeout(()=>window._mapInstance.invalidateSize(),200);
+      return;
+    }
 
     const gps = window._gpsData;
 
-    const map = L.map('map').setView([gps.lat,gps.lon],13);
+    const map = L.map('map').setView([gps.lat, gps.lon], 13);
     window._mapInstance = map;
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    L.marker([gps.lat,gps.lon]).addTo(map);
+    L.marker([gps.lat, gps.lon]).addTo(map);
+
+    setTimeout(()=>map.invalidateSize(),200);
   }
 
   if(id==="h" && window.lastFile){
@@ -253,8 +246,6 @@ function tab(e,id){
     document.getElementById("heatmapBase").src=img.src;
   }
 }
-
-document.getElementById("year").innerText=new Date().getFullYear();
 </script>
 
 </body>
