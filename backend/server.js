@@ -50,33 +50,43 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
     const elaScore = Math.min(100, Math.round(avgDiff * 2));
 
     // 🧠 METADATA
-   let metadata = {};
+  // 🧠 METADATA
+let metadata = {};
 
 try {
-  const exifData = await exifr.parse(original, {
-  gps: true,
-  exif: true,
-  tiff: true,
-  ifd0: true
-});
+  // parse everything reliably
+  const exifData = await exifr.parse(original);
+
+  // 🔍 robust GPS extraction (handles multiple formats)
+  const lat =
+    exifData?.latitude ??
+    exifData?.Latitude ??
+    exifData?.GPSLatitude;
+
+  const lon =
+    exifData?.longitude ??
+    exifData?.Longitude ??
+    exifData?.GPSLongitude;
 
   metadata = {
     camera: exifData?.Make || "Unknown",
     model: exifData?.Model || "Unknown",
     software: exifData?.Software || "Unknown",
-    date: exifData?.DateTimeOriginal || null,
-    gps: (exifData?.latitude && exifData?.longitude)
+    date: exifData?.DateTimeOriginal || exifData?.CreateDate || null,
+    gps: (lat && lon)
       ? {
-          lat: exifData.latitude,
-          lon: exifData.longitude
+          lat,
+          lon
         }
       : null
   };
 
+  // 🔍 debug (leave this in for now)
+  console.log("EXIF:", exifData);
+
 } catch (e) {
   console.log("EXIF parse failed:", e.message);
 }
-
     // 🧠 SIGNALS
     const signals = {
       ela: elaScore,
