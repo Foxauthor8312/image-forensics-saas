@@ -35,17 +35,33 @@ try {
   // robust GPS extraction (handles Android + iPhone)
   // 🔍 Extract GPS safely (handles all formats)
 
-let lat = exifData?.latitude ?? exifData?.GPSLatitude;
-let lon = exifData?.longitude ?? exifData?.GPSLongitude;
+// 🔍 Extract GPS (handles ALL Android/iPhone formats)
 
-// convert array format (DMS → decimal)
 function dmsToDecimal(dms) {
   if (!Array.isArray(dms)) return dms;
   return dms[0] + dms[1] / 60 + dms[2] / 3600;
 }
 
-lat = dmsToDecimal(lat);
-lon = dmsToDecimal(lon);
+let lat = null;
+let lon = null;
+
+// standard fields
+if (exifData?.latitude && exifData?.longitude) {
+  lat = exifData.latitude;
+  lon = exifData.longitude;
+}
+
+// Android / EXIF fields
+else if (exifData?.GPSLatitude && exifData?.GPSLongitude) {
+  lat = dmsToDecimal(exifData.GPSLatitude);
+  lon = dmsToDecimal(exifData.GPSLongitude);
+}
+
+// nested gps object (common case)
+else if (exifData?.gps) {
+  lat = dmsToDecimal(exifData.gps.latitude);
+  lon = dmsToDecimal(exifData.gps.longitude);
+}
 
 // also check nested gps object
 if (!lat && exifData?.gps?.latitude) {
