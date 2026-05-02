@@ -27,8 +27,9 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
     let metadata = {};
 
     try {
-      const exifData = await exifr.parse(original);
-
+   const exifData = await exifr.parse(original, {
+  gps: true
+});
       const lat =
         exifData?.latitude ??
         exifData?.Latitude ??
