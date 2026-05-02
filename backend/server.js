@@ -27,26 +27,43 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
 let metadata = {};
 
 try {
- const exifData = await exifr.parse(original, {
-  gps: true,
-  reviveValues: true
-});
+  const exifData = await exifr.parse(original, {
+    gps: true,
+    reviveValues: true
+  });
 
-  // 🔍 DEBUG (leave for now)
   console.log("EXIF FULL:", exifData);
 
-  // robust GPS extraction (handles Android + iPhone)
-  // 🔍 Extract GPS safely (handles all formats)
+  function dmsToDecimal(dms) {
+    if (!Array.isArray(dms)) return dms;
+    return dms[0] + dms[1] / 60 + dms[2] / 3600;
+  }
 
-// 🔍 Extract GPS (handles ALL Android/iPhone formats)
+  let lat = null;
+  let lon = null;
 
-function dmsToDecimal(dms) {
-  if (!Array.isArray(dms)) return dms;
-  return dms[0] + dms[1] / 60 + dms[2] / 3600;
+  if (exifData?.latitude != null && exifData?.longitude != null) {
+    lat = exifData.latitude;
+    lon = exifData.longitude;
+  } else if (exifData?.GPSLatitude && exifData?.GPSLongitude) {
+    lat = dmsToDecimal(exifData.GPSLatitude);
+    lon = dmsToDecimal(exifData.GPSLongitude);
+  } else if (exifData?.gps) {
+    lat = dmsToDecimal(exifData.gps.latitude);
+    lon = dmsToDecimal(exifData.gps.longitude);
+  }
+
+  metadata = {
+    camera: exifData?.Make || "Unknown",
+    model: exifData?.Model || "Unknown",
+    software: exifData?.Software || "Unknown",
+    date: exifData?.DateTimeOriginal || exifData?.CreateDate || null,
+    gps: (lat != null && lon != null) ? { lat, lon } : null
+  };
+
+} catch (e) {
+  console.log("EXIF parse failed:", e.message);
 }
-
-let lat = null;
-let lon = null;
 
 // standard fields
 if (exifData?.latitude && exifData?.longitude) {
@@ -79,7 +96,7 @@ metadata = {
   model: exifData?.Model || "Unknown",
   software: exifData?.Software || "Unknown",
   date: exifData?.DateTimeOriginal || exifData?.CreateDate || null,
-  gps: (lat && lon) ? { lat, lon } : null
+ gps: (lat != null && lon != null) ? { lat, lon } : null
 };
 } catch (e) {
   console.log("EXIF parse failed:", e.message);
