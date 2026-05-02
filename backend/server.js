@@ -33,23 +33,27 @@ try {
   console.log("EXIF FULL:", exifData);
 
   // robust GPS extraction (handles Android + iPhone)
-  const lat =
-    exifData?.latitude ??
-    exifData?.GPSLatitude ??
-    (Array.isArray(exifData?.gps?.latitude) ? exifData.gps.latitude[0] : undefined);
+  // 🔍 Extract GPS safely (handles all formats)
 
-  const lon =
-    exifData?.longitude ??
-    exifData?.GPSLongitude ??
-    (Array.isArray(exifData?.gps?.longitude) ? exifData.gps.longitude[0] : undefined);
+let lat = exifData?.latitude ?? exifData?.GPSLatitude;
+let lon = exifData?.longitude ?? exifData?.GPSLongitude;
 
-  metadata = {
-    camera: exifData?.Make || "Unknown",
-    model: exifData?.Model || "Unknown",
-    software: exifData?.Software || "Unknown",
-    date: exifData?.DateTimeOriginal || exifData?.CreateDate || null,
-    gps: (lat && lon) ? { lat, lon } : null
-  };
+// convert array format (DMS → decimal)
+function dmsToDecimal(dms) {
+  if (!Array.isArray(dms)) return dms;
+  return dms[0] + dms[1] / 60 + dms[2] / 3600;
+}
+
+lat = dmsToDecimal(lat);
+lon = dmsToDecimal(lon);
+
+// also check nested gps object
+if (!lat && exifData?.gps?.latitude) {
+  lat = dmsToDecimal(exifData.gps.latitude);
+}
+if (!lon && exifData?.gps?.longitude) {
+  lon = dmsToDecimal(exifData.gps.longitude);
+}
 
 } catch (e) {
   console.log("EXIF parse failed:", e.message);
