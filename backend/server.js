@@ -53,7 +53,12 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
    let metadata = {};
 
 try {
-  const exifData = await exifr.parse(original);
+  const exifData = await exifr.parse(original, {
+  gps: true,
+  exif: true,
+  tiff: true,
+  ifd0: true
+});
 
   metadata = {
     camera: exifData?.Make || "Unknown",
