@@ -54,7 +54,14 @@ if (!lat && exifData?.gps?.latitude) {
 if (!lon && exifData?.gps?.longitude) {
   lon = dmsToDecimal(exifData.gps.longitude);
 }
-
+// ✅ ADD THIS PART (missing piece)
+metadata = {
+  camera: exifData?.Make || "Unknown",
+  model: exifData?.Model || "Unknown",
+  software: exifData?.Software || "Unknown",
+  date: exifData?.DateTimeOriginal || exifData?.CreateDate || null,
+  gps: (lat && lon) ? { lat, lon } : null
+};
 } catch (e) {
   console.log("EXIF parse failed:", e.message);
 }
