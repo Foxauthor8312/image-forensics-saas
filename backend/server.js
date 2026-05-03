@@ -28,8 +28,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 // =========================
 app.get('/version', (req, res) => {
   res.json({
-    version: "v1.0.5",
-    status: "stable",
+    version: "v1.0.6-TEST",
+    status: "updated",
     time: new Date().toISOString()
   });
 });
@@ -102,7 +102,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
 // HEALTH CHECK (OPTIONAL)
 // =========================
 app.get('/', (req, res) => {
-  res.send("Backend is running");
+  res.send("Backend v1.0.6-TEST RUNNING");
 });
 
 // =========================
