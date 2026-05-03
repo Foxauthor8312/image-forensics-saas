@@ -1,135 +1,114 @@
-console.log("=== SERVER STARTED ===");
-console.log("Version: v1.0.3");
-console.log("Time:", new Date().toISOString());
-const express = require("express");
-const cors = require("cors");
-const multer = require("multer");
-const exifr = require("exifr");
-const sharp = require("sharp");
+const express = require('express');
+const multer = require('multer');
+const ExifReader = require('exifreader');
 
 const app = express();
+
+// =========================
+// CONFIG
+// =========================
+const PORT = process.env.PORT || 10000;
+
+// =========================
+// MIDDLEWARE
+// =========================
+app.use(express.json());
+
+// Request logger (VERY useful)
+app.use((req, res, next) => {
+  console.log(`[REQ] ${req.method} ${req.url}`);
+  next();
+});
+
+// Multer setup (memory storage)
 const upload = multer({ storage: multer.memoryStorage() });
 
-app.use(cors({ origin: "*" }));
-
-// ROOT TEST
-app.get("/", (req, res) => {
-res.send("NEW BACKEND VERSION");
+// =========================
+// VERSION CHECK (DEPLOY TEST)
+// =========================
+app.get('/version', (req, res) => {
+  res.json({
+    version: "v1.0.5",
+    status: "stable",
+    time: new Date().toISOString()
+  });
 });
 
-app.post("/api/analyze", upload.single("image"), async (req, res) => {
-try {
-if (!req.file) {
-return res.status(400).json({ error: "No image uploaded" });
+// =========================
+// EXIF EXTRACTION FUNCTION
+// =========================
+async function extractExif(buffer) {
+  try {
+    const tags = await ExifReader.load(buffer);
+    return tags;
+  } catch (err) {
+    console.log("EXIF error:", err.message);
+    return null;
+  }
 }
 
-```
-const original = req.file.buffer;
+// =========================
+// MAIN IMAGE ANALYSIS ROUTE
+// =========================
+app.post('/analyze', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
 
-// ======================
-// 🧠 METADATA (SAFE)
-// ======================
-let metadata = {
-  camera: "Unknown",
-  model: "Unknown",
-  software: "Unknown",
-  date: null,
-  gps: null
-};
+    console.log("File received:", req.file.mimetype, req.file.size);
 
-try {
-  const exifData = await exifr.parse(original);
+    // EXIF
+    const exif = await extractExif(req.file.buffer);
 
-  console.log("EXIF FULL:", exifData);
-
-  if (exifData && typeof exifData === "object") {
-
-    // simple safe assignments (no risky nested calls)
-    metadata.camera = exifData.Make || "Unknown";
-    metadata.model = exifData.Model || "Unknown";
-    metadata.software = exifData.Software || "Unknown";
-    metadata.date = exifData.DateTimeOriginal || exifData.CreateDate || null;
-
-    // GPS only if clean decimal values exist
-    if (typeof exifData.latitude === "number" && typeof exifData.longitude === "number") {
-      metadata.gps = {
-        lat: exifData.latitude,
-        lon: exifData.longitude
+    let exifResult;
+    if (!exif || Object.keys(exif).length === 0) {
+      exifResult = {
+        present: false,
+        message: "No metadata (likely stripped by device or app)"
+      };
+    } else {
+      exifResult = {
+        present: true,
+        tags: exif
       };
     }
-  }
 
-} catch (e) {
-  console.log("EXIF parse failed:", e.message);
-}
+    // =========================
+    // ELA PLACEHOLDER
+    // =========================
+    // Replace this with your actual ELA logic
+    const elaResult = {
+      status: "processed",
+      note: "ELA placeholder (replace with real implementation)"
+    };
 
-// ======================
-// 🧠 ELA ANALYSIS
-// ======================
-const recompressed = await sharp(original)
-  .jpeg({ quality: 70 })
-  .toBuffer();
+    // =========================
+    // RESPONSE
+    // =========================
+    res.json({
+      success: true,
+      exif: exifResult,
+      ela: elaResult
+    });
 
-const origRaw = await sharp(original).raw().toBuffer({ resolveWithObject: true });
-const recomRaw = await sharp(recompressed).raw().toBuffer({ resolveWithObject: true });
-
-const oData = origRaw.data;
-const rData = recomRaw.data;
-
-let diffSum = 0;
-for (let i = 0; i < oData.length; i++) {
-  diffSum += Math.abs(oData[i] - rData[i]);
-}
-
-const avgDiff = diffSum / oData.length;
-const elaScore = Math.min(100, Math.round(avgDiff * 2));
-
-const signals = {
-  ela: elaScore,
-  noise: Math.max(20, Math.min(80, elaScore - 10)),
-  metadata: metadata.gps ? 20 : 5
-};
-
-const score = Math.round(
-  signals.ela * 0.5 +
-  signals.noise * 0.25 +
-  signals.metadata * 0.25
-);
-
-let analysis = "";
-
-if (elaScore > 70) {
-  analysis = "High compression inconsistencies detected across the image.";
-} else if (elaScore > 40) {
-  analysis = "Moderate compression variation observed.";
-} else {
-  analysis = "Compression appears consistent across the image.";
-}
-
-const conclusion =
-  score > 70
-    ? "Strong evidence of alteration"
-    : score > 40
-    ? "Possible modification detected"
-    : "Likely authentic image";
-
-res.json({
-  result: {
-    score,
-    signals,
-    metadata,
-    heatmap: null,
-    analysis,
-    conclusion
+  } catch (err) {
+    console.error("Processing error:", err);
+    res.status(500).json({ error: "Server error processing image" });
   }
 });
-```
 
-} catch (err) {
-console.error("ELA ERROR:", err);
-res.status(500).json({ error: "ELA analysis failed" });
-}
+// =========================
+// HEALTH CHECK (OPTIONAL)
+// =========================
+app.get('/', (req, res) => {
+  res.send("Backend is running");
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on", PORT));
+// =========================
+// START SERVER
+// =========================
+app.listen(PORT, () => {
+  console.log("=== SERVER STARTED ===");
+  console.log(`Server running on port ${PORT}`);
+});
