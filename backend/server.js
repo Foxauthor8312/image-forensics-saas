@@ -14,7 +14,6 @@ app.get("/", (req, res) => {
 res.send("PixelProof backend running");
 });
 
-// 🧠 REAL ELA ANALYSIS
 app.post("/api/analyze", upload.single("image"), async (req, res) => {
 try {
 if (!req.file) {
@@ -25,56 +24,37 @@ return res.status(400).json({ error: "No image uploaded" });
 const original = req.file.buffer;
 
 // ======================
-// 🧠 METADATA (SAFE + CLEAN)
+// 🧠 METADATA (SAFE)
 // ======================
-let metadata = {};
+let metadata = {
+  camera: "Unknown",
+  model: "Unknown",
+  software: "Unknown",
+  date: null,
+  gps: null
+};
 
 try {
-  const exifData = await exifr.parse(original, {
-    gps: true,
-    reviveValues: true
-  });
+  const exifData = await exifr.parse(original);
 
   console.log("EXIF FULL:", exifData);
 
-  function dmsToDecimal(dms) {
-    if (!Array.isArray(dms)) return dms;
-    return dms[0] + dms[1] / 60 + dms[2] / 3600;
+  if (exifData && typeof exifData === "object") {
+
+    // simple safe assignments (no risky nested calls)
+    metadata.camera = exifData.Make || "Unknown";
+    metadata.model = exifData.Model || "Unknown";
+    metadata.software = exifData.Software || "Unknown";
+    metadata.date = exifData.DateTimeOriginal || exifData.CreateDate || null;
+
+    // GPS only if clean decimal values exist
+    if (typeof exifData.latitude === "number" && typeof exifData.longitude === "number") {
+      metadata.gps = {
+        lat: exifData.latitude,
+        lon: exifData.longitude
+      };
+    }
   }
-
-  let lat = null;
-  let lon = null;
-
-  // Standard decimal format
-  if (exifData?.latitude != null && exifData?.longitude != null) {
-    lat = exifData.latitude;
-    lon = exifData.longitude;
-  }
-
-  // EXIF DMS format
-  else if (exifData?.GPSLatitude && exifData?.GPSLongitude) {
-    lat = dmsToDecimal(exifData.GPSLatitude);
-    lon = dmsToDecimal(exifData.GPSLongitude);
-  }
-
-  // Nested gps object (safe check)
-  else if (
-    exifData?.gps &&
-    typeof exifData.gps === "object" &&
-    exifData.gps.latitude &&
-    exifData.gps.longitude
-  ) {
-    lat = dmsToDecimal(exifData.gps.latitude);
-    lon = dmsToDecimal(exifData.gps.longitude);
-  }
-
-  metadata = {
-    camera: exifData?.Make || "Unknown",
-    model: exifData?.Model || "Unknown",
-    software: exifData?.Software || "Unknown",
-    date: exifData?.DateTimeOriginal || exifData?.CreateDate || null,
-    gps: (lat != null && lon != null) ? { lat, lon } : null
-  };
 
 } catch (e) {
   console.log("EXIF parse failed:", e.message);
@@ -101,9 +81,6 @@ for (let i = 0; i < oData.length; i++) {
 const avgDiff = diffSum / oData.length;
 const elaScore = Math.min(100, Math.round(avgDiff * 2));
 
-// ======================
-// 🧠 SCORING
-// ======================
 const signals = {
   ela: elaScore,
   noise: Math.max(20, Math.min(80, elaScore - 10)),
