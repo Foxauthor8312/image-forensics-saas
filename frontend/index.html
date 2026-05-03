@@ -95,26 +95,14 @@ async function analyze(f){
 
   bar.style.display="block";
   fill.style.width="10%";
-  status.innerText="Waking server...";
+  status.innerText="Analyzing image...";
 
   try{
-
-    // wake backend first
-    try{
-      await fetch(API);
-      await new Promise(r=>setTimeout(r,2000));
-    }catch(e){}
-
-    status.innerText="Analyzing image...";
 
     const res = await fetch(API + "/api/analyze", {
       method: "POST",
       body: form
     });
-
-    if(!res.ok){
-      throw new Error("Server not ready");
-    }
 
     const data = await res.json();
 
@@ -129,10 +117,10 @@ async function analyze(f){
 
     console.error(err);
 
-    status.innerText="Retrying...";
+    bar.style.display="none";
 
-    // 🔁 retry once automatically
-    setTimeout(()=>analyze(f), 2000);
+    status.innerText="Server error — try again";
+
   }
 }
 
