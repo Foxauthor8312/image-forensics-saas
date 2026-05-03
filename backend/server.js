@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const ExifReader = require('exifreader');
+const exifr = require('exifr');
 
 const app = express();
 
@@ -39,8 +39,8 @@ app.get('/version', (req, res) => {
 // =========================
 async function extractExif(buffer) {
   try {
-    const tags = await ExifReader.load(buffer);
-    return tags;
+    const data = await exifr.parse(buffer);
+    return data;
   } catch (err) {
     console.log("EXIF error:", err.message);
     return null;
@@ -62,17 +62,17 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     const exif = await extractExif(req.file.buffer);
 
     let exifResult;
-    if (!exif || Object.keys(exif).length === 0) {
-      exifResult = {
-        present: false,
-        message: "No metadata (likely stripped by device or app)"
-      };
-    } else {
-      exifResult = {
-        present: true,
-        tags: exif
-      };
-    }
+    if (!exif) {
+  exifResult = {
+    present: false,
+    message: "No metadata (likely stripped by device or app)"
+  };
+} else {
+  exifResult = {
+    present: true,
+    tags: exif
+  };
+}
 
     // =========================
     // ELA PLACEHOLDER
