@@ -25,7 +25,7 @@ return res.status(400).json({ error: "No image uploaded" });
 const original = req.file.buffer;
 
 // ======================
-// 🧠 METADATA (CLEAN)
+// 🧠 METADATA (SAFE + CLEAN)
 // ======================
 let metadata = {};
 
@@ -45,13 +45,25 @@ try {
   let lat = null;
   let lon = null;
 
+  // Standard decimal format
   if (exifData?.latitude != null && exifData?.longitude != null) {
     lat = exifData.latitude;
     lon = exifData.longitude;
-  } else if (exifData?.GPSLatitude && exifData?.GPSLongitude) {
+  }
+
+  // EXIF DMS format
+  else if (exifData?.GPSLatitude && exifData?.GPSLongitude) {
     lat = dmsToDecimal(exifData.GPSLatitude);
     lon = dmsToDecimal(exifData.GPSLongitude);
-  } else if (exifData?.gps) {
+  }
+
+  // Nested gps object (safe check)
+  else if (
+    exifData?.gps &&
+    typeof exifData.gps === "object" &&
+    exifData.gps.latitude &&
+    exifData.gps.longitude
+  ) {
     lat = dmsToDecimal(exifData.gps.latitude);
     lon = dmsToDecimal(exifData.gps.longitude);
   }
