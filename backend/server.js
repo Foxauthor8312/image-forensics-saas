@@ -1,3 +1,6 @@
+console.log("=== SERVER STARTED ===");
+console.log("Version: v1.0.3");
+console.log("Time:", new Date().toISOString());
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
