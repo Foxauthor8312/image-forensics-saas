@@ -11,7 +11,7 @@ app.use(cors({ origin: "*" }));
 
 // ROOT TEST
 app.get("/", (req, res) => {
-res.send("PixelProof backend running");
+res.send("NEW BACKEND VERSION");
 });
 
 app.post("/api/analyze", upload.single("image"), async (req, res) => {
