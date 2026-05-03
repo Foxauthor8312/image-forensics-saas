@@ -95,31 +95,44 @@ async function analyze(f){
 
   bar.style.display="block";
   fill.style.width="10%";
-  status.innerText="Connecting...";
+  status.innerText="Waking server...";
 
   try{
+
+    // wake backend first
     try{
       await fetch(API);
-      await new Promise(r=>setTimeout(r,1200));
+      await new Promise(r=>setTimeout(r,2000));
     }catch(e){}
+
+    status.innerText="Analyzing image...";
 
     const res = await fetch(API + "/api/analyze", {
       method: "POST",
       body: form
     });
 
+    if(!res.ok){
+      throw new Error("Server not ready");
+    }
+
     const data = await res.json();
 
     fill.style.width="100%";
     status.innerText="Done";
+
     setTimeout(()=>bar.style.display="none",500);
 
     render(data.result || data);
 
   }catch(err){
+
     console.error(err);
-    status.innerText="Server waking up... try again";
-    bar.style.display="none";
+
+    status.innerText="Retrying...";
+
+    // 🔁 retry once automatically
+    setTimeout(()=>analyze(f), 2000);
   }
 }
 
