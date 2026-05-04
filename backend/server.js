@@ -1,9 +1,11 @@
-const cors = require('cors');
 const express = require('express');
 const multer = require('multer');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+
+app.use(cors());
 
 const upload = multer({ storage: multer.memoryStorage() });
 
