@@ -86,14 +86,21 @@ if (!req.file) {
   return res.status(400).json({ error: "No file uploaded" });
 }
 
+let buffer = req.file.buffer;
+
+// Resize large images instead of rejecting
 if (req.file.size > 5 * 1024 * 1024) {
-  return res.status(400).json({ error: "File too large (5MB max)" });
+  console.log("Resizing large image...");
+
+  buffer = await sharp(req.file.buffer)
+    .resize({ width: 1600, withoutEnlargement: true })
+    .jpeg({ quality: 80 })
+    .toBuffer();
 }
     
     console.log("UPLOAD OK");
 
-    const rawExif = await exifr.parse(req.file.buffer);
-
+    const rawExif = await exifr.parse(buffer);
     console.log("EXIF PARSED");
 
     let exif = null;
