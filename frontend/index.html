@@ -54,12 +54,17 @@ body {
 /* LEFT */
 .left {
   padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .tagline {
-  font-size: 18px;
+  font-size: 16px;
+  line-height: 1.5;
   color: var(--text-muted);
-  margin-bottom: 20px;
+  margin-bottom: 30px;   /* more breathing room */
+  max-width: 320px;     /* prevents long stretch */
 }
 
 /* UPLOAD */
@@ -69,6 +74,7 @@ body {
   border-radius: 10px;
   cursor: pointer;
   max-width: 320px;
+  margin-top: 10px;   /* separates from tagline */
 }
 
 .upload:hover {
