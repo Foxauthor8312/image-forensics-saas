@@ -1,3 +1,4 @@
+const cors = require('cors');
 const express = require('express');
 const multer = require('multer');
 const exifr = require('exifr');
@@ -10,7 +11,9 @@ const PORT = process.env.PORT || 10000;
 // MIDDLEWARE
 // =========================
 app.use(express.json());
-
+app.use(cors({
+  origin: "https://image-forensics-saas.vercel.app"
+}));
 app.use((req, res, next) => {
   console.log(`[REQ] ${req.method} ${req.url}`);
   next();
