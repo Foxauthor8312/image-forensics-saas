@@ -76,8 +76,14 @@ function calculateConfidence(exif, tampering) {
   }
 
   if (tampering && tampering.likelihood) {
-    score -= tampering.likelihood * 0.4;
-  }
+  score -= tampering.likelihood * 0.5;
+}
+
+if (ela) {
+  if (ela.score > 30) score -= 0.4;
+  else if (ela.score > 20) score -= 0.3;
+  else if (ela.score > 10) score -= 0.15;
+}
 
   return Math.max(0, Math.min(1, Number(score.toFixed(2))));
 }
