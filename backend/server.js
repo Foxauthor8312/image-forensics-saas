@@ -14,7 +14,7 @@ app.use(cors({ origin: "*" }));
 app.use(express.json());
 
 app.use((req, res, next) => {
-console.log(`[REQ] ${req.method} ${req.url}`);
+console.log("[REQ] " + req.method + " " + req.url);
 next();
 });
 
@@ -25,7 +25,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 // =========================
 app.get('/version', (req, res) => {
 res.json({
-version: "v1.4.1-fixed",
+version: "v1.5.0-clean",
 status: "stable",
 time: new Date().toISOString()
 });
@@ -35,7 +35,7 @@ time: new Date().toISOString()
 // HEALTH
 // =========================
 app.get('/', (req, res) => {
-res.send("PixelProof backend v1.4.1");
+res.send("PixelProof backend v1.5.0");
 });
 
 // =========================
@@ -44,7 +44,8 @@ res.send("PixelProof backend v1.4.1");
 async function extractExif(buffer) {
 try {
 return await exifr.parse(buffer);
-} catch {
+} catch (e) {
+console.log("EXIF error:", e.message);
 return null;
 }
 }
@@ -60,25 +61,24 @@ model: exif.Model || null
 capture: {
 date: exif.DateTimeOriginal || null
 },
-gps: exif.latitude && exif.longitude
+gps: (exif.latitude && exif.longitude)
 ? { lat: exif.latitude, lon: exif.longitude }
 : null
 };
 }
 
 // =========================
-// ELA (SAFE + FAST)
+// SAFE ELA
 // =========================
 async function runELA(buffer) {
 try {
+const normalized = await sharp(buffer)
+.rotate()
+.resize({ width: 800, withoutEnlargement: true })
+.jpeg()
+.toBuffer();
 
 ```
-const normalized = await sharp(buffer)
-  .rotate()
-  .resize({ width: 800, withoutEnlargement: true })
-  .jpeg()
-  .toBuffer();
-
 const recompressed = await sharp(normalized)
   .jpeg({ quality: 60 })
   .toBuffer();
@@ -90,6 +90,11 @@ const orig = await sharp(normalized)
 const comp = await sharp(recompressed)
   .raw()
   .toBuffer({ resolveWithObject: true });
+
+if (!orig || !comp || !orig.data || !comp.data) {
+  console.log("ELA data invalid");
+  return null;
+}
 
 const diff = Buffer.alloc(orig.data.length);
 let total = 0;
@@ -122,7 +127,7 @@ return {
 ```
 
 } catch (err) {
-console.error("ELA error:", err);
+console.log("ELA error:", err.message);
 return null;
 }
 }
@@ -131,71 +136,34 @@ return null;
 // ANALYZE
 // =========================
 app.post('/analyze', upload.single('image'), async (req, res) => {
-  try {
+try {
 
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
+```
+if (!req.file) {
+  return res.status(400).json({ error: "No file uploaded" });
+}
 
-    if (req.file.size > 10 * 1024 * 1024) {
-      return res.status(400).json({ error: "File too large (10MB max)" });
-    }
+if (req.file.size > 10 * 1024 * 1024) {
+  return res.status(400).json({ error: "File too large (10MB max)" });
+}
 
-    console.log("File:", req.file.mimetype, req.file.size);
+console.log("File:", req.file.mimetype, req.file.size);
 
-    const rawExif = await extractExif(req.file.buffer);
-    const exif = cleanExif(rawExif);
+const rawExif = await extractExif(req.file.buffer);
+const exif = cleanExif(rawExif);
 
-    let ela = null;
-    try {
-      ela = await runELA(req.file.buffer);
-    } catch (err) {
-      console.error("ELA failed:", err.message);
-    }
+let ela = null;
+try {
+  ela = await runELA(req.file.buffer);
+} catch (e) {
+  console.log("ELA failed:", e.message);
+}
 
-    // scoring
-    let likelihood = 0.3;
-    if (!rawExif) likelihood += 0.2;
-    if (ela?.score > 10) likelihood += 0.3;
-    if (ela?.score > 15) likelihood += 0.2;
-
-    likelihood = Math.min(1, likelihood);
-
-    let label = "Likely Original";
-    if (likelihood > 0.75) label = "Highly Suspicious";
-    else if (likelihood > 0.5) label = "Moderate Anomalies";
-    else if (likelihood > 0.3) label = "Minor Inconsistencies";
-
-    const reasons = [];
-    if (!rawExif) reasons.push("Missing EXIF metadata");
-    if (ela && ela.score > 10) reasons.push("Compression inconsistencies detected");
-
-    res.json({
-      success: true,
-      confidence: 0.9,
-      exif: exif ? { present: true, data: exif } : { present: false },
-      ela: ela || { status: "skipped" },
-      tampering: {
-        likelihood: Number(likelihood.toFixed(2)),
-        label,
-        reasons
-      }
-    });
-
-  } catch (err) {
-    console.error("Server error:", err);
-    res.status(500).json({ error: "Processing failed" });
-  }
-});
-
-// =========================
-// SIMPLE SCORING
-// =========================
 let likelihood = 0.3;
 
 if (!rawExif) likelihood += 0.2;
-if (ela?.score > 10) likelihood += 0.3;
-if (ela?.score > 15) likelihood += 0.2;
+if (ela && ela.score > 10) likelihood += 0.3;
+if (ela && ela.score > 15) likelihood += 0.2;
 
 likelihood = Math.min(1, likelihood);
 
@@ -204,9 +172,10 @@ if (likelihood > 0.75) label = "Highly Suspicious";
 else if (likelihood > 0.5) label = "Moderate Anomalies";
 else if (likelihood > 0.3) label = "Minor Inconsistencies";
 
-// =========================
-// RESPONSE
-// =========================
+const reasons = [];
+if (!rawExif) reasons.push("Missing EXIF metadata");
+if (ela && ela.score > 10) reasons.push("Compression inconsistencies detected");
+
 res.json({
   success: true,
   confidence: 0.9,
@@ -214,25 +183,22 @@ res.json({
   ela: ela || { status: "skipped" },
   tampering: {
     likelihood: Number(likelihood.toFixed(2)),
-    label,
-    reasons: [
-      !rawExif ? "Missing EXIF metadata" : null,
-      ela?.score > 10 ? "Compression inconsistencies detected" : null
-    ].filter(Boolean)
+    label: label,
+    reasons: reasons
   }
 });
 ```
 
 } catch (err) {
-console.error("Server error:", err);
+console.log("Server error:", err.message);
 res.status(500).json({ error: "Processing failed" });
 }
 });
 
 // =========================
-// START
+// START SERVER
 // =========================
 app.listen(PORT, () => {
 console.log("=== SERVER STARTED ===");
-console.log(`Running on port ${PORT}`);
+console.log("Running on port " + PORT);
 });
