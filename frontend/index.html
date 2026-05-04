@@ -4,174 +4,46 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PixelProof</title>
-
 <style>
-body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
-.container{padding:20px;max-width:1000px;margin:auto}
-.panel{background:#1e293b;padding:20px;border-radius:12px}
-.drop{border:2px dashed #555;padding:30px;text-align:center;cursor:pointer}
-.tabs{display:flex;gap:10px;margin-top:15px}
-.tab{padding:6px 10px;background:#111;border-radius:6px;cursor:pointer}
-.tab.active{background:#3b82f6}
-.tab-content{display:none;margin-top:10px}
-.tab-content.active{display:block}
-.progress{height:6px;background:#111;margin:10px 0;display:none}
-.fill{height:100%;width:0;background:#3b82f6}
-img.preview{max-width:100%;max-height:300px;object-fit:contain;margin-bottom:10px;border-radius:8px}
+body{font-family:sans-serif;background:#111;color:#fff;text-align:center;padding:20px}
 </style>
-
 </head>
-
 <body>
-<div class="container">
-<div class="panel">
 
 <h2>PixelProof</h2>
 
-<div id="drop" class="drop">Tap to Upload Image</div>
-<input type="file" id="file" accept="image/*" hidden>
+<input type="file" id="file">
 
-<div id="status"></div>
-<div class="progress" id="bar"><div class="fill" id="fill"></div></div>
-
-<div id="result"></div>
-
-</div>
-</div>
+<div id="output"></div>
 
 <script>
 const API = "https://image-forensics-saas.onrender.com";
 
-const file = document.getElementById("file");
-const drop = document.getElementById("drop");
-const result = document.getElementById("result");
-const bar = document.getElementById("bar");
-const fill = document.getElementById("fill");
-const status = document.getElementById("status");
+document.getElementById("file").onchange = async (e) => {
 
-drop.onclick = () => file.click();
-
-file.onchange = e => {
-  const f = e.target.files[0];
-  if (!f) return;
-  window.lastFile = f;
-  analyze(f);
-};
-
-async function analyze(f){
+  const file = e.target.files[0];
+  if (!file) return;
 
   const form = new FormData();
-  form.append("image", f);
+  form.append("image", file);
 
-  bar.style.display = "block";
-  fill.style.width = "20%";
-  status.innerText = "Uploading...";
-
-  try{
-
+  try {
     const res = await fetch(API + "/analyze", {
       method: "POST",
       body: form
     });
 
-    if (!res.ok) {
-      throw new Error("Server error: " + res.status);
-    }
-
-    fill.style.width = "70%";
-    status.innerText = "Processing...";
-
     const data = await res.json();
 
-    fill.style.width = "100%";
-    status.innerText = "Done";
+    console.log(data);
 
-    setTimeout(()=>bar.style.display="none",500);
+    document.getElementById("output").innerHTML =
+      "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
 
-    render(data);
-
-  } catch(err){
-
-    console.error(err);
-    bar.style.display = "none";
-    status.innerText = "Error: " + err.message;
-
-  }
+} catch (err) {
+console.error(err);
 }
-
-function render(d){
-
-  window.lastResult = d;
-
-  const likelihood = d.tampering?.likelihood || 0;
-
-  const scoreColor =
-    likelihood > 0.7 ? "#ef4444" :
-    likelihood > 0.4 ? "#facc15" :
-    "#22c55e";
-
-  const preview = window.lastFile
-    ? `<img class="preview" src="${URL.createObjectURL(window.lastFile)}">`
-    : "";
-
-  result.innerHTML = `
-    ${preview}
-
-    <div class="tabs">
-      <div class="tab active" onclick="tab(event,'r')">Results</div>
-      <div class="tab" onclick="tab(event,'m')">Metadata</div>
-      <div class="tab" onclick="tab(event,'h')">Analysis</div>
-    </div>
-
-    <div id="r" class="tab-content active">
-      <div style="font-weight:600;color:${scoreColor}">
-        ${d.tampering?.label || "Analysis complete"}
-      </div>
-
-      <div style="margin-top:8px;color:${scoreColor}">
-        Tampering Likelihood: ${Math.round(likelihood * 100)}%
-      </div>
-
-      <div style="margin-top:10px">
-        ${(d.tampering?.reasons || []).map(r => `<div>• ${r}</div>`).join("")}
-      </div>
-    </div>
-
-    <div id="m" class="tab-content">
-      <div>Camera: ${d.exif?.data?.camera?.make || "Unknown"}</div>
-      <div>Model: ${d.exif?.data?.camera?.model || ""}</div>
-      <div>Date: ${d.exif?.data?.capture?.date || "Unknown"}</div>
-      <div>
-        GPS: ${
-          d.exif?.data?.gps
-            ? d.exif.data.gps.lat + ", " + d.exif.data.gps.lon
-            : "Not available"
-        }
-      </div>
-    </div>
-
-    <div id="h" class="tab-content">
-      ${
-        d.ela?.overlay
-          ? `<img src="${d.ela.overlay}" style="width:100%;border-radius:10px">`
-          : "No analysis image available"
-      }
-
-      <div style="margin-top:10px">
-        <strong>ELA Score:</strong> ${d.ela?.score} (${d.ela?.level})
-      </div>
-    </div>
-  `;
-}
-
-function tab(e,id){
-  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-
-  document.getElementById(id).classList.add("active");
-  e.target.classList.add("active");
-}
-</script>
+}; </script>
 
 </body>
 </html>
