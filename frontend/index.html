@@ -6,60 +6,93 @@
 
 <style>
 body {
-  font-family: sans-serif;
-  background: #111;
-  color: #fff;
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #e5e7eb;
   text-align: center;
-  padding: 20px;
+  padding: 30px;
+}
+
+.container {
+  max-width: 700px;
+  margin: auto;
 }
 
 .card {
   margin-top: 20px;
   padding: 20px;
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
-.green { background: #1e3d2f; }
-.yellow { background: #4a3f1e; }
-.red { background: #4a1e1e; }
+.green { background: #064e3b; }
+.yellow { background: #78350f; }
+.red { background: #7f1d1d; }
 
 img {
   max-width: 100%;
-  margin-top: 20px;
-  border: 2px solid #444;
+  margin-top: 15px;
+  border-radius: 8px;
 }
+
+h2 { margin-bottom: 10px; }
 </style>
 </head>
 
 <body>
 
-<h2>PixelProof</h2>
+<div class="container">
+
+<h1>PixelProof</h1>
+<p>Analyze an image for signs of editing or recompression</p>
 
 <input type="file" id="file">
 
 <div id="resultCard" class="card"></div>
 
+<h3>Uploaded Image</h3>
+<img id="originalImage">
+
+<h3>Analysis Overlay</h3>
 <img id="elaImage" style="display:none;">
+
+</div>
 
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
 function interpret(type) {
   if (type === "Likely Original") {
-    return { color: "green", message: "This appears to be an original camera image." };
+    return {
+      color: "green",
+      message: "This appears to be an original, unaltered camera image."
+    };
   }
   if (type === "Recompressed") {
-    return { color: "yellow", message: "This image was likely saved or shared again." };
+    return {
+      color: "yellow",
+      message: "This image was likely saved, downloaded, or shared again. This is normal behavior."
+    };
   }
   if (type === "Edited") {
-    return { color: "red", message: "This image may have been modified." };
+    return {
+      color: "red",
+      message: "This image shows strong indicators of possible modification."
+    };
   }
-  return { color: "yellow", message: "Uncertain result." };
+  return {
+    color: "yellow",
+    message: "The result is inconclusive."
+  };
 }
 
 document.getElementById("file").onchange = async (e) => {
+
   const file = e.target.files[0];
   if (!file) return;
+
+  // SHOW ORIGINAL IMAGE
+  document.getElementById("originalImage").src =
+    URL.createObjectURL(file);
 
   const form = new FormData();
   form.append("image", file);
@@ -73,17 +106,20 @@ document.getElementById("file").onchange = async (e) => {
     });
 
     data = await res.json();
+
   } catch (err) {
     document.getElementById("resultCard").innerHTML =
-      "<h2>Error</h2><p>Upload failed. Try again.</p>";
+      "<h2>Error</h2><p>Upload failed. Please try again.</p>";
     return;
   }
 
   const type = data.classification?.type || "Unknown";
   const conf = Math.round((data.classification?.confidence || 0.5) * 100);
+
   const ui = interpret(type);
 
   const card = document.getElementById("resultCard");
+
   card.className = "card " + ui.color;
 
   card.innerHTML = `
@@ -92,14 +128,14 @@ document.getElementById("file").onchange = async (e) => {
     <p><strong>Confidence:</strong> ${conf}%</p>
   `;
 
-  // 🔥 SAFE IMAGE DISPLAY (won’t break anything)
-  const img = document.getElementById("elaImage");
+  // OPTIONAL HEATMAP
+  const elaImg = document.getElementById("elaImage");
 
   if (data.ela && data.ela.overlay) {
-    img.src = data.ela.overlay;
-    img.style.display = "block";
+    elaImg.src = data.ela.overlay;
+    elaImg.style.display = "block";
   } else {
-    img.style.display = "none";
+    elaImg.style.display = "none";
   }
 };
 </script>
