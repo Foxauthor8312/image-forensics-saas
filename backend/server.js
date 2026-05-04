@@ -87,9 +87,12 @@ if (!req.file) {
   return res.status(400).json({ error: "No file uploaded" });
 }
 
+// Always extract EXIF from ORIGINAL file first
+const rawExif = await exifr.parse(req.file.buffer);
+
 let buffer = req.file.buffer;
 
-// Resize large images instead of rejecting
+// Then resize if needed (for later processing like ELA)
 if (req.file.size > 5 * 1024 * 1024) {
   console.log("Resizing large image...");
 
