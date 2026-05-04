@@ -3,6 +3,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PixelProof</title>
+
 <style>
 body {
   font-family: sans-serif;
@@ -11,72 +12,97 @@ body {
   text-align: center;
   padding: 20px;
 }
+
+.card {
+  margin-top: 20px;
+  padding: 20px;
+  border-radius: 10px;
+}
+
+.green { background: #1e3d2f; }
+.yellow { background: #4a3f1e; }
+.red { background: #4a1e1e; }
+
 img {
   max-width: 100%;
-  margin-top: 15px;
+  margin-top: 20px;
   border: 2px solid #444;
 }
 </style>
 </head>
+
 <body>
 
 <h2>PixelProof</h2>
 
 <input type="file" id="file">
 
-<h3 id="classification"></h3>
-<p id="classificationReason"></p>
+<div id="resultCard" class="card"></div>
 
-<h3>ELA Heatmap</h3>
 <img id="elaImage">
-<p id="elaScore"></p>
-
-<div id="output"></div>
 
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
-document.getElementById("file").onchange = async (e) => {
+function interpret(type) {
+  if (type === "Likely Original") {
+    return {
+      color: "green",
+      message: "This appears to be an original camera image with no signs of manipulation."
+    };
+  }
 
+  if (type === "Recompressed") {
+    return {
+      color: "yellow",
+      message: "This image was likely saved, downloaded, or shared again. Not necessarily edited."
+    };
+  }
+
+  if (type === "Edited") {
+    return {
+      color: "red",
+      message: "This image shows strong signs of possible modification."
+    };
+  }
+
+  return {
+    color: "yellow",
+    message: "This image has mixed signals. Interpretation is uncertain."
+  };
+}
+
+document.getElementById("file").onchange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
   const form = new FormData();
   form.append("image", file);
 
-  try {
-    const res = await fetch(API + "/analyze", {
-      method: "POST",
-      body: form
-    });
+  const res = await fetch(API + "/analyze", {
+    method: "POST",
+    body: form
+  });
 
-    const data = await res.json();
+  const data = await res.json();
 
-    console.log(data);
+  const type = data.classification.type;
+  const conf = Math.round(data.classification.confidence * 100);
 
-    // ELA
-    if (data.ela && data.ela.overlay) {
-      document.getElementById("elaImage").src = data.ela.overlay;
-      document.getElementById("elaScore").innerText =
-        "ELA Score: " + data.ela.score;
-    }
+  const ui = interpret(type);
 
-    // Classification
-    if (data.classification) {
-      document.getElementById("classification").innerText =
-        "Result: " + data.classification.type;
+  const card = document.getElementById("resultCard");
 
-      document.getElementById("classificationReason").innerText =
-        data.classification.reason +
-        " (Confidence: " + data.classification.confidence + ")";
-    }
+  card.className = "card " + ui.color;
 
-    // Raw JSON
-    document.getElementById("output").innerHTML =
-      "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+  card.innerHTML = `
+    <h2>${type}</h2>
+    <p>${ui.message}</p>
+    <p><strong>Confidence:</strong> ${conf}%</p>
+  `;
 
-  } catch (err) {
-    console.error(err);
+  if (data.ela && data.ela.overlay) {
+    document.getElementById("elaImage").src = data.ela.overlay;
   }
 };
 </script>
