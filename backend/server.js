@@ -40,6 +40,8 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     }
 
     const rawExif = await extractExif(req.file.buffer);
+    console.log("BUFFER SIZE:", req.file.buffer?.length);
+    console.log("RAW EXIF FULL:", rawExif);
 
     const exif = rawExif
       ? {
