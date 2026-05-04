@@ -12,8 +12,8 @@ app.use(express.json());
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// ---------- HELPERS ----------
 
+// ---------- SIMPLE CLASSIFICATION ----------
 function classifyImage(exif, elaScore) {
   if (exif && elaScore < 10) {
     return { type: "Likely Original", confidence: 0.9 };
@@ -30,42 +30,59 @@ function classifyImage(exif, elaScore) {
   return { type: "Recompressed", confidence: 0.7 };
 }
 
+
+// ---------- ELA (WORKING + ALWAYS RETURNS OVERLAY) ----------
 async function runELA(buffer) {
-  const normalized = await sharp(buffer)
-    .resize({ width: 800, withoutEnlargement: true })
-    .jpeg()
-    .toBuffer();
+  try {
+    const normalized = await sharp(buffer)
+      .resize({ width: 800, withoutEnlargement: true })
+      .jpeg()
+      .toBuffer();
 
-  const recompressed = await sharp(normalized)
-    .jpeg({ quality: 60 })
-    .toBuffer();
+    const recompressed = await sharp(normalized)
+      .jpeg({ quality: 60 })
+      .toBuffer();
 
-  const orig = await sharp(normalized)
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+    const orig = await sharp(normalized)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
 
-  const comp = await sharp(recompressed)
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+    const comp = await sharp(recompressed)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
 
-  let total = 0;
+    const diff = Buffer.alloc(orig.data.length);
+    let total = 0;
 
-  for (let i = 0; i < orig.data.length; i++) {
-    total += Math.abs(orig.data[i] - comp.data[i]);
+    for (let i = 0; i < orig.data.length; i++) {
+      const value = Math.abs(orig.data[i] - comp.data[i]);
+      diff[i] = value;
+      total += value;
+    }
+
+    const elaImage = await sharp(diff, {
+      raw: {
+        width: orig.info.width,
+        height: orig.info.height,
+        channels: orig.info.channels
+      }
+    })
+      .jpeg({ quality: 60 }) // small + stable
+      .toBuffer();
+
+    return {
+      score: Number((total / orig.data.length).toFixed(2)),
+      overlay: `data:image/jpeg;base64,${elaImage.toString('base64')}`
+    };
+
+  } catch (err) {
+    console.log("ELA ERROR:", err.message);
+    return null;
   }
-
-  const overlay = await sharp(normalized)
-    .jpeg({ quality: 50 }) // small + safe
-    .toBuffer();
-
-  return {
-    score: Number((total / orig.data.length).toFixed(2)),
-    overlay: `data:image/jpeg;base64,${overlay.toString('base64')}`
-  };
 }
 
-// ---------- ROUTES ----------
 
+// ---------- ROUTES ----------
 app.get('/', (req, res) => {
   res.send('Backend OK');
 });
@@ -88,21 +105,26 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
         }
       : null;
 
-    const classification = classifyImage(exif, ela.score);
+    const classification = classifyImage(
+      exif,
+      ela ? ela.score : 0
+    );
 
     res.json({
       success: true,
       exif,
-      ela,
+      ela, // 🔥 THIS includes overlay
       classification
     });
 
   } catch (err) {
-    console.log(err);
+    console.log("ERROR:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 });
 
+
+// ---------- START ----------
 app.listen(PORT, () => {
   console.log("Running on port " + PORT);
 });
