@@ -235,7 +235,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
   exif,
   elaScore: ela ? ela.score : null,
   tampering,
-  confidence,
+  confidence: classification.confidence,
   classification
 });
 
