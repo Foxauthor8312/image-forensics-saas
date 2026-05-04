@@ -60,11 +60,11 @@ function calculateTampering(exif) {
       reasons.push("Missing capture date");
     }
 
-    if (exif.gps) {
-      reasons.push("Contains GPS metadata");
-    } else {
-      reasons.push("No GPS metadata");
-    }
+  if (exif.gps) {
+  reasons.push("Original capture likely (GPS present)");
+} else {
+  reasons.push("No location data (common for edited/shared images)");
+}
   }
 
   score = Math.min(score, 1);
@@ -82,12 +82,13 @@ function calculateTampering(exif) {
 }
     
 const tampering = calculateTampering(exif);
-
+const confidence = exif ? 0.9 : 0.4;
 res.json({
   success: true,
   size: req.file.size,
   exif: exif,
-  tampering
+  tampering,
+  confidence
 });
 
   } catch (err) {
