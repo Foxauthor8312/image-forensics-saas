@@ -5,10 +5,22 @@
 <title>PixelProof</title>
 
 <style>
+:root {
+  --bg-main: #0a0a0a;
+  --bg-panel: #111111;
+  --border: #2a2a2a;
+
+  --brand: #3b82f6;
+  --brand-soft: #1e40af;
+
+  --text-main: #e5e7eb;
+  --text-muted: #9ca3af;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #0b1220;
-  color: #e5e7eb;
+  background: var(--bg-main);
+  color: var(--text-main);
   margin: 0;
 }
 
@@ -21,7 +33,8 @@ body {
 }
 
 .header img {
-  height: 36px;
+  height: 44px;
+  filter: brightness(1.4) contrast(1.2);
 }
 
 .header span {
@@ -35,58 +48,40 @@ body {
 .wrapper {
   display: grid;
   grid-template-columns: 420px 1fr;
-  min-height: calc(100vh - 60px);
+  min-height: calc(100vh - 80px);
 }
 
-/* LEFT PANEL */
+/* LEFT */
 .left {
   padding: 40px;
 }
 
 .tagline {
-  font-size: 20px;
-  color: #9ca3af;
+  font-size: 18px;
+  color: var(--text-muted);
   margin-bottom: 20px;
 }
 
-/* TABS */
-.tabs {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.tab {
-  padding: 8px 14px;
-  border-radius: 6px;
-  background: #1f2937;
-  cursor: pointer;
-}
-
-.tab.active {
-  background: #2563eb;
-}
-
-/* UPLOAD BOX */
+/* UPLOAD */
 .upload {
-  border: 2px dashed #374151;
+  border: 2px dashed var(--border);
   padding: 20px;
   border-radius: 10px;
-  text-align: center;
   cursor: pointer;
+  max-width: 320px;
 }
 
 .upload:hover {
-  border-color: #60a5fa;
+  border-color: var(--brand);
 }
 
 input {
   display: none;
 }
 
-/* RIGHT PANEL */
+/* RIGHT */
 .right {
-  background: #111827;
+  background: var(--bg-panel);
   padding: 40px;
 }
 
@@ -95,11 +90,9 @@ input {
   padding: 20px;
   border-radius: 10px;
   margin-bottom: 20px;
+  background: rgba(59,130,246,0.1);
+  border: 1px solid rgba(59,130,246,0.3);
 }
-
-.green { background: #064e3b; }
-.yellow { background: #78350f; }
-.red { background: #7f1d1d; }
 
 /* IMAGE */
 .viewer {
@@ -107,21 +100,26 @@ input {
 }
 
 .viewer img {
+  max-width: 520px;
   width: 100%;
+  margin: auto;
+  display: block;
   border-radius: 8px;
 }
 
 #elaOverlay {
   position: absolute;
   top: 0;
-  left: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 520px;
   width: 100%;
-  height: 100%;
+  height: auto;
   mix-blend-mode: difference;
   pointer-events: none;
 }
 
-/* ACTIONS */
+/* BUTTONS */
 .actions {
   margin-top: 15px;
   display: flex;
@@ -138,14 +136,14 @@ button {
 }
 
 button:hover {
-  background: #374151;
+  background: var(--brand);
 }
 
 /* FOOTER */
 .footer {
   margin-top: 20px;
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 </style>
 </head>
@@ -163,24 +161,16 @@ button:hover {
 <div class="left">
 
 <div class="tagline">
-Verify if an image is original, recompressed, or edited.
+Detect edits and verify image authenticity instantly.
 </div>
 
-<div class="tabs">
-  <div class="tab active" onclick="setMode('upload')">Upload</div>
-  <div class="tab" onclick="setMode('camera')">Take Photo</div>
-</div>
-
-<label class="upload" id="uploadBox">
+<label class="upload">
   <input type="file" id="file">
   <strong>Select an image</strong><br>
-  <span style="color:#9ca3af;font-size:13px;">
+  <span style="color:var(--text-muted);font-size:13px;">
     JPG or PNG • Instant analysis
   </span>
 </label>
-
-<video id="camera" autoplay style="display:none;width:100%;border-radius:8px;"></video>
-<button id="captureBtn" style="display:none;margin-top:10px;">Capture</button>
 
 </div>
 
@@ -200,7 +190,7 @@ Verify if an image is original, recompressed, or edited.
 </div>
 
 <div class="footer">
-Heatmap highlights compression differences. Brighter regions may indicate changes.
+Brighter differences indicate compression inconsistencies.
 </div>
 
 </div>
@@ -213,55 +203,23 @@ const API = "https://image-forensics-saas-1.onrender.com";
 let currentOverlay = null;
 let currentImage = null;
 
-function setMode(mode) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-
-  if (mode === 'upload') {
-    document.querySelectorAll('.tab')[0].classList.add('active');
-    document.getElementById('uploadBox').style.display = 'block';
-    document.getElementById('camera').style.display = 'none';
-    document.getElementById('captureBtn').style.display = 'none';
-  }
-
-  if (mode === 'camera') {
-    document.querySelectorAll('.tab')[1].classList.add('active');
-    document.getElementById('uploadBox').style.display = 'none';
-
-    const video = document.getElementById('camera');
-    video.style.display = 'block';
-    document.getElementById('captureBtn').style.display = 'block';
-
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => video.srcObject = stream);
-  }
-}
-
 function interpret(type) {
   if (type === "Likely Original") {
-    return {
-      color: "green",
-      message: "No evidence of manipulation detected. Image structure is consistent."
-    };
+    return "No evidence of manipulation detected.";
   }
   if (type === "Recompressed") {
-    return {
-      color: "yellow",
-      message: "Image has been resaved or shared. Compression artifacts present but not necessarily edits."
-    };
+    return "Image has been resaved or shared. Compression artifacts present.";
   }
   if (type === "Edited") {
-    return {
-      color: "red",
-      message: "Compression inconsistencies suggest possible image modification."
-    };
+    return "Compression inconsistencies suggest possible modification.";
   }
-  return {
-    color: "yellow",
-    message: "Analysis inconclusive."
-  };
+  return "Analysis inconclusive.";
 }
 
-async function analyze(file) {
+document.getElementById("file").onchange = async (e) => {
+
+  const file = e.target.files[0];
+  if (!file) return;
 
   currentImage = URL.createObjectURL(file);
   document.getElementById("originalImage").src = currentImage;
@@ -278,14 +236,10 @@ async function analyze(file) {
 
   const type = data.classification?.type || "Unknown";
   const conf = Math.round((data.classification?.confidence || 0.5) * 100);
-  const ui = interpret(type);
 
-  const card = document.getElementById("resultCard");
-  card.className = "card " + ui.color;
-
-  card.innerHTML = `
+  document.getElementById("resultCard").innerHTML = `
     <h2>${type}</h2>
-    <p>${ui.message}</p>
+    <p>${interpret(type)}</p>
     <p><strong>Confidence:</strong> ${conf}%</p>
   `;
 
@@ -293,20 +247,6 @@ async function analyze(file) {
     currentOverlay = data.ela.overlay;
     document.getElementById("elaOverlay").src = currentOverlay;
   }
-}
-
-document.getElementById("file").onchange = (e) => {
-  analyze(e.target.files[0]);
-};
-
-document.getElementById("captureBtn").onclick = () => {
-  const video = document.getElementById('camera');
-  const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video, 0, 0);
-
-  canvas.toBlob(blob => analyze(new File([blob], "capture.jpg")));
 };
 
 function downloadOriginal() {
