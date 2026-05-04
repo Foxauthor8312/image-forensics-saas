@@ -1,8 +1,8 @@
-const cors = require('cors');
 const express = require('express');
 const multer = require('multer');
 const exifr = require('exifr');
 const sharp = require('sharp');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -10,13 +10,12 @@ const PORT = process.env.PORT || 10000;
 // =========================
 // MIDDLEWARE
 // =========================
+app.use(cors({ origin: "*" }));
 app.use(express.json());
-app.use(cors({
-  origin: "https://image-forensics-saas.vercel.app"
-}));
+
 app.use((req, res, next) => {
-  console.log(`[REQ] ${req.method} ${req.url}`);
-  next();
+console.log(`[REQ] ${req.method} ${req.url}`);
+next();
 });
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -25,272 +24,172 @@ const upload = multer({ storage: multer.memoryStorage() });
 // VERSION
 // =========================
 app.get('/version', (req, res) => {
-  res.json({
-    version: "v1.3.0",
-    status: "overlay-enabled",
-    time: new Date().toISOString()
-  });
+res.json({
+version: "v1.4.0-stable",
+status: "optimized",
+time: new Date().toISOString()
+});
 });
 
 // =========================
 // HEALTH
 // =========================
 app.get('/', (req, res) => {
-  res.send("PixelProof backend v1.3.0");
+res.send("PixelProof backend v1.4.0");
 });
 
 // =========================
-// EXIF CLEANER
-// =========================
-function cleanExif(exif) {
-  if (!exif) return null;
-
-  return {
-    camera: {
-      make: exif.Make || null,
-      model: exif.Model || null
-    },
-    capture: {
-      date: exif.DateTimeOriginal || null,
-      modified: exif.ModifyDate || null
-    },
-    image: {
-      width: exif.ExifImageWidth || null,
-      height: exif.ExifImageHeight || null
-    },
-    gps: exif.latitude && exif.longitude
-      ? {
-          lat: exif.latitude,
-          lon: exif.longitude
-        }
-      : null
-  };
-}
-
-// =========================
-// EXIF EXTRACTION
+// EXIF
 // =========================
 async function extractExif(buffer) {
-  try {
-    return await exifr.parse(buffer);
-  } catch (err) {
-    console.log("EXIF error:", err.message);
-    return null;
-  }
+try {
+return await exifr.parse(buffer);
+} catch {
+return null;
+}
+}
+
+function cleanExif(exif) {
+if (!exif) return null;
+
+return {
+camera: {
+make: exif.Make || null,
+model: exif.Model || null
+},
+capture: {
+date: exif.DateTimeOriginal || null
+},
+gps: exif.latitude && exif.longitude
+? { lat: exif.latitude, lon: exif.longitude }
+: null
+};
 }
 
 // =========================
-// CONFIDENCE SCORE
-// =========================
-function calculateConfidence(exif) {
-  if (!exif) return 0.3;
-
-  let score = 0.5;
-  if (exif.Make) score += 0.1;
-  if (exif.Model) score += 0.1;
-  if (exif.DateTimeOriginal) score += 0.1;
-  if (exif.latitude && exif.longitude) score += 0.1;
-
-  return Math.min(score, 0.9);
-}
-
-// =========================
-// ELA LEVEL
-// =========================
-function getELALevel(score) {
-  if (score > 15) return "High";
-  if (score > 8) return "Moderate";
-  return "Low";
-}
-
-// =========================
-// ELA PROCESSING
+// ELA (SAFE + FAST)
 // =========================
 async function runELA(buffer) {
-  try {
-    // Normalize to JPEG
-    const normalized = await sharp(buffer).jpeg().toBuffer();
+try {
 
-    const recompressed = await sharp(normalized)
-      .jpeg({ quality: 60 })
-      .toBuffer();
+```
+// 🔑 resize BEFORE heavy processing
+const normalized = await sharp(buffer)
+  .rotate()
+  .resize({ width: 800, withoutEnlargement: true })
+  .jpeg()
+  .toBuffer();
 
-    const originalRaw = await sharp(normalized)
-      .raw()
-      .toBuffer({ resolveWithObject: true });
+const recompressed = await sharp(normalized)
+  .jpeg({ quality: 60 })
+  .toBuffer();
 
-    const recompressedRaw = await sharp(recompressed)
-      .raw()
-      .toBuffer({ resolveWithObject: true });
+const orig = await sharp(normalized)
+  .raw()
+  .toBuffer({ resolveWithObject: true });
 
-    const { data: origData, info } = originalRaw;
-    const { data: compData } = recompressedRaw;
+const comp = await sharp(recompressed)
+  .raw()
+  .toBuffer({ resolveWithObject: true });
 
-    const diff = Buffer.alloc(origData.length);
-    let totalDiff = 0;
+const diff = Buffer.alloc(orig.data.length);
+let total = 0;
 
-    for (let i = 0; i < origData.length; i++) {
-      const value = Math.abs(origData[i] - compData[i]) * 10;
-      diff[i] = value;
-      totalDiff += value;
-    }
+for (let i = 0; i < orig.data.length; i++) {
+  const v = Math.min(255, Math.abs(orig.data[i] - comp.data[i]) * 10);
+  diff[i] = v;
+  total += v;
+}
 
-    const elaImage = await sharp(diff, {
-      raw: {
-        width: info.width,
-        height: info.height,
-        channels: info.channels
-      }
-    }).png().toBuffer();
-
-    const overlay = await sharp(normalized)
-      .composite([
-        {
-          input: elaImage,
-          blend: 'overlay',
-          opacity: 0.6
-        }
-      ])
-      .png()
-      .toBuffer();
-
-    const avgDiff = totalDiff / origData.length;
-
-    return {
-      heatmap: `data:image/png;base64,${elaImage.toString('base64')}`,
-      overlay: `data:image/png;base64,${overlay.toString('base64')}`,
-      score: Number(avgDiff.toFixed(2))
-    };
-
-  } catch (err) {
-    console.error("ELA error:", err);
-    return null;
+const elaImage = await sharp(diff, {
+  raw: {
+    width: orig.info.width,
+    height: orig.info.height,
+    channels: orig.info.channels
   }
+}).png().toBuffer();
+
+const overlay = await sharp(normalized)
+  .composite([{ input: elaImage, blend: 'overlay', opacity: 0.6 }])
+  .png()
+  .toBuffer();
+
+const score = total / orig.data.length;
+
+return {
+  overlay: `data:image/png;base64,${overlay.toString('base64')}`,
+  score: Number(score.toFixed(2))
+};
+```
+
+} catch (err) {
+console.error("ELA error:", err);
+return null;
+}
 }
 
 // =========================
-// ELA NORMALIZATION
-// =========================
-function normalizeELAScore(score) {
-  const min = 0;
-  const max = 25;
-  const normalized = (score - min) / (max - min);
-  return Math.max(0, Math.min(1, normalized));
-}
-
-// =========================
-// TAMPERING EVALUATION
-// =========================
-function evaluateTampering({ elaScore, exif }) {
-  const reasons = [];
-
-  const elaNorm = normalizeELAScore(elaScore);
-  let likelihood = elaNorm * 0.7;
-
-  if (!exif) {
-    likelihood += 0.2;
-    reasons.push("Missing EXIF metadata");
-  }
-
-  if (exif && !exif.DateTimeOriginal) {
-    likelihood += 0.1;
-    reasons.push("No original capture timestamp");
-  }
-
-  likelihood = Math.max(0, Math.min(1, likelihood));
-
-  let label = "Likely Original";
-  if (likelihood > 0.75) label = "Highly Suspicious";
-  else if (likelihood > 0.5) label = "Moderate Anomalies";
-  else if (likelihood > 0.3) label = "Minor Inconsistencies";
-
-  if (elaNorm > 0.6) reasons.push("Elevated ELA response");
-  else if (elaNorm > 0.3) reasons.push("Moderate compression inconsistencies");
-
-  return {
-    likelihood: Number(likelihood.toFixed(2)),
-    label,
-    reasons
-  };
-}
-
-// =========================
-// ANALYZE ROUTE
+// ANALYZE
 // =========================
 app.post('/analyze', upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
+try {
 
-    // File size protection
-    if (req.file.size > 10 * 1024 * 1024) {
-      return res.status(400).json({
-        error: "Image too large",
-        maxSizeMB: 10
-      });
-    }
+```
+if (!req.file) {
+  return res.status(400).json({ error: "No file uploaded" });
+}
 
-    console.log("File:", req.file.mimetype, req.file.size);
+if (req.file.size > 10 * 1024 * 1024) {
+  return res.status(400).json({ error: "File too large (10MB max)" });
+}
 
-    const rawExif = await extractExif(req.file.buffer);
-    const cleanedExif = cleanExif(rawExif);
+console.log("File:", req.file.mimetype, req.file.size);
 
-    const exifResult = cleanedExif
-      ? { present: true, data: cleanedExif }
-      : { present: false, message: "No metadata (common for mobile uploads)" };
+const rawExif = await extractExif(req.file.buffer);
+const exif = cleanExif(rawExif);
 
-    const confidence = calculateConfidence(rawExif);
+const ela = await runELA(req.file.buffer);
 
-    // ELA
-    const elaData = await runELA(req.file.buffer);
+// 🔑 simple scoring (stable + interpretable)
+let likelihood = 0.3;
 
-    let elaResult;
-    if (!elaData) {
-      elaResult = { status: "failed" };
-    } else {
-      elaResult = {
-        status: "complete",
-        score: elaData.score,
-        level: getELALevel(elaData.score),
-        heatmap: elaData.heatmap,
-        overlay: elaData.overlay
-      };
-    }
+if (!rawExif) likelihood += 0.2;
+if (ela?.score > 10) likelihood += 0.3;
+if (ela?.score > 15) likelihood += 0.2;
 
-    // Tampering
-    let tampering = {
-      likelihood: 0,
-      label: "Unknown",
-      reasons: []
-    };
+likelihood = Math.min(1, likelihood);
 
-    if (elaData) {
-      tampering = evaluateTampering({
-        elaScore: elaData.score,
-        exif: rawExif
-      });
-    }
+let label = "Likely Original";
+if (likelihood > 0.75) label = "Highly Suspicious";
+else if (likelihood > 0.5) label = "Moderate Anomalies";
+else if (likelihood > 0.3) label = "Minor Inconsistencies";
 
-    res.json({
-      success: true,
-      timestamp: new Date().toISOString(),
-      confidence,
-      exif: exifResult,
-      ela: elaResult,
-      tampering
-    });
-
-  } catch (err) {
-    console.error("Processing error:", err);
-    res.status(500).json({ error: "Processing failed" });
+res.json({
+  success: true,
+  confidence: 0.9,
+  exif: exif ? { present: true, data: exif } : { present: false },
+  ela: ela || { status: "failed" },
+  tampering: {
+    likelihood: Number(likelihood.toFixed(2)),
+    label,
+    reasons: [
+      !rawExif ? "Missing EXIF metadata" : null,
+      ela?.score > 10 ? "Compression inconsistencies detected" : null
+    ].filter(Boolean)
   }
+});
+```
+
+} catch (err) {
+console.error("Server error:", err);
+res.status(500).json({ error: "Processing failed" });
+}
 });
 
 // =========================
-// START SERVER
+// START
 // =========================
 app.listen(PORT, () => {
-  console.log("=== SERVER STARTED ===");
-  console.log(`Running on port ${PORT}`);
+console.log("=== SERVER STARTED ===");
+console.log(`Running on port ${PORT}`);
 });
