@@ -131,28 +131,62 @@ return null;
 // ANALYZE
 // =========================
 app.post('/analyze', upload.single('image'), async (req, res) => {
-try {
+  try {
 
-```
-if (!req.file) {
-  return res.status(400).json({ error: "No file uploaded" });
-}
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
 
-if (req.file.size > 10 * 1024 * 1024) {
-  return res.status(400).json({ error: "File too large (10MB max)" });
-}
+    if (req.file.size > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: "File too large (10MB max)" });
+    }
 
-console.log("File:", req.file.mimetype, req.file.size);
+    console.log("File:", req.file.mimetype, req.file.size);
 
-const rawExif = await extractExif(req.file.buffer);
-const exif = cleanExif(rawExif);
+    const rawExif = await extractExif(req.file.buffer);
+    const exif = cleanExif(rawExif);
 
-let ela = null;
-try {
-  ela = await runELA(req.file.buffer);
-} catch (err) {
-  console.error("ELA failed:", err);
-}
+    let ela = null;
+    try {
+      ela = await runELA(req.file.buffer);
+    } catch (err) {
+      console.error("ELA failed:", err.message);
+    }
+
+    // scoring
+    let likelihood = 0.3;
+    if (!rawExif) likelihood += 0.2;
+    if (ela?.score > 10) likelihood += 0.3;
+    if (ela?.score > 15) likelihood += 0.2;
+
+    likelihood = Math.min(1, likelihood);
+
+    let label = "Likely Original";
+    if (likelihood > 0.75) label = "Highly Suspicious";
+    else if (likelihood > 0.5) label = "Moderate Anomalies";
+    else if (likelihood > 0.3) label = "Minor Inconsistencies";
+
+    const reasons = [];
+    if (!rawExif) reasons.push("Missing EXIF metadata");
+    if (ela && ela.score > 10) reasons.push("Compression inconsistencies detected");
+
+    res.json({
+      success: true,
+      confidence: 0.9,
+      exif: exif ? { present: true, data: exif } : { present: false },
+      ela: ela || { status: "skipped" },
+      tampering: {
+        likelihood: Number(likelihood.toFixed(2)),
+        label,
+        reasons
+      }
+    });
+
+  } catch (err) {
+    console.error("Server error:", err);
+    res.status(500).json({ error: "Processing failed" });
+  }
+});
 
 // =========================
 // SIMPLE SCORING
