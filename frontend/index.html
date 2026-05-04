@@ -82,11 +82,26 @@ input {
   pointer-events: none;
 }
 
-/* FOOTER */
+/* INFO SECTIONS */
+.section {
+  margin-top: 40px;
+  text-align: left;
+}
+
+.section h3 {
+  margin-bottom: 10px;
+}
+
+.section p, .section li {
+  color: #cbd5f5;
+  font-size: 15px;
+}
+
 .footer {
   margin-top: 50px;
   color: #6b7280;
   font-size: 14px;
+  text-align: center;
 }
 </style>
 </head>
@@ -95,14 +110,17 @@ input {
 
 <div class="container">
 
-<h1>PixelProof</h1>
-<p class="sub">Analyze images for signs of editing or recompression</p>
+<h1>Know if an image has been altered</h1>
+
+<p class="sub">
+PixelProof analyzes images to detect signs of editing, recompression, or authenticity — instantly.
+</p>
 
 <label class="upload">
   <input type="file" id="file">
-  <strong>Click to upload an image</strong><br>
+  <strong>Upload an image to analyze</strong><br>
   <span style="color:#9ca3af;font-size:14px;">
-    JPG or PNG • Instant analysis
+    Instant results • No signup • Private processing
   </span>
 </label>
 
@@ -113,8 +131,30 @@ input {
   <img id="elaOverlay">
 </div>
 
+<div class="section">
+
+<h3>How it works</h3>
+
+<p>
+PixelProof analyzes compression patterns and metadata inside an image.
+</p>
+
+<ul>
+<li><strong>Metadata (EXIF)</strong> reveals how and when the image was created</li>
+<li><strong>Compression analysis</strong> detects inconsistencies introduced during editing or saving</li>
+<li><strong>Overlay visualization</strong> highlights areas with unusual differences</li>
+</ul>
+
+<p style="color:#9ca3af;font-size:14px;">
+Brighter areas in the overlay indicate stronger compression differences.
+</p>
+
+</div>
+
 <div class="footer">
-  Brighter differences in the overlay may indicate compression inconsistencies.
+<p>
+Results are based on statistical image analysis and should be interpreted as indicators, not absolute proof.
+</p>
 </div>
 
 </div>
@@ -124,15 +164,30 @@ const API = "https://image-forensics-saas-1.onrender.com";
 
 function interpret(type) {
   if (type === "Likely Original") {
-    return { color: "green", message: "No signs of editing detected." };
+    return {
+      color: "green",
+      message: "This image appears to be an original capture with no significant signs of alteration."
+    };
   }
+
   if (type === "Recompressed") {
-    return { color: "yellow", message: "Image was likely saved or shared again." };
+    return {
+      color: "yellow",
+      message: "This image was likely saved or shared again. Compression changes are present but not necessarily edits."
+    };
   }
+
   if (type === "Edited") {
-    return { color: "red", message: "Possible image manipulation detected." };
+    return {
+      color: "red",
+      message: "This image shows patterns consistent with possible modification."
+    };
   }
-  return { color: "yellow", message: "Result is inconclusive." };
+
+  return {
+    color: "yellow",
+    message: "The result is inconclusive."
+  };
 }
 
 document.getElementById("file").onchange = async (e) => {
@@ -140,7 +195,6 @@ document.getElementById("file").onchange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  // show original
   document.getElementById("originalImage").src =
     URL.createObjectURL(file);
 
