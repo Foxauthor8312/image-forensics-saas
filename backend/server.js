@@ -92,15 +92,64 @@ function calculateConfidence(exif) {
 
   return Math.min(score, 0.9);
 }
+const sharp = require('sharp');
 
+async function runELA(buffer) {
+  try {
+    // Normalize to JPEG first (prevents format issues)
+const normalized = await sharp(buffer)
+  .jpeg()
+  .toBuffer();
+
+const recompressed = await sharp(normalized)
+  .jpeg({ quality: 60 })
+  .toBuffer();
+
+ const originalRaw = await sharp(normalized).raw().toBuffer({ resolveWithObject: true });
+    const recompressedRaw = await sharp(recompressed).raw().toBuffer({ resolveWithObject: true });
+
+    const { data: origData, info } = originalRaw;
+    const { data: compData } = recompressedRaw;
+
+    const diff = Buffer.alloc(origData.length);
+    let totalDiff = 0;
+
+    for (let i = 0; i < origData.length; i++) {
+      const value = Math.abs(origData[i] - compData[i]) * 10;
+      diff[i] = value;
+      totalDiff += value;
+    }
+
+    const elaImage = await sharp(diff, {
+      raw: {
+        width: info.width,
+        height: info.height,
+        channels: info.channels
+      }
+    })
+      .png()
+      .toBuffer();
+
+    const avgDiff = totalDiff / origData.length;
+
+    return {
+      image: `data:image/png;base64,${elaImage.toString('base64')}`,
+      score: Number(avgDiff.toFixed(2))
+    };
+
+  } catch (err) {
+    console.error("ELA error:", err);
+    return null;
+  }
+}
 // =========================
 // ANALYZE ROUTE
 // =========================
 app.post('/analyze', upload.single('image'), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
+   if (req.file.size > 10 * 1024 * 1024) {
+  return res.status(400).json({ error: "Image too large (max 10MB)" });
+}
 
     console.log("File:", req.file.mimetype, req.file.size);
 
@@ -115,13 +164,25 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     // CONFIDENCE
     const confidence = calculateConfidence(rawExif);
 
-    // =========================
-    // ELA (HOOK YOUR REAL ONE HERE)
-    // =========================
-    const elaResult = {
-      status: "pending",
-      note: "Integrate ELA processing here"
-    };
+   // =========================
+// ELA PROCESSING
+// =========================
+const elaData = await runELA(req.file.buffer);
+
+let elaResult;
+
+if (!elaData) {
+  elaResult = {
+    status: "failed",
+    message: "ELA processing failed"
+  };
+} else {
+  elaResult = {
+    status: "complete",
+    score: elaData.score,
+    image: elaData.image
+  };
+}
 
     // =========================
     // RESPONSE
