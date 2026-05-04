@@ -11,49 +11,34 @@ app.use(express.json());
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-async function extractExif(buffer) {
-try {
-return await exifr.parse(buffer);
-} catch (e) {
-console.log("EXIF error:", e.message);
-return null;
-}
-}
-
 app.get('/', function(req, res) {
-res.send('Backend OK');
+  res.send('Backend OK');
 });
 
 app.post('/analyze', upload.single('image'), async function(req, res) {
-try {
-if (!req.file) {
-return res.status(400).json({ error: "No file uploaded" });
-}
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
 
-```
-console.log("UPLOAD OK");
+    console.log("UPLOAD OK");
 
-const rawExif = await exifr.parse(req.file.buffer);
+    const rawExif = await exifr.parse(req.file.buffer);
 
-console.log("EXIF PARSED");
+    console.log("EXIF PARSED");
 
-res.json({
-  success: true,
-  size: req.file.size,
-  hasExif: rawExif ? true : false
+    res.json({
+      success: true,
+      size: req.file.size,
+      hasExif: rawExif ? true : false
+    });
+
+  } catch (err) {
+    console.log("ERROR:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
-
-} catch (err) {
-console.log("ERROR:", err.message);
-res.status(500).json({ error: "Server error" });
-}
-});
-});
-
-// =========================
-// START SERVER
-// =========================
 app.listen(PORT, function() {
   console.log("Running on port " + PORT);
 });
