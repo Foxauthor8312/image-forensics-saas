@@ -12,17 +12,25 @@ body {
   margin: 0;
 }
 
-.container {
-  max-width: 900px;
-  margin: auto;
-  padding: 40px 20px;
-  text-align: center;
+/* LAYOUT */
+.wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100vh;
 }
 
-/* HERO */
+/* LEFT SIDE */
+.left {
+  padding: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start; /* FIX */
+}
+
 h1 {
   font-size: 42px;
-  margin-bottom: 10px;
+  margin-bottom: 15px;
 }
 
 .sub {
@@ -34,41 +42,48 @@ h1 {
 /* UPLOAD */
 .upload {
   border: 2px dashed #374151;
-  padding: 30px;
-  border-radius: 12px;
+  padding: 25px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: 0.2s;
+  text-align: center;
+
+  max-width: 320px;   /* FIX */
+  width: 100%;
+  margin-top: 20px;
 }
 
 .upload:hover {
   border-color: #60a5fa;
-  background: #0f172a;
 }
 
-input {
-  display: none;
+/* RIGHT SIDE */
+.right {
+  background: #111827;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
-/* RESULT CARD */
+/* RESULT */
 .card {
-  margin-top: 30px;
   padding: 20px;
-  border-radius: 12px;
+  border-radius: 10px;
+  margin-bottom: 20px;
 }
 
 .green { background: #064e3b; }
 .yellow { background: #78350f; }
 .red { background: #7f1d1d; }
 
-/* IMAGE VIEWER */
+/* IMAGE */
 .viewer {
   position: relative;
-  margin-top: 30px;
 }
 
 .viewer img {
   width: 100%;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 #elaOverlay {
@@ -77,52 +92,44 @@ input {
   left: 0;
   width: 100%;
   height: 100%;
-  opacity: 1;
   mix-blend-mode: difference;
   pointer-events: none;
 }
 
-/* INFO SECTIONS */
-.section {
-  margin-top: 40px;
-  text-align: left;
-}
-
-.section h3 {
-  margin-bottom: 10px;
-}
-
-.section p, .section li {
-  color: #cbd5f5;
-  font-size: 15px;
-}
-
+/* FOOTER */
 .footer {
-  margin-top: 50px;
+  margin-top: 20px;
   color: #6b7280;
-  font-size: 14px;
-  text-align: center;
+  font-size: 13px;
 }
 </style>
 </head>
 
 <body>
 
-<div class="container">
+<div class="wrapper">
 
-<h1>Know if an image has been altered</h1>
+<!-- LEFT -->
+<div class="left">
+
+<h1>Detect image manipulation instantly</h1>
 
 <p class="sub">
-PixelProof analyzes images to detect signs of editing, recompression, or authenticity — instantly.
+PixelProof analyzes compression patterns and metadata to identify edits, recompression, and authenticity.
 </p>
 
 <label class="upload">
-  <input type="file" id="file">
-  <strong>Upload an image to analyze</strong><br>
+  <input type="file" id="file" style="display:none;">
+  <strong>Upload Image</strong><br>
   <span style="color:#9ca3af;font-size:14px;">
-    Instant results • No signup • Private processing
+    JPG or PNG • Instant analysis
   </span>
 </label>
+
+</div>
+
+<!-- RIGHT -->
+<div class="right">
 
 <div id="resultCard" class="card"></div>
 
@@ -131,30 +138,10 @@ PixelProof analyzes images to detect signs of editing, recompression, or authent
   <img id="elaOverlay">
 </div>
 
-<div class="section">
-
-<h3>How it works</h3>
-
-<p>
-PixelProof analyzes compression patterns and metadata inside an image.
-</p>
-
-<ul>
-<li><strong>Metadata (EXIF)</strong> reveals how and when the image was created</li>
-<li><strong>Compression analysis</strong> detects inconsistencies introduced during editing or saving</li>
-<li><strong>Overlay visualization</strong> highlights areas with unusual differences</li>
-</ul>
-
-<p style="color:#9ca3af;font-size:14px;">
-Brighter areas in the overlay indicate stronger compression differences.
-</p>
-
+<div class="footer">
+Brighter differences indicate compression inconsistencies.
 </div>
 
-<div class="footer">
-<p>
-Results are based on statistical image analysis and should be interpreted as indicators, not absolute proof.
-</p>
 </div>
 
 </div>
@@ -164,30 +151,15 @@ const API = "https://image-forensics-saas-1.onrender.com";
 
 function interpret(type) {
   if (type === "Likely Original") {
-    return {
-      color: "green",
-      message: "This image appears to be an original capture with no significant signs of alteration."
-    };
+    return { color: "green", message: "No signs of editing detected." };
   }
-
   if (type === "Recompressed") {
-    return {
-      color: "yellow",
-      message: "This image was likely saved or shared again. Compression changes are present but not necessarily edits."
-    };
+    return { color: "yellow", message: "Image was saved or shared again." };
   }
-
   if (type === "Edited") {
-    return {
-      color: "red",
-      message: "This image shows patterns consistent with possible modification."
-    };
+    return { color: "red", message: "Possible image manipulation detected." };
   }
-
-  return {
-    color: "yellow",
-    message: "The result is inconclusive."
-  };
+  return { color: "yellow", message: "Inconclusive result." };
 }
 
 document.getElementById("file").onchange = async (e) => {
