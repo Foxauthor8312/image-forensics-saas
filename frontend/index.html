@@ -44,17 +44,6 @@ body {
   top: 0;
   left: 0;
   opacity: 0.5;
-  display: none;
-}
-
-button {
-  margin-top: 15px;
-  padding: 10px 15px;
-  border: none;
-  background: #1f2937;
-  color: white;
-  cursor: pointer;
-  border-radius: 6px;
 }
 </style>
 </head>
@@ -75,8 +64,6 @@ button {
   <img id="elaOverlay">
 </div>
 
-<button onclick="toggleOverlay()">Toggle Heatmap</button>
-
 </div>
 
 <script>
@@ -87,18 +74,12 @@ function interpret(type) {
     return { color: "green", message: "Original image with no signs of editing." };
   }
   if (type === "Recompressed") {
-    return { color: "yellow", message: "Image was likely saved or shared again." };
+    return { color: "yellow", message: "Image was saved or shared again." };
   }
   if (type === "Edited") {
     return { color: "red", message: "Possible image manipulation detected." };
   }
   return { color: "yellow", message: "Uncertain result." };
-}
-
-function toggleOverlay() {
-  const overlay = document.getElementById("elaOverlay");
-  overlay.style.display =
-    overlay.style.display === "none" ? "block" : "none";
 }
 
 document.getElementById("file").onchange = async (e) => {
@@ -133,12 +114,13 @@ document.getElementById("file").onchange = async (e) => {
     <p><strong>Confidence:</strong> ${conf}%</p>
   `;
 
-  // overlay handling
+  // ALWAYS SHOW OVERLAY IF AVAILABLE
   const overlay = document.getElementById("elaOverlay");
 
   if (data.ela && data.ela.overlay) {
     overlay.src = data.ela.overlay;
-    overlay.style.display = "none"; // hidden by default
+  } else {
+    overlay.src = "";
   }
 };
 </script>
