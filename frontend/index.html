@@ -6,20 +6,52 @@
 
 <style>
 body {
-  font-family: Arial, sans-serif;
-  background: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #0b1220;
   color: #e5e7eb;
-  text-align: center;
-  padding: 30px;
+  margin: 0;
 }
 
 .container {
-  max-width: 700px;
+  max-width: 900px;
   margin: auto;
+  padding: 40px 20px;
+  text-align: center;
 }
 
+/* HERO */
+h1 {
+  font-size: 42px;
+  margin-bottom: 10px;
+}
+
+.sub {
+  color: #9ca3af;
+  font-size: 18px;
+  margin-bottom: 30px;
+}
+
+/* UPLOAD */
+.upload {
+  border: 2px dashed #374151;
+  padding: 30px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.upload:hover {
+  border-color: #60a5fa;
+  background: #0f172a;
+}
+
+input {
+  display: none;
+}
+
+/* RESULT CARD */
 .card {
-  margin-top: 20px;
+  margin-top: 30px;
   padding: 20px;
   border-radius: 12px;
 }
@@ -28,45 +60,15 @@ body {
 .yellow { background: #78350f; }
 .red { background: #7f1d1d; }
 
+/* IMAGE VIEWER */
 .viewer {
   position: relative;
-  display: inline-block;
-  margin-top: 20px;
-}
-
-<style>
-body {
-  font-family: Arial, sans-serif;
-  background: #0f172a;
-  color: #e5e7eb;
-  text-align: center;
-  padding: 30px;
-}
-
-.container {
-  max-width: 700px;
-  margin: auto;
-}
-
-.card {
-  margin-top: 20px;
-  padding: 20px;
-  border-radius: 12px;
-}
-
-.green { background: #064e3b; }
-.yellow { background: #78350f; }
-.red { background: #7f1d1d; }
-
-.viewer {
-  position: relative;
-  display: inline-block;
+  margin-top: 30px;
 }
 
 .viewer img {
   width: 100%;
-  display: block;
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 #elaOverlay {
@@ -75,10 +77,16 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-
   opacity: 1;
+  mix-blend-mode: difference;
+  pointer-events: none;
+}
 
-  mix-blend-mode: difference; /* 👈 THIS makes it visible */
+/* FOOTER */
+.footer {
+  margin-top: 50px;
+  color: #6b7280;
+  font-size: 14px;
 }
 </style>
 </head>
@@ -88,15 +96,25 @@ body {
 <div class="container">
 
 <h1>PixelProof</h1>
-<p>Analyze an image for authenticity</p>
+<p class="sub">Analyze images for signs of editing or recompression</p>
 
-<input type="file" id="file">
+<label class="upload">
+  <input type="file" id="file">
+  <strong>Click to upload an image</strong><br>
+  <span style="color:#9ca3af;font-size:14px;">
+    JPG or PNG • Instant analysis
+  </span>
+</label>
 
 <div id="resultCard" class="card"></div>
 
 <div class="viewer">
   <img id="originalImage">
   <img id="elaOverlay">
+</div>
+
+<div class="footer">
+  Brighter differences in the overlay may indicate compression inconsistencies.
 </div>
 
 </div>
@@ -106,15 +124,15 @@ const API = "https://image-forensics-saas-1.onrender.com";
 
 function interpret(type) {
   if (type === "Likely Original") {
-    return { color: "green", message: "Original image with no signs of editing." };
+    return { color: "green", message: "No signs of editing detected." };
   }
   if (type === "Recompressed") {
-    return { color: "yellow", message: "Image was saved or shared again." };
+    return { color: "yellow", message: "Image was likely saved or shared again." };
   }
   if (type === "Edited") {
     return { color: "red", message: "Possible image manipulation detected." };
   }
-  return { color: "yellow", message: "Uncertain result." };
+  return { color: "yellow", message: "Result is inconclusive." };
 }
 
 document.getElementById("file").onchange = async (e) => {
@@ -149,13 +167,8 @@ document.getElementById("file").onchange = async (e) => {
     <p><strong>Confidence:</strong> ${conf}%</p>
   `;
 
-  // ALWAYS SHOW OVERLAY IF AVAILABLE
-  const overlay = document.getElementById("elaOverlay");
-
   if (data.ela && data.ela.overlay) {
-    overlay.src = data.ela.overlay;
-  } else {
-    overlay.src = "";
+    document.getElementById("elaOverlay").src = data.ela.overlay;
   }
 };
 </script>
