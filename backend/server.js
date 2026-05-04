@@ -96,14 +96,23 @@ function classifyImage(exif, ela, tampering) {
     };
   }
 
-  if ((!exif && elaScore > 20) || tampering.likelihood > 0.7) {
-    return {
-      type: "Edited",
-      reason: "Missing metadata or strong anomaly signals",
-      confidence: 0.85
-    };
-  }
+ // RECOMPRESSED (no EXIF but not extreme ELA)
+if (!exif && elaScore >= 10 && elaScore <= 25) {
+  return {
+    type: "Recompressed",
+    reason: "Metadata stripped with moderate compression artifacts",
+    confidence: 0.75
+  };
+}
 
+// EDITED (strong signals)
+if ((!exif && elaScore > 25) || tampering.likelihood > 0.7) {
+  return {
+    type: "Edited",
+    reason: "Missing metadata with strong anomaly signals",
+    confidence: 0.85
+  };
+}
   if (exif && elaScore < 10) {
     return {
       type: "Likely Original",
