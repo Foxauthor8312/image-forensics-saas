@@ -1,11 +1,26 @@
 <!DOCTYPE html>
-
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PixelProof</title>
 <style>
-body{font-family:sans-serif;background:#111;color:#fff;text-align:center;padding:20px}
+body {
+  font-family: sans-serif;
+  background: #111;
+  color: #fff;
+  text-align: center;
+  padding: 20px;
+}
+
+img {
+  max-width: 100%;
+  margin-top: 15px;
+  border: 2px solid #444;
+}
+
+.container {
+  margin-top: 20px;
+}
 </style>
 </head>
 <body>
@@ -13,6 +28,12 @@ body{font-family:sans-serif;background:#111;color:#fff;text-align:center;padding
 <h2>PixelProof</h2>
 
 <input type="file" id="file">
+
+<div class="container">
+  <h3>ELA Heatmap</h3>
+  <img id="elaImage" />
+  <p id="elaScore"></p>
+</div>
 
 <div id="output"></div>
 
@@ -34,16 +55,24 @@ document.getElementById("file").onchange = async (e) => {
     });
 
     const data = await res.json();
-
     console.log(data);
 
+    // 🔥 SHOW ELA IMAGE
+    if (data.ela && data.ela.overlay) {
+      document.getElementById("elaImage").src = data.ela.overlay;
+      document.getElementById("elaScore").innerText =
+        "ELA Score: " + data.ela.score;
+    }
+
+    // KEEP JSON OUTPUT
     document.getElementById("output").innerHTML =
       "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
 
-} catch (err) {
-console.error(err);
-}
-}; </script>
+  } catch (err) {
+    console.error(err);
+  }
+};
+</script>
 
 </body>
 </html>
