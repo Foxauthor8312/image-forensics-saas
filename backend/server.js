@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const exifr = require('exifr');
+const sharp = require('sharp');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -22,8 +23,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 // =========================
 app.get('/version', (req, res) => {
   res.json({
-    version: "v1.1.0",
-    status: "clean-build",
+    version: "v1.2.0",
+    status: "forensics-ready",
     time: new Date().toISOString()
   });
 });
@@ -32,7 +33,7 @@ app.get('/version', (req, res) => {
 // HEALTH
 // =========================
 app.get('/', (req, res) => {
-  res.send("PixelProof backend v1.1.0");
+  res.send("PixelProof backend v1.2.0");
 });
 
 // =========================
@@ -68,8 +69,7 @@ function cleanExif(exif) {
 // =========================
 async function extractExif(buffer) {
   try {
-    const data = await exifr.parse(buffer);
-    return data;
+    return await exifr.parse(buffer);
   } catch (err) {
     console.log("EXIF error:", err.message);
     return null;
@@ -77,14 +77,12 @@ async function extractExif(buffer) {
 }
 
 // =========================
-// CONFIDENCE SCORING
+// CONFIDENCE SCORE
 // =========================
 function calculateConfidence(exif) {
-  // Simple baseline logic (expand later)
   if (!exif) return 0.3;
 
   let score = 0.5;
-
   if (exif.Make) score += 0.1;
   if (exif.Model) score += 0.1;
   if (exif.DateTimeOriginal) score += 0.1;
@@ -92,21 +90,26 @@ function calculateConfidence(exif) {
 
   return Math.min(score, 0.9);
 }
-const sharp = require('sharp');
 
+// =========================
+// ELA PROCESSING
+// =========================
 async function runELA(buffer) {
   try {
-    // Normalize to JPEG first (prevents format issues)
-const normalized = await sharp(buffer)
-  .jpeg()
-  .toBuffer();
+    // Normalize to JPEG
+    const normalized = await sharp(buffer).jpeg().toBuffer();
 
-const recompressed = await sharp(normalized)
-  .jpeg({ quality: 60 })
-  .toBuffer();
+    const recompressed = await sharp(normalized)
+      .jpeg({ quality: 60 })
+      .toBuffer();
 
- const originalRaw = await sharp(normalized).raw().toBuffer({ resolveWithObject: true });
-    const recompressedRaw = await sharp(recompressed).raw().toBuffer({ resolveWithObject: true });
+    const originalRaw = await sharp(normalized)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const recompressedRaw = await sharp(recompressed)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
 
     const { data: origData, info } = originalRaw;
     const { data: compData } = recompressedRaw;
@@ -126,9 +129,7 @@ const recompressed = await sharp(normalized)
         height: info.height,
         channels: info.channels
       }
-    })
-      .png()
-      .toBuffer();
+    }).png().toBuffer();
 
     const avgDiff = totalDiff / origData.length;
 
@@ -142,18 +143,72 @@ const recompressed = await sharp(normalized)
     return null;
   }
 }
+
+// =========================
+// ELA NORMALIZATION
+// =========================
+function normalizeELAScore(score) {
+  const min = 0;
+  const max = 25;
+  const normalized = (score - min) / (max - min);
+  return Math.max(0, Math.min(1, normalized));
+}
+
+// =========================
+// TAMPERING EVALUATION
+// =========================
+function evaluateTampering({ elaScore, exif }) {
+  const reasons = [];
+
+  const elaNorm = normalizeELAScore(elaScore);
+  let likelihood = elaNorm * 0.7;
+
+  if (!exif) {
+    likelihood += 0.2;
+    reasons.push("Missing EXIF metadata");
+  }
+
+  if (exif && !exif.DateTimeOriginal) {
+    likelihood += 0.1;
+    reasons.push("No original capture timestamp");
+  }
+
+  likelihood = Math.max(0, Math.min(1, likelihood));
+
+  let label = "Likely Original";
+  if (likelihood > 0.75) label = "Highly Suspicious";
+  else if (likelihood > 0.5) label = "Moderate Anomalies";
+  else if (likelihood > 0.3) label = "Minor Inconsistencies";
+
+  if (elaNorm > 0.6) reasons.push("Elevated ELA response");
+  else if (elaNorm > 0.3) reasons.push("Moderate compression inconsistencies");
+
+  return {
+    likelihood: Number(likelihood.toFixed(2)),
+    label,
+    reasons
+  };
+}
+
 // =========================
 // ANALYZE ROUTE
 // =========================
 app.post('/analyze', upload.single('image'), async (req, res) => {
   try {
-   if (req.file.size > 10 * 1024 * 1024) {
-  return res.status(400).json({ error: "Image too large (max 10MB)" });
-}
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    // File size protection
+    if (req.file.size > 10 * 1024 * 1024) {
+      return res.status(400).json({
+        error: "Image too large",
+        maxSizeMB: 10
+      });
+    }
 
     console.log("File:", req.file.mimetype, req.file.size);
 
-    // EXIF
     const rawExif = await extractExif(req.file.buffer);
     const cleanedExif = cleanExif(rawExif);
 
@@ -161,38 +216,43 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
       ? { present: true, data: cleanedExif }
       : { present: false, message: "No metadata (common for mobile uploads)" };
 
-    // CONFIDENCE
     const confidence = calculateConfidence(rawExif);
 
-   // =========================
-// ELA PROCESSING
-// =========================
-const elaData = await runELA(req.file.buffer);
+    // ELA
+    const elaData = await runELA(req.file.buffer);
 
-let elaResult;
+    let elaResult;
+    if (!elaData) {
+      elaResult = { status: "failed" };
+    } else {
+      elaResult = {
+        status: "complete",
+        score: elaData.score,
+        image: elaData.image
+      };
+    }
 
-if (!elaData) {
-  elaResult = {
-    status: "failed",
-    message: "ELA processing failed"
-  };
-} else {
-  elaResult = {
-    status: "complete",
-    score: elaData.score,
-    image: elaData.image
-  };
-}
+    // Tampering
+    let tampering = {
+      likelihood: 0,
+      label: "Unknown",
+      reasons: []
+    };
 
-    // =========================
-    // RESPONSE
-    // =========================
+    if (elaData) {
+      tampering = evaluateTampering({
+        elaScore: elaData.score,
+        exif: rawExif
+      });
+    }
+
     res.json({
       success: true,
       timestamp: new Date().toISOString(),
       confidence,
       exif: exifResult,
-      ela: elaResult
+      ela: elaResult,
+      tampering
     });
 
   } catch (err) {
