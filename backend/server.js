@@ -23,8 +23,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 // =========================
 app.get('/version', (req, res) => {
   res.json({
-    version: "v1.2.0",
-    status: "forensics-ready",
+    version: "v1.3.0",
+    status: "overlay-enabled",
     time: new Date().toISOString()
   });
 });
@@ -33,7 +33,7 @@ app.get('/version', (req, res) => {
 // HEALTH
 // =========================
 app.get('/', (req, res) => {
-  res.send("PixelProof backend v1.2.0");
+  res.send("PixelProof backend v1.3.0");
 });
 
 // =========================
@@ -92,6 +92,15 @@ function calculateConfidence(exif) {
 }
 
 // =========================
+// ELA LEVEL
+// =========================
+function getELALevel(score) {
+  if (score > 15) return "High";
+  if (score > 8) return "Moderate";
+  return "Low";
+}
+
+// =========================
 // ELA PROCESSING
 // =========================
 async function runELA(buffer) {
@@ -131,24 +140,24 @@ async function runELA(buffer) {
       }
     }).png().toBuffer();
 
+    const overlay = await sharp(normalized)
+      .composite([
+        {
+          input: elaImage,
+          blend: 'overlay',
+          opacity: 0.6
+        }
+      ])
+      .png()
+      .toBuffer();
+
     const avgDiff = totalDiff / origData.length;
 
-    const overlay = await sharp(normalized)
-  .composite([
-    {
-      input: elaImage,
-      blend: 'overlay',
-      opacity: 0.6
-    }
-  ])
-  .png()
-  .toBuffer();
-
-return {
-  heatmap: `data:image/png;base64,${elaImage.toString('base64')}`,
-  overlay: `data:image/png;base64,${overlay.toString('base64')}`,
-  score: Number(avgDiff.toFixed(2))
-};
+    return {
+      heatmap: `data:image/png;base64,${elaImage.toString('base64')}`,
+      overlay: `data:image/png;base64,${overlay.toString('base64')}`,
+      score: Number(avgDiff.toFixed(2))
+    };
 
   } catch (err) {
     console.error("ELA error:", err);
@@ -237,13 +246,13 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     if (!elaData) {
       elaResult = { status: "failed" };
     } else {
-    elaResult = {
-  status: "complete",
-  score: elaData.score,
-  level: getELALevel(elaData.score),
-  heatmap: elaData.heatmap,
-  overlay: elaData.overlay
-};
+      elaResult = {
+        status: "complete",
+        score: elaData.score,
+        level: getELALevel(elaData.score),
+        heatmap: elaData.heatmap,
+        overlay: elaData.overlay
+      };
     }
 
     // Tampering
