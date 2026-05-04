@@ -216,15 +216,15 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     const confidence = calculateConfidence(exif, tampering, ela);
     const classification = classifyImage(exif, ela, tampering);
 
-    res.json({
-      success: true,
-      size: req.file.size,
-      exif,
-      ela,
-      tampering,
-      confidence,
-      classification
-    });
+   res.json({
+  success: true,
+  size: req.file.size,
+  exif,
+  elaScore: ela ? ela.score : null,
+  tampering,
+  confidence,
+  classification
+});
 
   } catch (err) {
     console.log("ERROR:", err.message);
