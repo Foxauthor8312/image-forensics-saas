@@ -55,9 +55,8 @@ async function runELA(buffer) {
     let total = 0;
 
     for (let i = 0; i < orig.data.length; i++) {
-      const value = Math.abs(orig.data[i] - comp.data[i]);
-      diff[i] = value;
-      total += value;
+      const value = Math.abs(orig.data[i] - comp.data[i]) * 10; // amplify
+diff[i] = Math.min(255, value);
     }
 
     const elaImage = await sharp(diff, {
