@@ -41,14 +41,10 @@ function calculateTampering(exif, ela) {
     }
   }
 
-  // ELA influence (safe)
   if (ela && typeof ela.score === "number") {
     if (ela.score > 25) {
       score += 0.3;
       reasons.push("High compression inconsistency detected");
-    } else if (ela.score > 15) {
-      score += 0.2;
-      reasons.push("Moderate compression inconsistencies");
     }
   }
 
@@ -80,7 +76,6 @@ function calculateConfidence(exif, tampering, ela) {
     score -= tampering.likelihood * 0.5;
   }
 
-  // SAFE ELA handling (prevents crash)
   if (ela && typeof ela.score === "number") {
     if (ela.score > 30) score -= 0.4;
     else if (ela.score > 20) score -= 0.3;
@@ -88,6 +83,40 @@ function calculateConfidence(exif, tampering, ela) {
   }
 
   return Math.max(0, Math.min(1, Number(score.toFixed(2))));
+}
+
+function classifyImage(exif, ela, tampering) {
+  const elaScore = ela && ela.score ? ela.score : 0;
+
+  if (exif && elaScore > 25 && tampering.likelihood < 0.6) {
+    return {
+      type: "Recompressed",
+      reason: "High compression artifacts with intact metadata",
+      confidence: 0.8
+    };
+  }
+
+  if ((!exif && elaScore > 20) || tampering.likelihood > 0.7) {
+    return {
+      type: "Edited",
+      reason: "Missing metadata or strong anomaly signals",
+      confidence: 0.85
+    };
+  }
+
+  if (exif && elaScore < 10) {
+    return {
+      type: "Likely Original",
+      reason: "Low compression artifacts with intact metadata",
+      confidence: 0.9
+    };
+  }
+
+  return {
+    type: "Possibly Modified",
+    reason: "Moderate compression differences detected",
+    confidence: 0.6
+  };
 }
 
 async function runELA(buffer) {
@@ -132,10 +161,8 @@ async function runELA(buffer) {
       .png()
       .toBuffer();
 
-    const score = total / orig.data.length;
-
     return {
-      score: Number(score.toFixed(2)),
+      score: Number((total / orig.data.length).toFixed(2)),
       overlay: `data:image/png;base64,${overlay.toString('base64')}`
     };
 
@@ -159,48 +186,35 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    console.log("UPLOAD RECEIVED");
-
-    // 1. Extract EXIF FIRST
     const exifRaw = await exifr.parse(req.file.buffer);
 
-    // 2. Prepare buffer
     let buffer = req.file.buffer;
 
-    // Resize only if very large
     if (req.file.size > 8 * 1024 * 1024) {
-      console.log("Resizing large image...");
-      try {
-        buffer = await sharp(req.file.buffer)
-          .resize({ width: 1600, withoutEnlargement: true })
-          .jpeg({ quality: 80 })
-          .toBuffer();
-      } catch (err) {
-        console.log("Resize failed:", err.message);
-      }
+      buffer = await sharp(req.file.buffer)
+        .resize({ width: 1600, withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
     }
 
-    // 3. RUN ELA (before using it anywhere)
     const ela = await runELA(buffer);
 
-    // 4. Build EXIF object
     let exif = null;
     if (exifRaw) {
       exif = {
-        make: exifRaw.Make || exifRaw.make || "Unknown",
-        model: exifRaw.Model || exifRaw.model || "Unknown",
+        make: exifRaw.Make || "Unknown",
+        model: exifRaw.Model || "Unknown",
         date: exifRaw.DateTimeOriginal || exifRaw.CreateDate || "Unknown",
         iso: exifRaw.ISO || null,
-        lens: exifRaw.LensModel || null,
         gps: exifRaw.latitude && exifRaw.longitude
           ? { lat: exifRaw.latitude, lon: exifRaw.longitude }
           : null
       };
     }
 
-    // 5. Scoring
     const tampering = calculateTampering(exif, ela);
     const confidence = calculateConfidence(exif, tampering, ela);
+    const classification = classifyImage(exif, ela, tampering);
 
     res.json({
       success: true,
@@ -208,7 +222,8 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
       exif,
       ela,
       tampering,
-      confidence
+      confidence,
+      classification
     });
 
   } catch (err) {
@@ -216,10 +231,6 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
-// =========================
-// START SERVER
-// =========================
 
 app.listen(PORT, () => {
   console.log(`Running on port ${PORT}`);
