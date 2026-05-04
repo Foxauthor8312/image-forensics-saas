@@ -104,8 +104,7 @@ if (req.file.size > 5 * 1024 * 1024) {
     
     console.log("UPLOAD OK");
 
-    const rawExif = await exifr.parse(buffer);
-    console.log("EXIF PARSED");
+     console.log("EXIF PARSED");
 
     let exif = null;
 
