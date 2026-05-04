@@ -33,8 +33,10 @@ body {
 }
 
 .header img {
-  height: 44px;
-  filter: brightness(1.4) contrast(1.2);
+  height: 40px;
+  background: #ffffff;     /* 👈 gives contrast */
+  padding: 4px 6px;
+  border-radius: 6px;
 }
 
 .header span {
@@ -151,6 +153,37 @@ button:hover {
   font-size: 13px;
   color: var(--text-muted);
 }
+  /* ===== SLIDER ===== */
+
+.slider-container {
+  position: relative;
+  max-width: 520px;
+  margin: auto;
+}
+
+.slider-container img {
+  width: 100%;
+  display: block;
+  border-radius: 8px;
+}
+
+.overlay-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  overflow: hidden;
+}
+
+.overlay-container img {
+  width: 100%;
+  mix-blend-mode: difference;
+}
+
+#slider {
+  width: 100%;
+  margin-top: 10px;
+}
 </style>
 </head>
 
@@ -186,8 +219,17 @@ Detect edits and verify image authenticity instantly.
 <div id="resultCard" class="card"></div>
 
 <div class="viewer">
-  <img id="originalImage">
-  <img id="elaOverlay">
+
+  <div class="slider-container">
+    <img id="originalImage" class="base">
+
+    <div class="overlay-container" id="overlayContainer">
+      <img id="elaOverlay">
+    </div>
+
+    <input type="range" min="0" max="100" value="50" id="slider">
+  </div>
+
 </div>
 
 <div class="actions">
@@ -339,6 +381,16 @@ function downloadOverlay() {
   a.href = currentOverlay;
   a.download = "heatmap.jpg";
   a.click();
+}
+  // ===== SLIDER CONTROL =====
+
+const slider = document.getElementById("slider");
+const overlayContainer = document.getElementById("overlayContainer");
+
+if (slider && overlayContainer) {
+  slider.addEventListener("input", () => {
+    overlayContainer.style.width = slider.value + "%";
+  });
 }
 </script>
 
