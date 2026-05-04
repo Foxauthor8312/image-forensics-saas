@@ -45,7 +45,7 @@ if (rawExif) {
 res.json({
   success: true,
   size: req.file.size,
-  exif: exif
+  exif: exif ? exif : { present: false }
 });
 
   } catch (err) {
