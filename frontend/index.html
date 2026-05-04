@@ -31,22 +31,21 @@ img.preview{max-width:100%;max-height:300px;object-fit:contain;margin-bottom:10p
 
 <body>
 <div class="container">
-
 <div class="panel">
   <h2>PixelProof</h2>
 
   <div id="drop" class="drop">Tap to Upload Image</div>
 
 <button onclick="camera.click()" style="
- margin-top:15px;
- padding:14px;
- width:100%;
- background:#2563eb;
- border:none;
- border-radius:10px;
- color:white;
- font-size:16px;
- font-weight:700;
+margin-top:15px;
+padding:14px;
+width:100%;
+background:#2563eb;
+border:none;
+border-radius:10px;
+color:white;
+font-size:16px;
+font-weight:700;
 ">
 📷 Take Photo </button>
 
@@ -58,11 +57,10 @@ img.preview{max-width:100%;max-height:300px;object-fit:contain;margin-bottom:10p
 
   <div id="result"></div>
 </div>
-
 </div>
 
 <script>
-const API="https://pixelproof-backend-v2.onrender.com";
+const API = "https://image-forensics-saas.onrender.com";
 
 const file=document.getElementById("file");
 const camera=document.getElementById("camera");
@@ -89,7 +87,6 @@ camera.onchange=e=>{
 };
 
 async function analyze(f){
-
   const form=new FormData();
   form.append("image",f);
 
@@ -98,8 +95,7 @@ async function analyze(f){
   status.innerText="Analyzing image...";
 
   try{
-
-    const res = await fetch(API + "/api/analyze", {
+    const res = await fetch(API + "/analyze", {
       method: "POST",
       body: form
     });
@@ -111,22 +107,24 @@ async function analyze(f){
 
     setTimeout(()=>bar.style.display="none",500);
 
-    render(data.result || data);
+    window.lastResult = data.result || data;
+    render(window.lastResult);
 
   }catch(err){
-
     console.error(err);
-
     bar.style.display="none";
-
     status.innerText="Server error — try again";
-
   }
 }
 
 function render(d){
 
-  let scoreColor = d.score > 70 ? "#ef4444" : d.score > 40 ? "#facc15" : "#22c55e";
+  let likelihood = d.tampering?.likelihood || 0;
+
+  let scoreColor =
+    likelihood > 0.7 ? "#ef4444" :
+    likelihood > 0.4 ? "#facc15" :
+    "#22c55e";
 
   window._mapInstance = null;
 
@@ -146,22 +144,21 @@ function render(d){
 
     <div id="r" class="tab-content active">
       <div style="font-weight:600;color:${scoreColor}">
-        ${d.score > 70 ? "High likelihood of manipulation" : d.score > 40 ? "Possible modification detected" : "Likely authentic"}
+        ${d.tampering?.label || "Analysis complete"}
       </div>
-      <div>${d.conclusion || ""}</div>
       <div style="margin-top:8px;color:${scoreColor}">
-        Score: ${d.score || 0}%
+        Tampering Likelihood: ${Math.round((likelihood) * 100)}%
       </div>
     </div>
 
     <div id="m" class="tab-content">
-      <div>Camera: ${d.metadata?.camera || "Unknown"}</div>
-      <div>Model: ${d.metadata?.model || "Unknown"}</div>
-      <div>Date: ${d.metadata?.date || "Unknown"}</div>
+      <div>Camera: ${d.exif?.data?.camera?.make || "Unknown"}</div>
+      <div>Model: ${d.exif?.data?.camera?.model || ""}</div>
+      <div>Date: ${d.exif?.data?.capture?.date || "Unknown"}</div>
       <div>
         GPS: ${
-          d.metadata?.gps
-            ? d.metadata.gps.lat + ", " + d.metadata.gps.lon
+          d.exif?.data?.gps
+            ? d.exif.data.gps.lat + ", " + d.exif.data.gps.lon
             : "Not available"
         }
       </div>
@@ -169,23 +166,23 @@ function render(d){
 
     <div id="mapTab" class="tab-content">
       ${
-        d.metadata?.gps
+        d.exif?.data?.gps
           ? `<div id="map"></div>`
           : "No GPS data"
       }
     </div>
 
     <div id="h" class="tab-content">
-      <div style="position:relative">
-        <img id="heatmapBase" style="width:100%">
-        <canvas id="heatmapCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:.6"></canvas>
-      </div>
-      <input type="range" id="heatSlider" min="0" max="100" value="50" style="width:100%">
+      ${
+        d.ela?.overlay
+          ? `<img src="${d.ela.overlay}" style="width:100%;border-radius:10px">`
+          : "No ELA data"
+      }
     </div>
   `;
 
-  if(d.metadata?.gps){
-    window._gpsData = d.metadata.gps;
+  if(d.exif?.data?.gps){
+    window._gpsData = d.exif.data.gps;
   }
 }
 
@@ -212,39 +209,6 @@ function tab(e,id){
     L.marker([gps.lat, gps.lon]).addTo(map);
 
     setTimeout(()=>map.invalidateSize(),200);
-  }
-
-  if(id==="h" && window.lastFile){
-
-    const img=new Image();
-
-    img.onload=()=>{
-      const canvas=document.getElementById("heatmapCanvas");
-      if(!canvas) return;
-
-      const ctx=canvas.getContext("2d");
-
-      canvas.width=img.width;
-      canvas.height=img.height;
-
-      ctx.drawImage(img,0,0);
-
-      let data=ctx.getImageData(0,0,canvas.width,canvas.height);
-
-      for(let i=0;i<data.data.length;i+=4){
-        let avg=(data.data[i]+data.data[i+1]+data.data[i+2])/3;
-        data.data[i]=Math.min(255,avg*3);
-      }
-
-      ctx.putImageData(data,0,0);
-
-      document.getElementById("heatSlider").oninput=e=>{
-        canvas.style.opacity=e.target.value/100;
-      };
-    };
-
-    img.src=URL.createObjectURL(window.lastFile);
-    document.getElementById("heatmapBase").src=img.src;
   }
 }
 </script>
