@@ -82,10 +82,14 @@ app.get('/', function(req, res) {
 
 app.post('/analyze', upload.single('image'), async function(req, res) {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
+if (!req.file) {
+  return res.status(400).json({ error: "No file uploaded" });
+}
 
+if (req.file.size > 5 * 1024 * 1024) {
+  return res.status(400).json({ error: "File too large (5MB max)" });
+}
+    
     console.log("UPLOAD OK");
 
     const rawExif = await exifr.parse(req.file.buffer);
