@@ -98,7 +98,7 @@ function classifyImage(exif, ela, tampering) {
   }
 
   // 🔁 RECOMPRESSED (EXIF intact, high ELA)
-  if (exif && elaScore > 25 && tampering.likelihood < 0.6) {
+  if (exif && elaScore > 25 && tampering.likelihood <= 0.7) {
     return {
       type: "Recompressed",
       reason: "High compression artifacts with intact metadata",
