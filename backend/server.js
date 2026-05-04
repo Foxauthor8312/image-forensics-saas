@@ -27,11 +27,26 @@ app.post('/analyze', upload.single('image'), async function(req, res) {
 
     console.log("EXIF PARSED");
 
-    res.json({
-      success: true,
-      size: req.file.size,
-      hasExif: rawExif ? true : false
-    });
+  let exif = null;
+
+if (rawExif) {
+  exif = {
+    make: rawExif.Make || rawExif.make || "Unknown",
+    model: rawExif.Model || rawExif.model || "Unknown",
+    date: rawExif.DateTimeOriginal || rawExif.CreateDate || "Unknown",
+    iso: rawExif.ISO || null,
+    lens: rawExif.LensModel || null,
+    gps: rawExif.latitude && rawExif.longitude
+      ? { lat: rawExif.latitude, lon: rawExif.longitude }
+      : null
+  };
+}
+
+res.json({
+  success: true,
+  size: req.file.size,
+  exif: exif
+});
 
   } catch (err) {
     console.log("ERROR:", err.message);
