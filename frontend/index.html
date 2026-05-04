@@ -7,12 +7,17 @@
 
 <style>
 body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
-.container{padding:20px;max-width:900px;margin:auto}
+.container{padding:20px;max-width:1000px;margin:auto}
 .panel{background:#1e293b;padding:20px;border-radius:12px}
 .drop{border:2px dashed #555;padding:30px;text-align:center;cursor:pointer}
+.tabs{display:flex;gap:10px;margin-top:15px}
+.tab{padding:6px 10px;background:#111;border-radius:6px;cursor:pointer}
+.tab.active{background:#3b82f6}
+.tab-content{display:none;margin-top:10px}
+.tab-content.active{display:block}
 .progress{height:6px;background:#111;margin:10px 0;display:none}
 .fill{height:100%;width:0;background:#3b82f6}
-img.preview{max-width:100%;margin-top:10px;border-radius:8px}
+img.preview{max-width:100%;max-height:300px;object-fit:contain;margin-bottom:10px;border-radius:8px}
 </style>
 
 </head>
@@ -49,6 +54,7 @@ drop.onclick = () => file.click();
 file.onchange = e => {
   const f = e.target.files[0];
   if (!f) return;
+  window.lastFile = f;
   analyze(f);
 };
 
@@ -68,8 +74,6 @@ async function analyze(f){
       body: form
     });
 
-    console.log("Response:", res);
-
     if (!res.ok) {
       throw new Error("Server error: " + res.status);
     }
@@ -78,8 +82,6 @@ async function analyze(f){
     status.innerText = "Processing...";
 
     const data = await res.json();
-
-    console.log("Data:", data);
 
     fill.style.width = "100%";
     status.innerText = "Done";
@@ -99,28 +101,75 @@ async function analyze(f){
 
 function render(d){
 
+  window.lastResult = d;
+
   const likelihood = d.tampering?.likelihood || 0;
 
-  const label = d.tampering?.label || "Unknown";
-
-  const percent = Math.round(likelihood * 100);
-
-  const color =
+  const scoreColor =
     likelihood > 0.7 ? "#ef4444" :
     likelihood > 0.4 ? "#facc15" :
     "#22c55e";
 
+  const preview = window.lastFile
+    ? `<img class="preview" src="${URL.createObjectURL(window.lastFile)}">`
+    : "";
+
   result.innerHTML = `
-    <img class="preview" src="${d.ela?.overlay || ""}">
+    ${preview}
 
-    <h3 style="color:${color}">${label}</h3>
-    <p>Likelihood: ${percent}%</p>
+    <div class="tabs">
+      <div class="tab active" onclick="tab(event,'r')">Results</div>
+      <div class="tab" onclick="tab(event,'m')">Metadata</div>
+      <div class="tab" onclick="tab(event,'h')">Analysis</div>
+    </div>
 
-    <p><strong>Camera:</strong> ${d.exif?.data?.camera?.make || "Unknown"} ${d.exif?.data?.camera?.model || ""}</p>
-    <p><strong>Date:</strong> ${d.exif?.data?.capture?.date || "Unknown"}</p>
+    <div id="r" class="tab-content active">
+      <div style="font-weight:600;color:${scoreColor}">
+        ${d.tampering?.label || "Analysis complete"}
+      </div>
 
-    <p><strong>ELA Score:</strong> ${d.ela?.score || 0} (${d.ela?.level || ""})</p>
+      <div style="margin-top:8px;color:${scoreColor}">
+        Tampering Likelihood: ${Math.round(likelihood * 100)}%
+      </div>
+
+      <div style="margin-top:10px">
+        ${(d.tampering?.reasons || []).map(r => `<div>• ${r}</div>`).join("")}
+      </div>
+    </div>
+
+    <div id="m" class="tab-content">
+      <div>Camera: ${d.exif?.data?.camera?.make || "Unknown"}</div>
+      <div>Model: ${d.exif?.data?.camera?.model || ""}</div>
+      <div>Date: ${d.exif?.data?.capture?.date || "Unknown"}</div>
+      <div>
+        GPS: ${
+          d.exif?.data?.gps
+            ? d.exif.data.gps.lat + ", " + d.exif.data.gps.lon
+            : "Not available"
+        }
+      </div>
+    </div>
+
+    <div id="h" class="tab-content">
+      ${
+        d.ela?.overlay
+          ? `<img src="${d.ela.overlay}" style="width:100%;border-radius:10px">`
+          : "No analysis image available"
+      }
+
+      <div style="margin-top:10px">
+        <strong>ELA Score:</strong> ${d.ela?.score} (${d.ela?.level})
+      </div>
+    </div>
   `;
+}
+
+function tab(e,id){
+  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+
+  document.getElementById(id).classList.add("active");
+  e.target.classList.add("active");
 }
 </script>
 
