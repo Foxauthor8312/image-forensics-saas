@@ -49,4 +49,11 @@ console.log("ERROR:", err.message);
 res.status(500).json({ error: "Server error" });
 }
 });
+});
 
+// =========================
+// START SERVER
+// =========================
+app.listen(PORT, function() {
+  console.log("Running on port " + PORT);
+});
