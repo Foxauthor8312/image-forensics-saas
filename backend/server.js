@@ -42,10 +42,52 @@ if (rawExif) {
   };
 }
 
+function calculateTampering(exif) {
+  let score = 0.3;
+  const reasons = [];
+
+  if (!exif) {
+    score += 0.4;
+    reasons.push("No metadata present");
+  } else {
+    if (!exif.make || !exif.model) {
+      score += 0.2;
+      reasons.push("Missing camera information");
+    }
+
+    if (!exif.date || exif.date === "Unknown") {
+      score += 0.2;
+      reasons.push("Missing capture date");
+    }
+
+    if (exif.gps) {
+      reasons.push("Contains GPS metadata");
+    } else {
+      reasons.push("No GPS metadata");
+    }
+  }
+
+  score = Math.min(score, 1);
+
+  let label = "Likely Original";
+  if (score > 0.75) label = "Highly Suspicious";
+  else if (score > 0.5) label = "Moderate Anomalies";
+  else if (score > 0.3) label = "Minor Inconsistencies";
+
+  return {
+    likelihood: Number(score.toFixed(2)),
+    label,
+    reasons
+  };
+}
+    
+const tampering = calculateTampering(exif);
+
 res.json({
   success: true,
   size: req.file.size,
-  exif: exif ? exif : { present: false }
+  exif: exif,
+  tampering
 });
 
   } catch (err) {
