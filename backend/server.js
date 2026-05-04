@@ -41,15 +41,16 @@ function calculateTampering(exif, ela) {
     }
   }
 
-  // ELA influence
- if (ela && ela.score > 25) {
-  if (exif) {
-    reasons.push("Image shows heavy recompression (possible editing or platform processing)");
-  } else {
-    score += 0.3;
-    reasons.push("High compression inconsistency with no metadata");
+  // ELA influence (safe)
+  if (ela && typeof ela.score === "number") {
+    if (ela.score > 25) {
+      score += 0.3;
+      reasons.push("High compression inconsistency detected");
+    } else if (ela.score > 15) {
+      score += 0.2;
+      reasons.push("Moderate compression inconsistencies");
+    }
   }
-}
 
   score = Math.min(score, 1);
 
@@ -65,7 +66,7 @@ function calculateTampering(exif, ela) {
   };
 }
 
-function calculateConfidence(exif, tampering) {
+function calculateConfidence(exif, tampering, ela) {
   let score = 0.5;
 
   if (exif) {
@@ -76,14 +77,15 @@ function calculateConfidence(exif, tampering) {
   }
 
   if (tampering && tampering.likelihood) {
-  score -= tampering.likelihood * 0.5;
-}
+    score -= tampering.likelihood * 0.5;
+  }
 
-if (ela) {
-  if (ela.score > 30) score -= 0.4;
-  else if (ela.score > 20) score -= 0.3;
-  else if (ela.score > 10) score -= 0.15;
-}
+  // SAFE ELA handling (prevents crash)
+  if (ela && typeof ela.score === "number") {
+    if (ela.score > 30) score -= 0.4;
+    else if (ela.score > 20) score -= 0.3;
+    else if (ela.score > 10) score -= 0.15;
+  }
 
   return Math.max(0, Math.min(1, Number(score.toFixed(2))));
 }
@@ -159,13 +161,13 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
 
     console.log("UPLOAD RECEIVED");
 
-    // 1. Extract EXIF FIRST (preserves metadata)
+    // 1. Extract EXIF FIRST
     const exifRaw = await exifr.parse(req.file.buffer);
 
-    // 2. Prepare working buffer
+    // 2. Prepare buffer
     let buffer = req.file.buffer;
 
-    // Resize ONLY if very large (performance safe)
+    // Resize only if very large
     if (req.file.size > 8 * 1024 * 1024) {
       console.log("Resizing large image...");
       try {
@@ -178,7 +180,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
       }
     }
 
-    // 3. Run ELA
+    // 3. RUN ELA (before using it anywhere)
     const ela = await runELA(buffer);
 
     // 4. Build EXIF object
@@ -198,7 +200,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
 
     // 5. Scoring
     const tampering = calculateTampering(exif, ela);
-    const confidence = calculateConfidence(exif, tampering);
+    const confidence = calculateConfidence(exif, tampering, ela);
 
     res.json({
       success: true,
