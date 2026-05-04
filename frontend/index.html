@@ -203,17 +203,71 @@ const API = "https://image-forensics-saas-1.onrender.com";
 let currentOverlay = null;
 let currentImage = null;
 
-function interpret(type) {
+function interpret(type, data) {
+
+  const reasons = [];
+
+  if (!data.exif) {
+    reasons.push("No metadata present (often removed during editing or sharing)");
+  } else {
+    if (!data.exif.make || data.exif.make === "Unknown") {
+      reasons.push("Camera information missing or incomplete");
+    }
+
+    if (!data.exif.date || data.exif.date === "Unknown") {
+      reasons.push("Capture date not available");
+    }
+
+    if (!data.exif.gps) {
+      reasons.push("No GPS/location data present");
+    } else {
+      reasons.push("Contains original GPS metadata");
+    }
+  }
+
+  if (data.ela && data.ela.score > 25) {
+    reasons.push("High compression inconsistencies detected");
+  } else if (data.ela && data.ela.score > 10) {
+    reasons.push("Moderate compression differences detected");
+  } else {
+    reasons.push("Low compression differences (consistent image structure)");
+  }
+
+  // ---- RESULT DEFINITIONS ----
+
   if (type === "Likely Original") {
-    return "No evidence of manipulation detected.";
+    return {
+      summary: "No strong evidence of manipulation detected.",
+      explanation:
+        "The image structure and metadata are consistent with an original capture.",
+      reasons
+    };
   }
+
   if (type === "Recompressed") {
-    return "Image has been resaved or shared. Compression artifacts present.";
+    return {
+      summary: "Image has been resaved or shared.",
+      explanation:
+        "Compression artifacts are present but do not necessarily indicate editing.",
+      reasons
+    };
   }
+
   if (type === "Edited") {
-    return "Compression inconsistencies suggest possible modification.";
+    return {
+      summary: "Possible image modification detected.",
+      explanation:
+        "Compression inconsistencies and/or missing metadata suggest alteration.",
+      reasons
+    };
   }
-  return "Analysis inconclusive.";
+
+  return {
+    summary: "Result inconclusive.",
+    explanation:
+      "The analysis did not produce a strong signal in either direction.",
+    reasons
+  };
 }
 
 document.getElementById("file").onchange = async (e) => {
@@ -237,11 +291,27 @@ document.getElementById("file").onchange = async (e) => {
   const type = data.classification?.type || "Unknown";
   const conf = Math.round((data.classification?.confidence || 0.5) * 100);
 
-  document.getElementById("resultCard").innerHTML = `
-    <h2>${type}</h2>
-    <p>${interpret(type)}</p>
-    <p><strong>Confidence:</strong> ${conf}%</p>
-  `;
+  const result = interpret(type, data);
+
+document.getElementById("resultCard").innerHTML = `
+  <h2>${type}</h2>
+
+  <p><strong>${result.summary}</strong></p>
+
+  <p>${result.explanation}</p>
+
+  <ul style="text-align:left;margin-top:10px;">
+    ${result.reasons.map(r => `<li>${r}</li>`).join("")}
+  </ul>
+
+  <p style="margin-top:10px;">
+    <strong>Confidence:</strong> ${conf}%
+  </p>
+
+  <p style="font-size:12px;color:#9ca3af;">
+    Confidence reflects how strongly the observed patterns support this classification.
+  </p>
+`;
 
   if (data.ela && data.ela.overlay) {
     currentOverlay = data.ela.overlay;
