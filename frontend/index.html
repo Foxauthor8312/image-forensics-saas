@@ -384,14 +384,20 @@ function downloadOverlay() {
 }
   // ===== SLIDER CONTROL =====
 
-const slider = document.getElementById("slider");
-const overlayContainer = document.getElementById("overlayContainer");
+// FORCE SLIDER TO WORK
+window.addEventListener("DOMContentLoaded", () => {
+  const slider = document.getElementById("slider");
+  const overlay = document.getElementById("overlayContainer");
 
-if (slider && overlayContainer) {
+  if (!slider || !overlay) {
+    console.log("Slider not found");
+    return;
+  }
+
   slider.addEventListener("input", () => {
-    overlayContainer.style.width = slider.value + "%";
+    overlay.style.width = slider.value + "%";
   });
-}
+});
 </script>
 
 </body>
