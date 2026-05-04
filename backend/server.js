@@ -31,36 +31,22 @@ return res.status(400).json({ error: "No file uploaded" });
 }
 
 ```
-console.log("BUFFER SIZE:", req.file.buffer ? req.file.buffer.length : 0);
+console.log("UPLOAD OK");
 
-const rawExif = await extractExif(req.file.buffer);
+const rawExif = await exifr.parse(req.file.buffer);
 
-console.log("RAW EXIF:", rawExif);
-
-let exif = null;
-
-if (rawExif) {
-  exif = {
-    make: rawExif.Make || rawExif.make || null,
-    model: rawExif.Model || rawExif.model || null,
-    date: rawExif.DateTimeOriginal || rawExif.CreateDate || null,
-    hasGPS: rawExif.latitude && rawExif.longitude ? true : false
-  };
-}
+console.log("EXIF PARSED");
 
 res.json({
   success: true,
   size: req.file.size,
-  exif: exif ? exif : { present: false }
+  hasExif: rawExif ? true : false
 });
-```
+
 
 } catch (err) {
-console.log("SERVER ERROR:", err.message);
+console.log("ERROR:", err.message);
 res.status(500).json({ error: "Server error" });
 }
 });
 
-app.listen(PORT, function() {
-console.log("Running on port " + PORT);
-});
