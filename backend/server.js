@@ -3,10 +3,6 @@ const multer = require('multer');
 const exifr = require('exifr');
 
 const app = express();
-
-// =========================
-// CONFIG
-// =========================
 const PORT = process.env.PORT || 10000;
 
 // =========================
@@ -14,28 +10,61 @@ const PORT = process.env.PORT || 10000;
 // =========================
 app.use(express.json());
 
-// Request logger (VERY useful)
 app.use((req, res, next) => {
   console.log(`[REQ] ${req.method} ${req.url}`);
   next();
 });
 
-// Multer setup (memory storage)
 const upload = multer({ storage: multer.memoryStorage() });
 
 // =========================
-// VERSION CHECK (DEPLOY TEST)
+// VERSION
 // =========================
 app.get('/version', (req, res) => {
   res.json({
-    version: "v1.0.6-TEST",
-    status: "updated",
+    version: "v1.1.0",
+    status: "clean-build",
     time: new Date().toISOString()
   });
 });
 
 // =========================
-// EXIF EXTRACTION FUNCTION
+// HEALTH
+// =========================
+app.get('/', (req, res) => {
+  res.send("PixelProof backend v1.1.0");
+});
+
+// =========================
+// EXIF CLEANER
+// =========================
+function cleanExif(exif) {
+  if (!exif) return null;
+
+  return {
+    camera: {
+      make: exif.Make || null,
+      model: exif.Model || null
+    },
+    capture: {
+      date: exif.DateTimeOriginal || null,
+      modified: exif.ModifyDate || null
+    },
+    image: {
+      width: exif.ExifImageWidth || null,
+      height: exif.ExifImageHeight || null
+    },
+    gps: exif.latitude && exif.longitude
+      ? {
+          lat: exif.latitude,
+          lon: exif.longitude
+        }
+      : null
+  };
+}
+
+// =========================
+// EXIF EXTRACTION
 // =========================
 async function extractExif(buffer) {
   try {
@@ -48,7 +77,24 @@ async function extractExif(buffer) {
 }
 
 // =========================
-// MAIN IMAGE ANALYSIS ROUTE
+// CONFIDENCE SCORING
+// =========================
+function calculateConfidence(exif) {
+  // Simple baseline logic (expand later)
+  if (!exif) return 0.3;
+
+  let score = 0.5;
+
+  if (exif.Make) score += 0.1;
+  if (exif.Model) score += 0.1;
+  if (exif.DateTimeOriginal) score += 0.1;
+  if (exif.latitude && exif.longitude) score += 0.1;
+
+  return Math.min(score, 0.9);
+}
+
+// =========================
+// ANALYZE ROUTE
 // =========================
 app.post('/analyze', upload.single('image'), async (req, res) => {
   try {
@@ -56,31 +102,25 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    console.log("File received:", req.file.mimetype, req.file.size);
+    console.log("File:", req.file.mimetype, req.file.size);
 
     // EXIF
-    const exif = await extractExif(req.file.buffer);
+    const rawExif = await extractExif(req.file.buffer);
+    const cleanedExif = cleanExif(rawExif);
 
-    let exifResult;
-    if (!exif) {
-  exifResult = {
-    present: false,
-    message: "No metadata (likely stripped by device or app)"
-  };
-} else {
-  exifResult = {
-    present: true,
-    tags: exif
-  };
-}
+    const exifResult = cleanedExif
+      ? { present: true, data: cleanedExif }
+      : { present: false, message: "No metadata (common for mobile uploads)" };
+
+    // CONFIDENCE
+    const confidence = calculateConfidence(rawExif);
 
     // =========================
-    // ELA PLACEHOLDER
+    // ELA (HOOK YOUR REAL ONE HERE)
     // =========================
-    // Replace this with your actual ELA logic
     const elaResult = {
-      status: "processed",
-      note: "ELA placeholder (replace with real implementation)"
+      status: "pending",
+      note: "Integrate ELA processing here"
     };
 
     // =========================
@@ -88,21 +128,16 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     // =========================
     res.json({
       success: true,
+      timestamp: new Date().toISOString(),
+      confidence,
       exif: exifResult,
       ela: elaResult
     });
 
   } catch (err) {
     console.error("Processing error:", err);
-    res.status(500).json({ error: "Server error processing image" });
+    res.status(500).json({ error: "Processing failed" });
   }
-});
-
-// =========================
-// HEALTH CHECK (OPTIONAL)
-// =========================
-app.get('/', (req, res) => {
-  res.send("Backend v1.0.6-TEST RUNNING");
 });
 
 // =========================
@@ -110,5 +145,5 @@ app.get('/', (req, res) => {
 // =========================
 app.listen(PORT, () => {
   console.log("=== SERVER STARTED ===");
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Running on port ${PORT}`);
 });
