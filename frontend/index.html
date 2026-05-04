@@ -96,11 +96,16 @@ async function analyze(f){
 
   try{
     const res = await fetch(API + "/analyze", {
-      method: "POST",
-      body: form
-    });
+    const res = await fetch(API + "/analyze", {
+  method: "POST",
+  body: form
+});
 
-    const data = await res.json();
+if (!res.ok) {
+  throw new Error("Server error: " + res.status);
+}
+
+const data = await res.json();
 
     fill.style.width="100%";
     status.innerText="Done";
