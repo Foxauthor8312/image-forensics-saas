@@ -42,10 +42,14 @@ function calculateTampering(exif, ela) {
   }
 
   // ELA influence
-  if (ela && ela.score > 10) {
+ if (ela && ela.score > 25) {
+  if (exif) {
+    reasons.push("Image shows heavy recompression (possible editing or platform processing)");
+  } else {
     score += 0.3;
-    reasons.push("High compression inconsistency detected");
+    reasons.push("High compression inconsistency with no metadata");
   }
+}
 
   score = Math.min(score, 1);
 
