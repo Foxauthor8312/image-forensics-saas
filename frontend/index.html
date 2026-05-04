@@ -5,26 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PixelProof</title>
 
-<link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#0f172a">
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
 <style>
 body{background:#0f172a;color:#fff;font-family:sans-serif;margin:0}
-.container{padding:20px;max-width:1100px;margin:auto}
+.container{padding:20px;max-width:900px;margin:auto}
 .panel{background:#1e293b;padding:20px;border-radius:12px}
 .drop{border:2px dashed #555;padding:30px;text-align:center;cursor:pointer}
-.tabs{display:flex;gap:10px;margin-top:15px}
-.tab{padding:6px 10px;background:#111;border-radius:6px;cursor:pointer}
-.tab.active{background:#3b82f6}
-.tab-content{display:none;margin-top:10px}
-.tab-content.active{display:block}
-#map{height:300px;border-radius:10px;margin-top:10px}
 .progress{height:6px;background:#111;margin:10px 0;display:none}
 .fill{height:100%;width:0;background:#3b82f6}
-img.preview{max-width:100%;max-height:300px;object-fit:contain;margin-bottom:10px;border-radius:8px}
+img.preview{max-width:100%;margin-top:10px;border-radius:8px}
 </style>
 
 </head>
@@ -32,189 +20,107 @@ img.preview{max-width:100%;max-height:300px;object-fit:contain;margin-bottom:10p
 <body>
 <div class="container">
 <div class="panel">
-  <h2>PixelProof</h2>
 
-  <div id="drop" class="drop">Tap to Upload Image</div>
+<h2>PixelProof</h2>
 
-<button onclick="camera.click()" style="
-margin-top:15px;
-padding:14px;
-width:100%;
-background:#2563eb;
-border:none;
-border-radius:10px;
-color:white;
-font-size:16px;
-font-weight:700;
-">
-📷 Take Photo </button>
+<div id="drop" class="drop">Tap to Upload Image</div>
+<input type="file" id="file" accept="image/*" hidden>
 
-  <input type="file" id="file" accept="image/*" hidden>
-  <input type="file" id="camera" accept="image/*" capture="environment" hidden>
+<div id="status"></div>
+<div class="progress" id="bar"><div class="fill" id="fill"></div></div>
 
-  <div id="status"></div>
-  <div class="progress" id="bar"><div class="fill" id="fill"></div></div>
+<div id="result"></div>
 
-  <div id="result"></div>
 </div>
 </div>
 
 <script>
 const API = "https://image-forensics-saas.onrender.com";
 
-const file=document.getElementById("file");
-const camera=document.getElementById("camera");
-const drop=document.getElementById("drop");
-const result=document.getElementById("result");
-const bar=document.getElementById("bar");
-const fill=document.getElementById("fill");
-const status=document.getElementById("status");
+const file = document.getElementById("file");
+const drop = document.getElementById("drop");
+const result = document.getElementById("result");
+const bar = document.getElementById("bar");
+const fill = document.getElementById("fill");
+const status = document.getElementById("status");
 
-drop.onclick=()=>file.click();
+drop.onclick = () => file.click();
 
-file.onchange=e=>{
-  const f=e.target.files[0];
-  if(!f) return;
-  window.lastFile=f;
-  analyze(f);
-};
-
-camera.onchange=e=>{
-  const f=e.target.files[0];
-  if(!f) return;
-  window.lastFile=f;
+file.onchange = e => {
+  const f = e.target.files[0];
+  if (!f) return;
   analyze(f);
 };
 
 async function analyze(f){
-  const form=new FormData();
-  form.append("image",f);
 
-  bar.style.display="block";
-  fill.style.width="10%";
-  status.innerText="Analyzing image...";
+  const form = new FormData();
+  form.append("image", f);
+
+  bar.style.display = "block";
+  fill.style.width = "20%";
+  status.innerText = "Uploading...";
 
   try{
+
     const res = await fetch(API + "/analyze", {
-    const res = await fetch(API + "/analyze", {
-  method: "POST",
-  body: form
-});
+      method: "POST",
+      body: form
+    });
 
-if (!res.ok) {
-  throw new Error("Server error: " + res.status);
-}
+    console.log("Response:", res);
 
-const data = await res.json();
+    if (!res.ok) {
+      throw new Error("Server error: " + res.status);
+    }
 
-    fill.style.width="100%";
-    status.innerText="Done";
+    fill.style.width = "70%";
+    status.innerText = "Processing...";
+
+    const data = await res.json();
+
+    console.log("Data:", data);
+
+    fill.style.width = "100%";
+    status.innerText = "Done";
 
     setTimeout(()=>bar.style.display="none",500);
 
-    window.lastResult = data.result || data;
-    render(window.lastResult);
+    render(data);
 
-  }catch(err){
+  } catch(err){
+
     console.error(err);
-    bar.style.display="none";
-    status.innerText="Server error — try again";
+    bar.style.display = "none";
+    status.innerText = "Error: " + err.message;
+
   }
 }
 
 function render(d){
 
-  let likelihood = d.tampering?.likelihood || 0;
+  const likelihood = d.tampering?.likelihood || 0;
 
-  let scoreColor =
+  const label = d.tampering?.label || "Unknown";
+
+  const percent = Math.round(likelihood * 100);
+
+  const color =
     likelihood > 0.7 ? "#ef4444" :
     likelihood > 0.4 ? "#facc15" :
     "#22c55e";
 
-  window._mapInstance = null;
-
-  const preview = window.lastFile
-    ? `<img class="preview" src="${URL.createObjectURL(window.lastFile)}">`
-    : "";
-
   result.innerHTML = `
-    ${preview}
+    <img class="preview" src="${d.ela?.overlay || ""}">
 
-    <div class="tabs">
-      <div class="tab active" onclick="tab(event,'r')">Results</div>
-      <div class="tab" onclick="tab(event,'m')">Metadata</div>
-      <div class="tab" onclick="tab(event,'mapTab')">Map</div>
-      <div class="tab" onclick="tab(event,'h')">Heatmap</div>
-    </div>
+    <h3 style="color:${color}">${label}</h3>
+    <p>Likelihood: ${percent}%</p>
 
-    <div id="r" class="tab-content active">
-      <div style="font-weight:600;color:${scoreColor}">
-        ${d.tampering?.label || "Analysis complete"}
-      </div>
-      <div style="margin-top:8px;color:${scoreColor}">
-        Tampering Likelihood: ${Math.round((likelihood) * 100)}%
-      </div>
-    </div>
+    <p><strong>Camera:</strong> ${d.exif?.data?.camera?.make || "Unknown"} ${d.exif?.data?.camera?.model || ""}</p>
+    <p><strong>Date:</strong> ${d.exif?.data?.capture?.date || "Unknown"}</p>
 
-    <div id="m" class="tab-content">
-      <div>Camera: ${d.exif?.data?.camera?.make || "Unknown"}</div>
-      <div>Model: ${d.exif?.data?.camera?.model || ""}</div>
-      <div>Date: ${d.exif?.data?.capture?.date || "Unknown"}</div>
-      <div>
-        GPS: ${
-          d.exif?.data?.gps
-            ? d.exif.data.gps.lat + ", " + d.exif.data.gps.lon
-            : "Not available"
-        }
-      </div>
-    </div>
-
-    <div id="mapTab" class="tab-content">
-      ${
-        d.exif?.data?.gps
-          ? `<div id="map"></div>`
-          : "No GPS data"
-      }
-    </div>
-
-    <div id="h" class="tab-content">
-      ${
-        d.ela?.overlay
-          ? `<img src="${d.ela.overlay}" style="width:100%;border-radius:10px">`
-          : "No ELA data"
-      }
-    </div>
+    <p><strong>ELA Score:</strong> ${d.ela?.score || 0} (${d.ela?.level || ""})</p>
   `;
-
-  if(d.exif?.data?.gps){
-    window._gpsData = d.exif.data.gps;
-  }
-}
-
-function tab(e,id){
-  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-
-  document.getElementById(id).classList.add("active");
-  e.target.classList.add("active");
-
-  if(id==="mapTab" && window._gpsData){
-
-    if(window._mapInstance){
-      setTimeout(()=>window._mapInstance.invalidateSize(),200);
-      return;
-    }
-
-    const gps = window._gpsData;
-
-    const map = L.map('map').setView([gps.lat, gps.lon], 13);
-    window._mapInstance = map;
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    L.marker([gps.lat, gps.lon]).addTo(map);
-
-    setTimeout(()=>map.invalidateSize(),200);
-  }
 }
 </script>
 
