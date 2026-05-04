@@ -133,10 +133,22 @@ async function runELA(buffer) {
 
     const avgDiff = totalDiff / origData.length;
 
-    return {
-      image: `data:image/png;base64,${elaImage.toString('base64')}`,
-      score: Number(avgDiff.toFixed(2))
-    };
+    const overlay = await sharp(normalized)
+  .composite([
+    {
+      input: elaImage,
+      blend: 'overlay',
+      opacity: 0.6
+    }
+  ])
+  .png()
+  .toBuffer();
+
+return {
+  heatmap: `data:image/png;base64,${elaImage.toString('base64')}`,
+  overlay: `data:image/png;base64,${overlay.toString('base64')}`,
+  score: Number(avgDiff.toFixed(2))
+};
 
   } catch (err) {
     console.error("ELA error:", err);
@@ -225,11 +237,13 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     if (!elaData) {
       elaResult = { status: "failed" };
     } else {
-      elaResult = {
-        status: "complete",
-        score: elaData.score,
-        image: elaData.image
-      };
+    elaResult = {
+  status: "complete",
+  score: elaData.score,
+  level: getELALevel(elaData.score),
+  heatmap: elaData.heatmap,
+  overlay: elaData.overlay
+};
     }
 
     // Tampering
