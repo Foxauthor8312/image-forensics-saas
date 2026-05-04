@@ -14,9 +14,19 @@ body {
 
 /* HEADER */
 .header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 20px 40px;
+}
+
+.header img {
+  height: 36px;
+}
+
+.header span {
   font-weight: 600;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 /* LAYOUT */
@@ -140,7 +150,10 @@ button:hover {
 
 <body>
 
-<div class="header">PixelProof</div>
+<div class="header">
+  <img src="logo.png">
+  <span>PixelProof</span>
+</div>
 
 <div class="wrapper">
 
