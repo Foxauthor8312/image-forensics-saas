@@ -12,57 +12,70 @@ body {
   margin: 0;
 }
 
+/* HEADER */
+.header {
+  padding: 20px 40px;
+  font-weight: 600;
+  font-size: 20px;
+}
+
 /* LAYOUT */
 .wrapper {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  min-height: 100vh;
+  grid-template-columns: 420px 1fr;
+  min-height: calc(100vh - 60px);
 }
 
-/* LEFT SIDE */
+/* LEFT PANEL */
 .left {
-  padding: 60px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start; /* FIX */
+  padding: 40px;
 }
 
-h1 {
-  font-size: 42px;
-  margin-bottom: 15px;
-}
-
-.sub {
+.tagline {
+  font-size: 20px;
   color: #9ca3af;
-  font-size: 18px;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 
-/* UPLOAD */
+/* TABS */
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.tab {
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: #1f2937;
+  cursor: pointer;
+}
+
+.tab.active {
+  background: #2563eb;
+}
+
+/* UPLOAD BOX */
 .upload {
   border: 2px dashed #374151;
-  padding: 25px;
+  padding: 20px;
   border-radius: 10px;
-  cursor: pointer;
   text-align: center;
-
-  max-width: 320px;   /* FIX */
-  width: 100%;
-  margin-top: 20px;
+  cursor: pointer;
 }
 
 .upload:hover {
   border-color: #60a5fa;
 }
 
-/* RIGHT SIDE */
+input {
+  display: none;
+}
+
+/* RIGHT PANEL */
 .right {
   background: #111827;
   padding: 40px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
 }
 
 /* RESULT */
@@ -96,35 +109,63 @@ h1 {
   pointer-events: none;
 }
 
+/* ACTIONS */
+.actions {
+  margin-top: 15px;
+  display: flex;
+  gap: 10px;
+}
+
+button {
+  padding: 8px 12px;
+  border: none;
+  background: #1f2937;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #374151;
+}
+
 /* FOOTER */
 .footer {
   margin-top: 20px;
-  color: #6b7280;
   font-size: 13px;
+  color: #6b7280;
 }
 </style>
 </head>
 
 <body>
 
+<div class="header">PixelProof</div>
+
 <div class="wrapper">
 
 <!-- LEFT -->
 <div class="left">
 
-<h1>Detect image manipulation instantly</h1>
+<div class="tagline">
+Verify if an image is original, recompressed, or edited.
+</div>
 
-<p class="sub">
-PixelProof analyzes compression patterns and metadata to identify edits, recompression, and authenticity.
-</p>
+<div class="tabs">
+  <div class="tab active" onclick="setMode('upload')">Upload</div>
+  <div class="tab" onclick="setMode('camera')">Take Photo</div>
+</div>
 
-<label class="upload">
-  <input type="file" id="file" style="display:none;">
-  <strong>Upload Image</strong><br>
-  <span style="color:#9ca3af;font-size:14px;">
+<label class="upload" id="uploadBox">
+  <input type="file" id="file">
+  <strong>Select an image</strong><br>
+  <span style="color:#9ca3af;font-size:13px;">
     JPG or PNG • Instant analysis
   </span>
 </label>
+
+<video id="camera" autoplay style="display:none;width:100%;border-radius:8px;"></video>
+<button id="captureBtn" style="display:none;margin-top:10px;">Capture</button>
 
 </div>
 
@@ -138,8 +179,13 @@ PixelProof analyzes compression patterns and metadata to identify edits, recompr
   <img id="elaOverlay">
 </div>
 
+<div class="actions">
+  <button onclick="downloadOriginal()">Download Image</button>
+  <button onclick="downloadOverlay()">Download Heatmap</button>
+</div>
+
 <div class="footer">
-Brighter differences indicate compression inconsistencies.
+Heatmap highlights compression differences. Brighter regions may indicate changes.
 </div>
 
 </div>
@@ -149,26 +195,61 @@ Brighter differences indicate compression inconsistencies.
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
-function interpret(type) {
-  if (type === "Likely Original") {
-    return { color: "green", message: "No signs of editing detected." };
+let currentOverlay = null;
+let currentImage = null;
+
+function setMode(mode) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+
+  if (mode === 'upload') {
+    document.querySelectorAll('.tab')[0].classList.add('active');
+    document.getElementById('uploadBox').style.display = 'block';
+    document.getElementById('camera').style.display = 'none';
+    document.getElementById('captureBtn').style.display = 'none';
   }
-  if (type === "Recompressed") {
-    return { color: "yellow", message: "Image was saved or shared again." };
+
+  if (mode === 'camera') {
+    document.querySelectorAll('.tab')[1].classList.add('active');
+    document.getElementById('uploadBox').style.display = 'none';
+
+    const video = document.getElementById('camera');
+    video.style.display = 'block';
+    document.getElementById('captureBtn').style.display = 'block';
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => video.srcObject = stream);
   }
-  if (type === "Edited") {
-    return { color: "red", message: "Possible image manipulation detected." };
-  }
-  return { color: "yellow", message: "Inconclusive result." };
 }
 
-document.getElementById("file").onchange = async (e) => {
+function interpret(type) {
+  if (type === "Likely Original") {
+    return {
+      color: "green",
+      message: "No evidence of manipulation detected. Image structure is consistent."
+    };
+  }
+  if (type === "Recompressed") {
+    return {
+      color: "yellow",
+      message: "Image has been resaved or shared. Compression artifacts present but not necessarily edits."
+    };
+  }
+  if (type === "Edited") {
+    return {
+      color: "red",
+      message: "Compression inconsistencies suggest possible image modification."
+    };
+  }
+  return {
+    color: "yellow",
+    message: "Analysis inconclusive."
+  };
+}
 
-  const file = e.target.files[0];
-  if (!file) return;
+async function analyze(file) {
 
-  document.getElementById("originalImage").src =
-    URL.createObjectURL(file);
+  currentImage = URL.createObjectURL(file);
+  document.getElementById("originalImage").src = currentImage;
 
   const form = new FormData();
   form.append("image", file);
@@ -194,9 +275,40 @@ document.getElementById("file").onchange = async (e) => {
   `;
 
   if (data.ela && data.ela.overlay) {
-    document.getElementById("elaOverlay").src = data.ela.overlay;
+    currentOverlay = data.ela.overlay;
+    document.getElementById("elaOverlay").src = currentOverlay;
   }
+}
+
+document.getElementById("file").onchange = (e) => {
+  analyze(e.target.files[0]);
 };
+
+document.getElementById("captureBtn").onclick = () => {
+  const video = document.getElementById('camera');
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+
+  canvas.toBlob(blob => analyze(new File([blob], "capture.jpg")));
+};
+
+function downloadOriginal() {
+  if (!currentImage) return;
+  const a = document.createElement('a');
+  a.href = currentImage;
+  a.download = "image.jpg";
+  a.click();
+}
+
+function downloadOverlay() {
+  if (!currentOverlay) return;
+  const a = document.createElement('a');
+  a.href = currentOverlay;
+  a.download = "heatmap.jpg";
+  a.click();
+}
 </script>
 
 </body>
