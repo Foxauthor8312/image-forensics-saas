@@ -88,31 +88,7 @@ function calculateConfidence(exif, tampering, ela) {
 function classifyImage(exif, ela, tampering) {
   const elaScore = ela && ela.score ? ela.score : 0;
 
-  if (exif && elaScore > 25 && tampering.likelihood < 0.6) {
-    return {
-      type: "Recompressed",
-      reason: "High compression artifacts with intact metadata",
-      confidence: 0.8
-    };
-  }
-
- // RECOMPRESSED (no EXIF but not extreme ELA)
-if (!exif && elaScore >= 10 && elaScore <= 25) {
-  return {
-    type: "Recompressed",
-    reason: "Metadata stripped with moderate compression artifacts",
-    confidence: 0.75
-  };
-}
-
-// EDITED (strong signals)
-if ((!exif && elaScore > 25) || tampering.likelihood > 0.7) {
-  return {
-    type: "Edited",
-    reason: "Missing metadata with strong anomaly signals",
-    confidence: 0.85
-  };
-}
+  // ✅ ORIGINAL
   if (exif && elaScore < 10) {
     return {
       type: "Likely Original",
@@ -121,6 +97,34 @@ if ((!exif && elaScore > 25) || tampering.likelihood > 0.7) {
     };
   }
 
+  // 🔁 RECOMPRESSED (EXIF intact, high ELA)
+  if (exif && elaScore > 25 && tampering.likelihood < 0.6) {
+    return {
+      type: "Recompressed",
+      reason: "High compression artifacts with intact metadata",
+      confidence: 0.8
+    };
+  }
+
+  // 🔁 RECOMPRESSED (EXIF stripped, moderate ELA)
+  if (!exif && elaScore >= 10 && elaScore <= 25) {
+    return {
+      type: "Recompressed",
+      reason: "Metadata stripped with moderate compression artifacts",
+      confidence: 0.75
+    };
+  }
+
+  // 🚨 EDITED (strong signals)
+  if ((!exif && elaScore > 25) || tampering.likelihood > 0.7) {
+    return {
+      type: "Edited",
+      reason: "Missing metadata with strong anomaly signals",
+      confidence: 0.85
+    };
+  }
+
+  // ⚖️ FALLBACK
   return {
     type: "Possibly Modified",
     reason: "Moderate compression differences detected",
