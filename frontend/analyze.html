@@ -22,10 +22,7 @@ body {
   border-radius: 10px;
 }
 
-input {
-  width: 100%;
-  margin-bottom: 15px;
-}
+input { width: 100%; margin-bottom: 15px; }
 
 button {
   display: block;
@@ -38,20 +35,26 @@ button {
   cursor: pointer;
 }
 
+.section { margin-top: 18px; }
+
 .meta-row {
   padding: 6px 0;
   border-bottom: 1px solid #334155;
 }
 
-/* ===== SLIDER ===== */
-.viewer { margin-top: 20px; }
-
-.slider-container { position: relative; }
-
-.slider-container img {
-  width: 100%;
-  border-radius: 8px;
+.signal {
+  font-size: 14px;
+  margin: 4px 0;
 }
+
+.good { color: #22c55e; }
+.warn { color: #f59e0b; }
+.bad { color: #ef4444; }
+
+/* SLIDER */
+.viewer { margin-top: 20px; }
+.slider-container { position: relative; }
+.slider-container img { width: 100%; border-radius: 8px; }
 
 .overlay {
   position: absolute;
@@ -61,10 +64,7 @@ button {
   overflow: hidden;
 }
 
-.overlay img {
-  width: 100%;
-  opacity: 0.9;
-}
+.overlay img { width: 100%; opacity: 0.9; }
 
 .divider {
   position: absolute;
@@ -76,30 +76,48 @@ button {
   opacity: 0.7;
 }
 
-.slider {
-  width: 100%;
-  margin-top: 12px;
-}
+.slider { width: 100%; margin-top: 12px; }
 </style>
 </head>
 
 <body>
 
 <div class="container">
-
   <input type="file" id="fileInput" accept="image/*" />
   <button onclick="analyze()">Run Analysis</button>
-
   <div id="result"></div>
-
 </div>
 
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
+/* ===== CONFIG (NO MORE IF CHAINS) ===== */
+const REPORT = {
+  "Likely Original": {
+    color: "#22c55e",
+    explanation: "Compression patterns and metadata are consistent with an original image.",
+    guidance: "No strong evidence of manipulation detected."
+  },
+  "Recompressed": {
+    color: "#f59e0b",
+    explanation: "The image has been resaved or processed, altering compression patterns.",
+    guidance: "Recompression does not necessarily mean editing, but may hide prior changes."
+  },
+  "Edited": {
+    color: "#ef4444",
+    explanation: "Irregular compression patterns suggest localized changes.",
+    guidance: "Possible manipulation detected. Review carefully."
+  },
+  "Unknown": {
+    color: "#9ca3af",
+    explanation: "No strong signal detected.",
+    guidance: "Result is inconclusive."
+  }
+};
+
 /* ===== IMAGE COMPRESSION ===== */
 async function compressImage(file, maxWidth = 1200, quality = 0.75) {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const img = new Image();
     const reader = new FileReader();
 
@@ -113,28 +131,23 @@ async function compressImage(file, maxWidth = 1200, quality = 0.75) {
       canvas.width = img.width * scale;
       canvas.height = img.height * scale;
 
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      canvas.toBlob(
-        (blob) => resolve(blob),
-        "image/jpeg",
-        quality
-      );
+      canvas.toBlob(blob => resolve(blob), "image/jpeg", quality);
     };
   });
 }
 
-/* ===== RETRY FETCH ===== */
+/* ===== RETRY ===== */
 async function fetchWithRetry(url, options, retries = 2) {
   try {
     return await fetch(url, options);
-  } catch (err) {
+  } catch {
     if (retries > 0) {
       await new Promise(r => setTimeout(r, 2000));
       return fetchWithRetry(url, options, retries - 1);
     }
-    throw err;
+    throw new Error("Network failure");
   }
 }
 
@@ -142,19 +155,12 @@ async function analyze() {
   const fileInput = document.getElementById("fileInput");
   const resultEl = document.getElementById("result");
 
-  if (!fileInput.files.length) {
-    alert("Select an image");
-    return;
-  }
+  if (!fileInput.files.length) return alert("Select an image");
 
   const originalFile = fileInput.files[0];
+  resultEl.innerHTML = "Processing...";
 
-  resultEl.innerHTML = "Processing image...";
-
-  // 🔥 compress BEFORE upload
   const compressed = await compressImage(originalFile);
-
-  console.log("Original:", originalFile.size, "Compressed:", compressed.size);
 
   const form = new FormData();
   form.append("image", compressed, "upload.jpg");
@@ -170,80 +176,59 @@ async function analyze() {
     const type = data.classification?.type || "Unknown";
     const conf = Math.round((data.classification?.confidence || 0.5) * 100);
 
-    let explanation = "";
-    let guidance = "";
-    let confidenceNote = "";
-
-    if (type === "Likely Original") {
-      explanation = "No strong indicators of manipulation were detected.";
-      guidance = "This image appears authentic.";
-      confidenceNote = "High confidence indicates consistent structure.";
-    } else if (type === "Recompressed") {
-      explanation = "The image shows signs of recompression.";
-      guidance = "Recompression does not necessarily mean editing.";
-      confidenceNote = "Moderate confidence.";
-    } else if (type === "Edited") {
-      explanation = "Compression inconsistencies were detected.";
-      guidance = "Possible manipulation detected.";
-      confidenceNote = "Lower confidence may occur with subtle edits.";
-    } else {
-      explanation = "No strong signal detected.";
-      guidance = "Result inconclusive.";
-      confidenceNote = "Try a higher quality image.";
-    }
-
-    const verdictColor =
-      type === "Likely Original" ? "#22c55e" :
-      type === "Recompressed" ? "#f59e0b" :
-      type === "Edited" ? "#ef4444" :
-      "#9ca3af";
+    const cfg = REPORT[type] || REPORT["Unknown"];
 
     const lat = data.gps?.lat;
     const lon = data.gps?.lon;
 
+    /* ===== SIGNAL SCORING ===== */
+    const signals = [];
+
+    if (data.exif) signals.push({ text: "Camera metadata present", class: "good" });
+    else signals.push({ text: "Metadata missing", class: "warn" });
+
+    if (lat && lon) signals.push({ text: "GPS location detected", class: "good" });
+    else signals.push({ text: "No GPS data", class: "warn" });
+
+    if (type === "Edited") signals.push({ text: "Compression anomalies detected", class: "bad" });
+
     resultEl.innerHTML = `
-      <div style="font-size:20px;font-weight:600;color:${verdictColor};">
+      <div style="font-size:20px;font-weight:600;color:${cfg.color};">
         ${type}
       </div>
 
-      <div style="color:#9ca3af;margin:10px 0;">
+      <div style="color:#9ca3af;margin-bottom:10px;">
         Confidence: ${conf}%
       </div>
 
-      <div style="height:6px;background:#1e293b;border-radius:4px;margin-bottom:18px;">
-        <div style="width:${conf}%;height:100%;background:${verdictColor};"></div>
+      <div style="height:6px;background:#1e293b;border-radius:4px;margin-bottom:16px;">
+        <div style="width:${conf}%;height:100%;background:${cfg.color};"></div>
       </div>
 
-      <div><strong>What this means</strong>
-        <div style="color:#cbd5f5;margin-top:6px;">${explanation}</div>
+      <div class="section">
+        <strong>Why this result was reached</strong>
+        <div style="margin-top:6px;color:#cbd5f5;">${cfg.explanation}</div>
       </div>
 
-      <div style="margin-top:10px;"><strong>How to interpret</strong>
-        <div style="color:#cbd5f5;margin-top:6px;">${guidance}</div>
+      <div class="section">
+        <strong>Signals detected</strong>
+        ${signals.map(s => `<div class="signal ${s.class}">• ${s.text}</div>`).join("")}
       </div>
 
-      <div style="color:#9ca3af;margin-top:10px;">
-        ${confidenceNote}
+      <div class="section">
+        <strong>How to interpret</strong>
+        <div style="margin-top:6px;color:#cbd5f5;">${cfg.guidance}</div>
       </div>
 
-      <div style="margin-top:16px;"><strong>Metadata</strong></div>
+      <div class="section">
+        <strong>Metadata</strong>
+        <div class="meta-row">Camera: ${data.exif?.make ?? "-"}</div>
+        <div class="meta-row">Date: ${data.exif?.date ?? "-"}</div>
+        <div class="meta-row">Latitude: ${lat ?? "-"}</div>
+        <div class="meta-row">Longitude: ${lon ?? "-"}</div>
+      </div>
 
-      <div class="meta-row">Camera: ${data.exif?.make ?? "-"}</div>
-      <div class="meta-row">Date: ${data.exif?.date ?? "-"}</div>
-      <div class="meta-row">Latitude: ${lat ?? "-"}</div>
-      <div class="meta-row">Longitude: ${lon ?? "-"}</div>
-
-      ${
-        (lat && lon)
-          ? `<div style="margin-top:10px;">
-               <a href="https://maps.google.com/?q=${lat},${lon}" target="_blank" style="color:#38bdf8;">
-                 View location →
-               </a>
-             </div>`
-          : ""
-      }
-
-      <div class="viewer">
+      <div class="section viewer">
         <strong>ELA Analysis (drag slider)</strong>
 
         <div class="slider-container">
@@ -264,18 +249,16 @@ async function analyze() {
     const overlay = document.getElementById("overlay");
     const divider = document.getElementById("divider");
 
-    if (slider && overlay) {
-      overlay.style.width = "50%";
+    overlay.style.width = "50%";
 
-      slider.oninput = () => {
-        overlay.style.width = slider.value + "%";
-        if (divider) divider.style.left = slider.value + "%";
-      };
-    }
+    slider.oninput = () => {
+      overlay.style.width = slider.value + "%";
+      divider.style.left = slider.value + "%";
+    };
 
   } catch (err) {
     console.error(err);
-    resultEl.innerHTML = "Server waking up — try again in a few seconds";
+    resultEl.innerHTML = "Server waking up — try again";
   }
 }
 </script>
