@@ -117,27 +117,23 @@
 
 <body>
 
-  <!-- ===== HERO SECTION ===== -->
+  <!-- HERO -->
   <div class="hero">
     <img src="logo.png" class="logo" />
 
     <h1>Know if an image is real.</h1>
 
-    <p>Ever wonder if a photo has been tampered with or altered?</p>
+    <p>Ever wonder if a photo has been altered or manipulated?</p>
 
     <p>
-      PixelProof uses forensic analysis of compression patterns and metadata
-      to detect edits, recompression, and authenticity.
-    </p>
-
-    <p>
-      Upload an image to verify camera data and GPS location.
+      PixelProof analyzes compression artifacts (ELA) and metadata
+      to detect editing, recompression, and authenticity.
     </p>
 
     <button class="cta-button" onclick="scrollToTool()">Analyze Image</button>
   </div>
 
-  <!-- ===== TOOL SECTION ===== -->
+  <!-- TOOL -->
   <div id="tool" class="container">
 
     <input type="file" id="fileInput" accept="image/*" />
@@ -181,21 +177,23 @@
       resultEl.innerHTML = "Analyzing...";
 
       try {
+        console.log("Calling:", API + "/analyze");
+
         const res = await fetch(API + "/analyze", {
-  method: "POST",
-  body: form
-});
+          method: "POST",
+          body: form
+        });
 
-const text = await res.text();
+        const text = await res.text();
 
-let data;
-try {
-  data = JSON.parse(text);
-} catch {
-  console.error("Non-JSON response:", text);
-  resultEl.innerHTML = "Server error — backend may be waking up";
-  return;
-}
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          console.error("Non-JSON response:", text);
+          resultEl.innerHTML = "Server error — backend may be waking up";
+          return;
+        }
 
         const lat = data.gps?.lat;
         const lon = data.gps?.lon;
@@ -205,19 +203,19 @@ try {
           <div class="section">
             <div class="meta-row">
               <span class="label">Classification:</span>
-              ${data.classification ?? "Unknown"}
+              ${data.classification?.type ?? "Unknown"}
             </div>
           </div>
 
           <div class="section">
             <div class="meta-row">
               <span class="label">Camera:</span>
-              ${data.exif?.Make ?? "—"}
+              ${data.exif?.make ?? "—"}
             </div>
 
             <div class="meta-row">
               <span class="label">Date:</span>
-              ${data.exif?.DateTimeOriginal ?? "—"}
+              ${data.exif?.date ?? "—"}
             </div>
 
             <div class="meta-row">
@@ -235,7 +233,7 @@ try {
             ${
               !hasGPS
                 ? `<div class="meta-row warning">
-                     Location data missing — may indicate metadata removal or privacy filtering
+                     Location data missing — may indicate metadata removal
                    </div>`
                 : ""
             }
@@ -245,7 +243,7 @@ try {
             <div class="meta-row">
               <span class="label">ELA Analysis</span>
             </div>
-            <img src="${data.ela}" />
+            <img src="${data.ela?.overlay}" />
           </div>
         `;
 
