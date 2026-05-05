@@ -19,15 +19,8 @@ body {
   gap: 16px;
   padding: 16px 32px;
 }
-
-.header img {
-  height: 56px;
-}
-
-.header span {
-  font-size: 16px;
-  opacity: 0.7;
-}
+.header img { height: 56px; }
+.header span { opacity: 0.7; }
 
 /* LAYOUT */
 .wrapper {
@@ -42,12 +35,9 @@ body {
   flex-direction: column;
   align-items: center;
 }
-
 .tagline {
-  font-size: 16px;
   color: #9ca3af;
   margin-bottom: 30px;
-  max-width: 320px;
   text-align: center;
 }
 
@@ -60,25 +50,10 @@ body {
   padding: 24px;
   border-radius: 12px;
   cursor: pointer;
-  transition: 0.2s;
 }
-
 .upload:hover {
   border-color: #3b82f6;
   background: rgba(59,130,246,0.05);
-}
-
-.upload-content {
-  text-align: center;
-}
-
-.upload-title {
-  font-weight: 600;
-}
-
-.upload-sub {
-  font-size: 13px;
-  color: #9ca3af;
 }
 
 /* RIGHT */
@@ -87,40 +62,14 @@ body {
   padding: 40px;
 }
 
-/* RESULT */
-#resultCard {
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  padding: 20px;
-  border-radius: 12px;
-  max-width: 520px;
-  margin: 0 auto 20px auto;
-}
-
-/* METADATA */
-#metaBlock {
+/* PANEL */
+.panel {
   background: #0f172a;
   border: 1px solid #1e293b;
   padding: 16px;
   border-radius: 12px;
   max-width: 520px;
   margin: 0 auto 20px auto;
-  font-size: 14px;
-}
-
-.meta-row {
-  margin-bottom: 6px;
-  color: #cbd5f5;
-}
-
-.meta-label {
-  color: #9ca3af;
-}
-
-.map {
-  margin-top: 10px;
-  border-radius: 8px;
-  overflow: hidden;
 }
 
 /* SLIDER */
@@ -129,12 +78,10 @@ body {
   max-width: 520px;
   margin: auto;
 }
-
 .slider-container img {
   width: 100%;
   border-radius: 8px;
 }
-
 .overlay {
   position: absolute;
   top: 0;
@@ -142,18 +89,21 @@ body {
   width: 50%;
   overflow: hidden;
 }
-
 .overlay img {
   width: 100%;
-  mix-blend-mode: difference;
+  mix-blend-mode: screen;
+  opacity: 0.8;
 }
-
 .slider {
   width: 100%;
   max-width: 520px;
   margin: 10px auto;
-  display: block;
 }
+
+/* TEXT */
+.meta { font-size: 14px; color: #cbd5f5; }
+.label { color: #9ca3af; }
+
 </style>
 </head>
 
@@ -167,38 +117,29 @@ body {
 <div class="wrapper">
 
 <div class="left">
-
-<div class="tagline">
-Detect edits and verify image authenticity instantly.
-</div>
-
-<label class="upload">
-  <input type="file" id="file" hidden>
-  <div class="upload-content">
-    <div class="upload-title">Select an image</div>
-    <div class="upload-sub">JPG or PNG • Instant analysis</div>
+  <div class="tagline">
+    Detect edits and verify image authenticity instantly.
   </div>
-</label>
 
+  <label class="upload">
+    <input type="file" id="file" hidden>
+    Select an image
+  </label>
 </div>
 
 <div class="right">
 
-<div id="resultCard"></div>
-<div id="metaBlock" style="display:none;"></div>
+<div id="result" class="panel"></div>
+<div id="meta" class="panel" style="display:none;"></div>
 
-<div id="viewerBlock" style="display:none;">
-
+<div id="viewer" style="display:none;">
   <div class="slider-container">
-    <img id="originalImage">
-
+    <img id="img">
     <div class="overlay" id="overlay">
-      <img id="elaOverlay">
+      <img id="ela">
     </div>
   </div>
-
-  <input type="range" min="0" max="100" value="50" id="slider" class="slider">
-
+  <input type="range" id="slider" min="0" max="100" value="50" class="slider">
 </div>
 
 </div>
@@ -211,24 +152,16 @@ const API = "https://image-forensics-saas-1.onrender.com";
 const slider = document.getElementById("slider");
 const overlay = document.getElementById("overlay");
 
-slider.addEventListener("input", () => {
+slider.oninput = () => {
   overlay.style.width = slider.value + "%";
-});
+};
 
-function interpret(type) {
-  if (type === "Likely Original") return "No strong evidence of manipulation.";
-  if (type === "Recompressed") return "Image has been resaved or shared.";
-  if (type === "Edited") return "Possible modification detected.";
-  return "Inconclusive.";
-}
-
-document.getElementById("file").onchange = async (e) => {
-
+document.getElementById("file").onchange = async e => {
   const file = e.target.files[0];
   if (!file) return;
 
-  document.getElementById("viewerBlock").style.display = "block";
-  document.getElementById("originalImage").src = URL.createObjectURL(file);
+  document.getElementById("viewer").style.display = "block";
+  document.getElementById("img").src = URL.createObjectURL(file);
 
   const form = new FormData();
   form.append("image", file);
@@ -240,124 +173,72 @@ document.getElementById("file").onchange = async (e) => {
 
   const data = await res.json();
 
-  const type = data.classification?.type || "Result";
   const conf = Math.round((data.classification?.confidence || 0.5) * 100);
+  const type = data.classification?.type || "Unknown";
 
-  document.getElementById("resultCard").innerHTML = `
-    <h2>${type}</h2>
-    <p>${interpret(type)}</p>
-    <p><strong>Confidence:</strong> ${conf}%</p>
+  // ===== BREAKDOWN =====
+  let breakdown = [];
+
+  if (data.ela?.score > 25) breakdown.push(["High compression anomalies", -30]);
+  else if (data.ela?.score > 10) breakdown.push(["Moderate compression variation", -15]);
+  else breakdown.push(["Consistent compression", +20]);
+
+  if (data.exif?.make) breakdown.push(["Camera metadata present", +10]);
+  else breakdown.push(["Missing camera metadata", -15]);
+
+  if (data.exif?.gps) breakdown.push(["GPS metadata present", +5]);
+  else breakdown.push(["No GPS metadata", -5]);
+
+  // ===== RESULT =====
+  document.getElementById("result").innerHTML = `
+    <strong>${type}</strong> (${conf}%)
+
+    <div style="height:6px;background:#1e293b;margin:10px 0;">
+      <div style="width:${conf}%;height:100%;background:#3b82f6;"></div>
+    </div>
+
+    <div style="margin-top:10px;font-size:14px;">
+      Tampering Probability
+      <div style="height:8px;background:#1e293b;">
+        <div style="width:${100-conf}%;height:100%;background:linear-gradient(90deg,green,orange,red);"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;font-size:13px;color:#9ca3af;">
+      ${breakdown.map(b => `${b[0]} (${b[1]})`).join("<br>")}
+    </div>
   `;
 
   // ===== METADATA =====
-  const metaBlock = document.getElementById("metaBlock");
-
   if (data.exif) {
     const ex = data.exif;
     let html = "";
 
-    if (ex.make || ex.model) {
-      html += `<div class="meta-row"><span class="meta-label">Camera:</span> ${ex.make} ${ex.model}</div>`;
-    }
-
-    if (ex.date) {
-      html += `<div class="meta-row"><span class="meta-label">Date:</span> ${new Date(ex.date).toLocaleString()}</div>`;
-    }
-
-    if (ex.iso) {
-      html += `<div class="meta-row"><span class="meta-label">ISO:</span> ${ex.iso}</div>`;
-    }
-
-    if (ex.exposureTime) {
-      html += `<div class="meta-row"><span class="meta-label">Shutter:</span> ${ex.exposureTime}</div>`;
-    }
-
-    if (ex.fNumber) {
-      html += `<div class="meta-row"><span class="meta-label">Aperture:</span> f/${ex.fNumber}</div>`;
-    }
-
-    if (ex.focalLength) {
-      html += `<div class="meta-row"><span class="meta-label">Focal Length:</span> ${ex.focalLength}mm</div>`;
-    }
-
-    if (ex.lens) {
-      html += `<div class="meta-row"><span class="meta-label">Lens:</span> ${ex.lens}</div>`;
-    }
-
-    if (data.size) {
-      html += `<div class="meta-row"><span class="meta-label">File Size:</span> ${(data.size / 1024).toFixed(1)} KB</div>`;
-    }
+    if (ex.make) html += `<div class="meta"><span class="label">Camera:</span> ${ex.make} ${ex.model || ""}</div>`;
+    if (ex.date) html += `<div class="meta"><span class="label">Date:</span> ${new Date(ex.date).toLocaleString()}</div>`;
+    if (ex.iso) html += `<div class="meta"><span class="label">ISO:</span> ${ex.iso}</div>`;
 
     if (ex.gps) {
-      const { lat, lon } = ex.gps;
-
-      html += `<div class="meta-row"><span class="meta-label">Location:</span> ${lat.toFixed(5)}, ${lon.toFixed(5)}</div>`;
-
-      html += `
-        <div class="map">
-          <iframe
-            width="100%"
-            height="200"
-            src="https://maps.google.com/maps?q=${lat},${lon}&z=14&output=embed">
-          </iframe>
-        </div>
-      `;
+      html += `<div class="meta"><span class="label">Location:</span> ${ex.gps.lat.toFixed(5)}, ${ex.gps.lon.toFixed(5)}</div>`;
+      html += `<iframe width="100%" height="200" src="https://maps.google.com/maps?q=${ex.gps.lat},${ex.gps.lon}&z=14&output=embed"></iframe>`;
     }
 
-    metaBlock.innerHTML = html;
-    metaBlock.style.display = "block";
-    let integrityScore = 100;
-let integrityNotes = [];
+    // integrity
+    let score = 100;
+    if (!ex.make) score -= 20;
+    if (!ex.date) score -= 20;
+    if (!ex.gps) score -= 10;
 
-if (!ex.make || ex.make === "Unknown") {
-  integrityScore -= 20;
-  integrityNotes.push("Missing camera information");
-}
+    html += `<div class="meta" style="margin-top:10px;">
+      <span class="label">Metadata Integrity:</span> ${score}%
+    </div>`;
 
-if (!ex.date || ex.date === "Unknown") {
-  integrityScore -= 20;
-  integrityNotes.push("Missing capture date");
-}
-
-if (!ex.gps) {
-  integrityScore -= 10;
-  integrityNotes.push("No GPS metadata");
-}
-
-if (!ex.iso) {
-  integrityScore -= 10;
-}
-
-if (!ex.exposureTime) {
-  integrityScore -= 5;
-}
-
-integrityScore = Math.max(0, integrityScore);
-
-const integrityLabel =
-  integrityScore > 80 ? "High Integrity" :
-  integrityScore > 50 ? "Moderate Integrity" :
-  "Low Integrity";
-
-metaBlock.innerHTML += `
-  <div style="margin-top:12px;padding-top:10px;border-top:1px solid #1e293b;">
-    <div class="meta-row">
-      <span class="meta-label">Metadata Integrity:</span>
-      ${integrityLabel} (${integrityScore}%)
-    </div>
-    ${integrityNotes.length ? `
-      <ul style="margin-top:6px;padding-left:18px;color:#9ca3af;">
-        ${integrityNotes.map(n => `<li>${n}</li>`).join("")}
-      </ul>
-    ` : ""}
-  </div>
-`;
-  } else {
-    metaBlock.style.display = "none";
+    document.getElementById("meta").innerHTML = html;
+    document.getElementById("meta").style.display = "block";
   }
 
-  if (data.ela && data.ela.overlay) {
-    document.getElementById("elaOverlay").src = data.ela.overlay;
+  if (data.ela?.overlay) {
+    document.getElementById("ela").src = data.ela.overlay;
   }
 };
 </script>
