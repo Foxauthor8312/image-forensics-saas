@@ -91,10 +91,22 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
+// ========= EXTRACT EXIF (WITH GPS) =========
+const rawExif = await exifr.parse(req.file.buffer, {
+  gps: true,
+  translateValues: true
+});
 
-    const rawExif = await exifr.parse(req.file.buffer);
+// ========= NORMALIZE GPS =========
+const gps = {
+  lat: rawExif?.latitude ?? rawExif?.gpsLatitude ?? null,
+  lon: rawExif?.longitude ?? rawExif?.gpsLongitude ?? null
+};
 
-    const ela = await runELA(req.file.buffer);
+console.log("GPS:", gps); // debug
+
+// ========= RUN ELA AFTER =========
+const ela = await runELA(req.file.buffer);
 
 const exif = rawExif
   ? {
@@ -122,12 +134,12 @@ const exif = rawExif
       ela ? ela.score : 0
     );
 
-    res.json({
-      success: true,
-      exif,
-      ela, // 🔥 THIS includes overlay
-      classification
-    });
+  res.json({
+  ela,
+  exif: rawExif,
+  gps, // 👈 ADD THIS LINE
+  classification
+});
 
   } catch (err) {
     console.log("ERROR:", err.message);
