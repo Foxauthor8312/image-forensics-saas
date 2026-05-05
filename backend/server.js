@@ -15,7 +15,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // ---------- SIMPLE CLASSIFICATION ----------
 function classifyImage(exif, elaScore) {
-  if (exif && elaScore < 10) {
+  if (exif && exif.make !== "Unknown" && elaScore < 10){
     return { type: "Likely Original", confidence: 0.9 };
   }
 
@@ -54,10 +54,12 @@ async function runELA(buffer) {
     const diff = Buffer.alloc(orig.data.length);
     let total = 0;
 
-    for (let i = 0; i < orig.data.length; i++) {
-      const value = Math.abs(orig.data[i] - comp.data[i]) * 10; // amplify
-diff[i] = Math.min(255, value);
-    }
+   for (let i = 0; i < orig.data.length; i++) {
+  const value = Math.abs(orig.data[i] - comp.data[i]) * 15;
+
+  diff[i] = Math.min(255, value);
+  total += value; // 👈 THIS FIXES YOUR SCORING
+}
 
     const elaImage = await sharp(diff, {
       raw: {
@@ -121,12 +123,7 @@ const exif = rawExif
       fNumber: rawExif.FNumber || null,
       focalLength: rawExif.FocalLength || null,
 
-      gps: rawExif.latitude && rawExif.longitude
-        ? {
-            lat: rawExif.latitude,
-            lon: rawExif.longitude
-          }
-        : null
+      
     }
   : null;
     const classification = classifyImage(
