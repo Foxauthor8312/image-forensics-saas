@@ -402,13 +402,6 @@ document.getElementById("result").innerHTML = `
   </div>
 `;
 
-if (data.exif && data.exif.gps && data.exif.gps.lat && data.exif.gps.lon) {
-    document.getElementById("meta").innerHTML =
-      `Location: ${data.exif.gps.lat}, ${data.exif.gps.lon}
-       <iframe width="100%" height="200"
-       src="https://maps.google.com/maps?q=${data.exif.gps.lat},${data.exif.gps.lon}&output=embed"></iframe>`;
-    document.getElementById("meta").style.display = "block";
-  }
 
   if (data.ela?.overlay) {
     document.getElementById("ela").src = data.ela.overlay;
