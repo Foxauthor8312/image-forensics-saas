@@ -12,247 +12,68 @@
       color: #e2e8f0;
       margin: 0;
       padding: 20px;
+      text-align: center;
     }
 
-    /* ===== HERO ===== */
     .hero {
-      text-align: center;
       max-width: 700px;
-      margin: 40px auto;
+      margin: 60px auto;
     }
 
     .logo {
       width: 140px;
-      margin-bottom: 15px;
+      margin-bottom: 20px;
     }
 
-    .hero h1 {
+    h1 {
       font-size: 2rem;
       margin-bottom: 10px;
       font-weight: 600;
     }
 
-    .hero p {
+    p {
       color: #94a3b8;
       line-height: 1.5;
-      margin-bottom: 10px;
     }
 
-    .cta-button {
-      margin-top: 20px;
-      padding: 10px 22px;
+    .cta-group {
+      margin-top: 30px;
+    }
+
+    .cta {
+      display: inline-block;
+      margin: 10px;
+      padding: 10px 20px;
       background: #1e40af;
-      border-radius: 8px;
       color: white;
-      font-size: 0.95rem;
-      border: none;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-
-    .cta-button:hover {
-      background: #1d4ed8;
-    }
-
-    /* ===== TOOL ===== */
-    .container {
-      max-width: 700px;
-      margin: auto;
-      background: #1e293b;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 0 20px rgba(0,0,0,0.3);
-    }
-
-    input {
-      width: 100%;
-      margin-bottom: 15px;
-    }
-
-    .analyze-btn {
-      display: block;
-      margin: 10px auto;
-      padding: 8px 18px;
-      background: #334155;
-      border: 1px solid #475569;
-      color: #e2e8f0;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    .analyze-btn:hover {
-      background: #475569;
-    }
-
-    .section {
-      margin-top: 20px;
-    }
-
-    .meta-row {
-      padding: 6px 0;
-      border-bottom: 1px solid #334155;
-    }
-
-    img {
-      width: 100%;
-      margin-top: 10px;
-      border-radius: 6px;
-    }
-
-    .label {
-      font-weight: bold;
-    }
-
-    .warning {
-      color: #facc15;
-    }
-
-    a.map-link {
-      color: #38bdf8;
+      border-radius: 8px;
       text-decoration: none;
-      font-size: 0.9em;
+      font-size: 0.95rem;
+    }
+
+    .cta.secondary {
+      background: #334155;
     }
   </style>
 </head>
 
 <body>
 
-  <!-- HERO -->
   <div class="hero">
     <img src="logo.png" class="logo" />
 
     <h1>Know if an image is real.</h1>
 
-    <p>Ever wonder if a photo has been altered or manipulated?</p>
-
     <p>
-      PixelProof analyzes compression artifacts (ELA) and metadata
-      to detect editing, recompression, and authenticity.
+      PixelProof uses forensic analysis of compression artifacts and metadata
+      to detect edits, recompression, and authenticity.
     </p>
 
-    <button class="cta-button" onclick="scrollToTool()">Analyze Image</button>
+    <div class="cta-group">
+      <a href="analyze.html" class="cta">Analyze Image</a>
+      <a href="#" class="cta secondary">Learn More</a>
+    </div>
   </div>
-
-  <!-- TOOL -->
-  <div id="tool" class="container">
-
-    <input type="file" id="fileInput" accept="image/*" />
-
-    <button class="analyze-btn" onclick="analyze()">Run Analysis</button>
-
-    <div id="result" class="section"></div>
-
-  </div>
-
-  <script>
-    const API = "https://image-forensics-saas-1.onrender.com";
-
-    function scrollToTool() {
-      document.getElementById("tool").scrollIntoView({ behavior: "smooth" });
-    }
-
-    function formatCoord(val) {
-      return (typeof val === "number") ? val.toFixed(6) : "Not available";
-    }
-
-    function mapLink(lat, lon) {
-      if (typeof lat === "number" && typeof lon === "number") {
-        return `<div><a class="map-link" target="_blank" href="https://maps.google.com/?q=${lat},${lon}">View on map</a></div>`;
-      }
-      return "";
-    }
-
-    async function analyze() {
-      const fileInput = document.getElementById("fileInput");
-      const resultEl = document.getElementById("result");
-
-      if (!fileInput.files.length) {
-        alert("Please select an image");
-        return;
-      }
-
-      const form = new FormData();
-      form.append("image", fileInput.files[0]);
-
-      resultEl.innerHTML = "Analyzing...";
-
-      try {
-        console.log("Calling:", API + "/analyze");
-
-        const res = await fetch(API + "/analyze", {
-          method: "POST",
-          body: form
-        });
-
-        const text = await res.text();
-
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch {
-          console.error("Non-JSON response:", text);
-          resultEl.innerHTML = "Server error — backend may be waking up";
-          return;
-        }
-
-        const lat = data.gps?.lat;
-        const lon = data.gps?.lon;
-        const hasGPS = (typeof lat === "number" && typeof lon === "number");
-
-        resultEl.innerHTML = `
-          <div class="section">
-            <div class="meta-row">
-              <span class="label">Classification:</span>
-              ${data.classification?.type ?? "Unknown"}
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="meta-row">
-              <span class="label">Camera:</span>
-              ${data.exif?.make ?? "—"}
-            </div>
-
-            <div class="meta-row">
-              <span class="label">Date:</span>
-              ${data.exif?.date ?? "—"}
-            </div>
-
-            <div class="meta-row">
-              <span class="label">Latitude:</span>
-              ${formatCoord(lat)}
-            </div>
-
-            <div class="meta-row">
-              <span class="label">Longitude:</span>
-              ${formatCoord(lon)}
-            </div>
-
-            ${mapLink(lat, lon)}
-
-            ${
-              !hasGPS
-                ? `<div class="meta-row warning">
-                     Location data missing — may indicate metadata removal
-                   </div>`
-                : ""
-            }
-          </div>
-
-          <div class="section">
-            <div class="meta-row">
-              <span class="label">ELA Analysis</span>
-            </div>
-            <img src="${data.ela?.overlay}" />
-          </div>
-        `;
-
-      } catch (err) {
-        console.error(err);
-        resultEl.innerHTML = "Error analyzing image";
-      }
-    }
-  </script>
 
 </body>
 </html>
