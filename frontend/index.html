@@ -306,6 +306,52 @@ document.getElementById("file").onchange = async (e) => {
 
     metaBlock.innerHTML = html;
     metaBlock.style.display = "block";
+    let integrityScore = 100;
+let integrityNotes = [];
+
+if (!ex.make || ex.make === "Unknown") {
+  integrityScore -= 20;
+  integrityNotes.push("Missing camera information");
+}
+
+if (!ex.date || ex.date === "Unknown") {
+  integrityScore -= 20;
+  integrityNotes.push("Missing capture date");
+}
+
+if (!ex.gps) {
+  integrityScore -= 10;
+  integrityNotes.push("No GPS metadata");
+}
+
+if (!ex.iso) {
+  integrityScore -= 10;
+}
+
+if (!ex.exposureTime) {
+  integrityScore -= 5;
+}
+
+integrityScore = Math.max(0, integrityScore);
+
+const integrityLabel =
+  integrityScore > 80 ? "High Integrity" :
+  integrityScore > 50 ? "Moderate Integrity" :
+  "Low Integrity";
+
+metaBlock.innerHTML += `
+  <div style="margin-top:12px;padding-top:10px;border-top:1px solid #1e293b;">
+    <div class="meta-row">
+      <span class="meta-label">Metadata Integrity:</span>
+      ${integrityLabel} (${integrityScore}%)
+    </div>
+    ${integrityNotes.length ? `
+      <ul style="margin-top:6px;padding-left:18px;color:#9ca3af;">
+        ${integrityNotes.map(n => `<li>${n}</li>`).join("")}
+      </ul>
+    ` : ""}
+  </div>
+`;
   } else {
     metaBlock.style.display = "none";
   }
