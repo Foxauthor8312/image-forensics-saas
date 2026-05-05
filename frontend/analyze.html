@@ -1,183 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<title>Analyze - PixelProof</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-<style>
-body {
-  font-family: Arial, sans-serif;
-  background: #0f172a;
-  color: #e2e8f0;
-  margin: 0;
-  padding: 20px;
-}
-
-.container {
-  max-width: 700px;
-  margin: auto;
-  background: #1e293b;
-  padding: 20px;
-  border-radius: 10px;
-}
-
-/* BACK */
-.back {
-  color: #94a3b8;
-  text-decoration: none;
-  font-size: 14px;
-}
-
-input { width: 100%; margin: 15px 0; }
-
-button {
-  display: block;
-  margin: auto;
-  padding: 8px 18px;
-  background: #334155;
-  border: 1px solid #475569;
-  color: #e2e8f0;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-/* TABS */
-.tabs {
-  display: flex;
-  margin-top: 20px;
-  border-bottom: 1px solid #334155;
-}
-
-.tab {
-  padding: 10px;
-  cursor: pointer;
-  color: #94a3b8;
-}
-
-.tab.active {
-  color: white;
-  border-bottom: 2px solid white;
-}
-
-.tab-content {
-  display: none;
-  margin-top: 15px;
-}
-
-.tab-content.active {
-  display: block;
-}
-
-/* META */
-.meta-row {
-  padding: 6px 0;
-  border-bottom: 1px solid #334155;
-}
-
-/* SIGNALS */
-.signal { margin: 4px 0; }
-.good { color: #22c55e; }
-.warn { color: #f59e0b; }
-.bad { color: #ef4444; }
-
-/* SLIDER */
-.viewer { margin-top: 20px; }
-.slider-container { position: relative; }
-
-.slider-container img {
-  width: 100%;
-  border-radius: 8px;
-}
-
-.overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 50%;
-  overflow: hidden;
-}
-
-.overlay img { width: 100%; opacity: 0.9; }
-
-.divider {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 2px;
-  height: 100%;
-  background: white;
-}
-
-.slider { width: 100%; margin-top: 12px; }
-</style>
-</head>
-
-<body>
-
-<div class="container">
-
-<a href="index.html" class="back">← Back</a>
-
-<input type="file" id="fileInput" accept="image/*" />
-<button onclick="analyze()">Run Analysis</button>
-
-<div id="result"></div>
-
-</div>
-
-<script>
-const API = "https://image-forensics-saas-1.onrender.com";
-
-const REPORT = {
-  "Likely Original": {
-    color: "#22c55e",
-    explanation: "Compression and metadata are consistent with an original image.",
-    guidance: "No strong signs of manipulation."
-  },
-  "Recompressed": {
-    color: "#f59e0b",
-    explanation: "Image has been resaved or processed.",
-    guidance: "May hide prior edits."
-  },
-  "Edited": {
-    color: "#ef4444",
-    explanation: "Compression inconsistencies detected.",
-    guidance: "Possible manipulation."
-  },
-  "Unknown": {
-    color: "#9ca3af",
-    explanation: "No strong signal.",
-    guidance: "Inconclusive."
-  }
-};
-
-function switchTab(name) {
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-
-  document.getElementById("tab-" + name).classList.add("active");
-  document.getElementById(name).classList.add("active");
-}
-
-async function compressImage(file, maxWidth = 1200, quality = 0.75) {
-  return new Promise(resolve => {
-    const img = new Image();
-    const reader = new FileReader();
-    reader.onload = e => img.src = e.target.result;
-    reader.readAsDataURL(file);
-
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const scale = Math.min(1, maxWidth / img.width);
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(blob => resolve(blob), "image/jpeg", quality);
-    };
-  });
-}
-
 async function analyze() {
   const file = document.getElementById("fileInput").files[0];
   const resultEl = document.getElementById("result");
@@ -200,23 +20,55 @@ async function analyze() {
 
     const type = data.classification?.type || "Unknown";
     const conf = Math.round((data.classification?.confidence || 0.5) * 100);
-    const cfg = REPORT[type] || REPORT["Unknown"];
+
+    // ===== RESTORED EXPLANATION SYSTEM =====
+    let explanation = "";
+    let guidance = "";
+    let confidenceNote = "";
+
+    if (type === "Likely Original") {
+      explanation = "No strong indicators of manipulation were detected. Compression patterns remain consistent across the image, and metadata aligns with a typical camera-generated file.";
+      guidance = "This image appears authentic. Minor variations may occur from resizing or sharing.";
+      confidenceNote = "High confidence results indicate consistent structure and intact metadata.";
+    }
+    else if (type === "Recompressed") {
+      explanation = "The image shows signs of recompression, which often occurs when an image is saved or shared.";
+      guidance = "Recompression alone does not indicate editing, but may obscure prior changes.";
+      confidenceNote = "Moderate confidence reflects structural changes without strong anomalies.";
+    }
+    else if (type === "Edited") {
+      explanation = "Compression inconsistencies and structural irregularities were detected.";
+      guidance = "Possible manipulation detected. Review highlighted regions carefully.";
+      confidenceNote = "Lower confidence may occur when edits are subtle or masked.";
+    }
+    else {
+      explanation = "The analysis did not produce a strong signal.";
+      guidance = "Result is inconclusive.";
+      confidenceNote = "Try a higher quality image.";
+    }
 
     const lat = data.gps?.lat;
     const lon = data.gps?.lon;
 
+    // ===== SIGNALS =====
     const signals = [];
+
     if (data.exif) signals.push('<div class="signal good">✔ Metadata present</div>');
-    else signals.push('<div class="signal warn">⚠ No metadata</div>');
+    else signals.push('<div class="signal warn">⚠ Metadata missing</div>');
 
-    if (lat && lon) signals.push('<div class="signal good">✔ GPS detected</div>');
-    else signals.push('<div class="signal warn">⚠ No GPS</div>');
+    if (lat && lon) signals.push('<div class="signal good">✔ GPS location detected</div>');
+    else signals.push('<div class="signal warn">⚠ No GPS data</div>');
 
-    if (type === "Edited") signals.push('<div class="signal bad">✖ Compression anomalies</div>');
+    if (type === "Edited") signals.push('<div class="signal bad">✖ Compression anomalies detected</div>');
 
     resultEl.innerHTML = `
-      <div style="font-size:20px;color:${cfg.color};">${type}</div>
-      <div>Confidence: ${conf}%</div>
+      <div style="font-size:20px;font-weight:600;">
+        ${type}
+      </div>
+
+      <div style="margin-bottom:10px;color:#9ca3af;">
+        Confidence: ${conf}%
+      </div>
 
       <div class="tabs">
         <div class="tab active" id="tab-overview" onclick="switchTab('overview')">Overview</div>
@@ -224,19 +76,35 @@ async function analyze() {
         <div class="tab" id="tab-ela" onclick="switchTab('ela')">ELA</div>
       </div>
 
+      <!-- OVERVIEW -->
       <div id="overview" class="tab-content active">
-        <p>${cfg.explanation}</p>
-        <div>${signals.join("")}</div>
-        <p>${cfg.guidance}</p>
+        <p>${explanation}</p>
+        ${signals.join("")}
+        <p>${guidance}</p>
+        <div style="color:#9ca3af;font-size:13px;">${confidenceNote}</div>
       </div>
 
+      <!-- METADATA (FIXED KEYS) -->
       <div id="metadata" class="tab-content">
-        <div class="meta-row">Camera: ${data.exif?.make ?? "-"}</div>
-        <div class="meta-row">Date: ${data.exif?.date ?? "-"}</div>
+        <div class="meta-row">Camera: ${data.exif?.Make ?? "-"}</div>
+        <div class="meta-row">Model: ${data.exif?.Model ?? "-"}</div>
+        <div class="meta-row">Date: ${data.exif?.DateTimeOriginal ?? "-"}</div>
+        <div class="meta-row">ISO: ${data.exif?.ISO ?? "-"}</div>
         <div class="meta-row">Latitude: ${lat ?? "-"}</div>
         <div class="meta-row">Longitude: ${lon ?? "-"}</div>
+
+        ${
+          (lat && lon)
+            ? `<div style="margin-top:10px;">
+                 <a href="https://maps.google.com/?q=${lat},${lon}" target="_blank" style="color:#38bdf8;">
+                   View location →
+                 </a>
+               </div>`
+            : ""
+        }
       </div>
 
+      <!-- ELA -->
       <div id="ela" class="tab-content">
         <div class="viewer">
           <div class="slider-container">
@@ -254,6 +122,7 @@ async function analyze() {
       </div>
     `;
 
+    // ===== SLIDER =====
     const slider = document.getElementById("slider");
     const overlay = document.getElementById("overlay");
     const divider = document.getElementById("divider");
@@ -271,7 +140,3 @@ async function analyze() {
     resultEl.innerHTML = "Server waking up — try again";
   }
 }
-</script>
-
-</body>
-</html>
