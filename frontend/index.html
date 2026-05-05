@@ -264,6 +264,52 @@ document.getElementById("meta").style.display = "none";
   });
 
   const data = await res.json();
+  // ===== GPS DISPLAY =====
+
+const metaDiv = document.getElementById("meta");
+
+// clear previous
+metaDiv.innerHTML = "";
+
+if (
+  data.exif &&
+  data.exif.gps &&
+  data.exif.gps.lat &&
+  data.exif.gps.lon
+) {
+  const { lat, lon } = data.exif.gps;
+
+  metaDiv.innerHTML = `
+    <div style="margin-bottom:8px;">
+      <strong>Location (GPS)</strong><br>
+      <span style="color:#9ca3af;">
+        ${lat.toFixed(5)}, ${lon.toFixed(5)}
+      </span>
+    </div>
+
+    <iframe
+      width="100%"
+      height="200"
+      style="border-radius:8px;border:0;"
+      src="https://maps.google.com/maps?q=${lat},${lon}&z=14&output=embed">
+    </iframe>
+  `;
+
+  metaDiv.style.display = "block";
+
+} else {
+
+  metaDiv.innerHTML = `
+    <div style="color:#9ca3af;font-size:13px;">
+      No GPS metadata found.<br>
+      <span style="font-size:12px;">
+        This is common when images are shared, edited, or stripped of location data.
+      </span>
+    </div>
+  `;
+
+  metaDiv.style.display = "block";
+}
   document.getElementById("loader").style.display = "none";
   window._lastMeta = data.exif || {};
 
@@ -356,7 +402,7 @@ document.getElementById("result").innerHTML = `
   </div>
 `;
 
-  if (data.exif?.gps) {
+if (data.exif && data.exif.gps && data.exif.gps.lat && data.exif.gps.lon) {
     document.getElementById("meta").innerHTML =
       `Location: ${data.exif.gps.lat}, ${data.exif.gps.lon}
        <iframe width="100%" height="200"
