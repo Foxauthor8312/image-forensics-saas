@@ -149,7 +149,7 @@
   </div>
 
   <script>
-    cconst API = "https://image-forensics-saas-1.onrender.com";
+    const API = "https://image-forensics-saas-1.onrender.com";
 
     function scrollToTool() {
       document.getElementById("tool").scrollIntoView({ behavior: "smooth" });
@@ -182,18 +182,18 @@
 
       try {
         const res = await fetch(API + "/analyze", {
-          method: "POST",
-          body: form
-        });
+  method: "POST",
+  body: form
+});
 
-        coconst text = await res.text();
+const text = await res.text();
 
 let data;
 try {
   data = JSON.parse(text);
 } catch {
   console.error("Non-JSON response:", text);
-  resultEl.innerHTML = "Server error — check API URL";
+  resultEl.innerHTML = "Server error — backend may be waking up";
   return;
 }
 
