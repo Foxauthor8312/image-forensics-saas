@@ -14,14 +14,47 @@
       padding: 20px;
     }
 
-    h1 {
+    /* ===== HERO ===== */
+    .hero {
       text-align: center;
-      margin-bottom: 25px;
-      font-size: 2.2rem;
-      letter-spacing: 1px;
-      font-weight: 700;
+      max-width: 700px;
+      margin: 40px auto;
     }
 
+    .logo {
+      width: 140px;
+      margin-bottom: 15px;
+    }
+
+    .hero h1 {
+      font-size: 2rem;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    .hero p {
+      color: #94a3b8;
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+
+    .cta-button {
+      margin-top: 20px;
+      padding: 10px 22px;
+      background: #1e40af;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.95rem;
+      border: none;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .cta-button:hover {
+      background: #1d4ed8;
+    }
+
+    /* ===== TOOL ===== */
     .container {
       max-width: 700px;
       margin: auto;
@@ -36,19 +69,18 @@
       margin-bottom: 15px;
     }
 
-    button {
-      width: 100%;
-      padding: 8px;
+    .analyze-btn {
+      display: block;
+      margin: 10px auto;
+      padding: 8px 18px;
       background: #334155;
       border: 1px solid #475569;
       color: #e2e8f0;
-      font-weight: 500;
       border-radius: 6px;
       cursor: pointer;
-      transition: all 0.2s ease;
     }
 
-    button:hover {
+    .analyze-btn:hover {
       background: #475569;
     }
 
@@ -85,13 +117,32 @@
 
 <body>
 
-  <h1>Pixel<span style="color:#38bdf8;">Proof</span></h1>
+  <!-- ===== HERO SECTION ===== -->
+  <div class="hero">
+    <img src="logo.png" class="logo" />
 
-  <div class="container">
+    <h1>Know if an image is real.</h1>
+
+    <p>Ever wonder if a photo has been tampered with or altered?</p>
+
+    <p>
+      PixelProof uses forensic analysis of compression patterns and metadata
+      to detect edits, recompression, and authenticity.
+    </p>
+
+    <p>
+      Upload an image to verify camera data and GPS location.
+    </p>
+
+    <button class="cta-button" onclick="scrollToTool()">Analyze Image</button>
+  </div>
+
+  <!-- ===== TOOL SECTION ===== -->
+  <div id="tool" class="container">
 
     <input type="file" id="fileInput" accept="image/*" />
 
-    <button onclick="analyze()">Analyze Image</button>
+    <button class="analyze-btn" onclick="analyze()">Run Analysis</button>
 
     <div id="result" class="section"></div>
 
@@ -99,6 +150,10 @@
 
   <script>
     const API = "";
+
+    function scrollToTool() {
+      document.getElementById("tool").scrollIntoView({ behavior: "smooth" });
+    }
 
     function formatCoord(val) {
       return (typeof val === "number") ? val.toFixed(6) : "Not available";
@@ -132,8 +187,6 @@
         });
 
         const data = await res.json();
-
-        console.log("FULL RESPONSE:", data);
 
         const lat = data.gps?.lat;
         const lon = data.gps?.lon;
