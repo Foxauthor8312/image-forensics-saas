@@ -1,102 +1,253 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Analyze - PixelProof</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8" />
+<title>Analyze - PixelProof</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
-      margin: 0;
-      padding: 20px;
-    }
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  margin: 0;
+  padding: 20px;
+}
 
-    .container {
-      max-width: 700px;
-      margin: auto;
-      background: #1e293b;
-      padding: 20px;
-      border-radius: 10px;
-    }
+.container {
+  max-width: 700px;
+  margin: auto;
+  background: #1e293b;
+  padding: 20px;
+  border-radius: 10px;
+}
 
-    input {
-      width: 100%;
-      margin-bottom: 15px;
-    }
+input {
+  width: 100%;
+  margin-bottom: 15px;
+}
 
-    button {
-      display: block;
-      margin: auto;
-      padding: 8px 18px;
-      background: #334155;
-      border: 1px solid #475569;
-      color: #e2e8f0;
-      border-radius: 6px;
-      cursor: pointer;
-    }
+button {
+  display: block;
+  margin: auto;
+  padding: 8px 18px;
+  background: #334155;
+  border: 1px solid #475569;
+  color: #e2e8f0;
+  border-radius: 6px;
+  cursor: pointer;
+}
 
-    .meta-row {
-      padding: 6px 0;
-      border-bottom: 1px solid #334155;
-    }
+.meta-row {
+  padding: 6px 0;
+  border-bottom: 1px solid #334155;
+}
 
-    img {
-      width: 100%;
-      margin-top: 10px;
-    }
-  </style>
+/* ===== SLIDER ===== */
+.viewer {
+  margin-top: 20px;
+}
+
+.slider-container {
+  position: relative;
+}
+
+.slider-container img {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  overflow: hidden;
+}
+
+.overlay img {
+  width: 100%;
+  opacity: 0.9;
+}
+
+.divider {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 100%;
+  background: white;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.slider {
+  width: 100%;
+  margin-top: 12px;
+}
+</style>
 </head>
 
 <body>
 
-  <div class="container">
+<div class="container">
 
-    <input type="file" id="fileInput" accept="image/*" />
+  <input type="file" id="fileInput" accept="image/*" />
 
-    <button onclick="analyze()">Run Analysis</button>
+  <button onclick="analyze()">Run Analysis</button>
 
-    <div id="result"></div>
+  <div id="result"></div>
 
-  </div>
+</div>
 
-  <script>
-    const API = "https://image-forensics-saas-1.onrender.com";
+<script>
+const API = "https://image-forensics-saas-1.onrender.com";
 
-    async function analyze() {
-      const fileInput = document.getElementById("fileInput");
-      const resultEl = document.getElementById("result");
+async function analyze() {
+  const fileInput = document.getElementById("fileInput");
+  const resultEl = document.getElementById("result");
 
-      if (!fileInput.files.length) {
-        alert("Select an image");
-        return;
+  if (!fileInput.files.length) {
+    alert("Select an image");
+    return;
+  }
+
+  const form = new FormData();
+  form.append("image", fileInput.files[0]);
+
+  resultEl.innerHTML = "Analyzing...";
+
+  try {
+    const res = await fetch(API + "/analyze", {
+      method: "POST",
+      body: form
+    });
+
+    const data = await res.json();
+
+    const type = data.classification?.type || "Unknown";
+    const conf = Math.round((data.classification?.confidence || 0.5) * 100);
+
+    let explanation = "";
+    let guidance = "";
+    let confidenceNote = "";
+
+    if (type === "Likely Original") {
+      explanation = "No strong indicators of manipulation were detected.";
+      guidance = "This image appears authentic.";
+      confidenceNote = "High confidence indicates consistent structure.";
+    }
+    else if (type === "Recompressed") {
+      explanation = "The image shows signs of recompression.";
+      guidance = "Recompression does not necessarily mean editing.";
+      confidenceNote = "Moderate confidence.";
+    }
+    else if (type === "Edited") {
+      explanation = "Compression inconsistencies were detected.";
+      guidance = "Possible manipulation detected.";
+      confidenceNote = "Lower confidence may occur with subtle edits.";
+    }
+    else {
+      explanation = "No strong signal detected.";
+      guidance = "Result inconclusive.";
+      confidenceNote = "Try a higher quality image.";
+    }
+
+    const verdictColor = 
+      type === "Likely Original" ? "#22c55e" :
+      type === "Recompressed" ? "#f59e0b" :
+      type === "Edited" ? "#ef4444" :
+      "#9ca3af";
+
+    const lat = data.gps?.lat;
+    const lon = data.gps?.lon;
+
+    resultEl.innerHTML = `
+      <div style="font-size:20px;font-weight:600;color:${verdictColor};">
+        ${type}
+      </div>
+
+      <div style="color:#9ca3af;font-size:14px;margin:10px 0;">
+        Confidence: ${conf}%
+      </div>
+
+      <div style="height:6px;background:#1e293b;border-radius:4px;margin-bottom:18px;">
+        <div style="width:${conf}%;height:100%;background:${verdictColor};"></div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <strong>What this means</strong>
+        <div style="font-size:14px;color:#cbd5f5;margin-top:6px;">
+          ${explanation}
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <strong>How to interpret</strong>
+        <div style="font-size:14px;color:#cbd5f5;margin-top:6px;">
+          ${guidance}
+        </div>
+      </div>
+
+      <div style="font-size:13px;color:#9ca3af;margin-bottom:16px;">
+        ${confidenceNote}
+      </div>
+
+      <strong>Metadata</strong>
+      <div class="meta-row">Camera: ${data.exif?.make ?? "-"}</div>
+      <div class="meta-row">Date: ${data.exif?.date ?? "-"}</div>
+      <div class="meta-row">Latitude: ${lat ?? "-"}</div>
+      <div class="meta-row">Longitude: ${lon ?? "-"}</div>
+
+      ${
+        (lat && lon)
+          ? `<div style="margin-top:10px;">
+               <a href="https://maps.google.com/?q=${lat},${lon}" target="_blank" style="color:#38bdf8;">
+                 View location →
+               </a>
+             </div>`
+          : ""
       }
 
-      const form = new FormData();
-      form.append("image", fileInput.files[0]);
+      <div class="viewer">
 
-      resultEl.innerHTML = "Analyzing...";
+        <strong>ELA Analysis (drag slider)</strong>
 
-      const res = await fetch(API + "/analyze", {
-        method: "POST",
-        body: form
-      });
+        <div class="slider-container">
+          <img src="${URL.createObjectURL(fileInput.files[0])}">
+          
+          <div class="overlay" id="overlay">
+            <img src="${data.ela?.overlay}">
+          </div>
 
-      const data = await res.json();
+          <div class="divider" id="divider"></div>
+        </div>
 
-      resultEl.innerHTML = `
-        <div class="meta-row">Classification: ${data.classification?.type}</div>
-        <div class="meta-row">Camera: ${data.exif?.make ?? "-"}</div>
-        <div class="meta-row">Date: ${data.exif?.date ?? "-"}</div>
-        <div class="meta-row">Latitude: ${data.gps?.lat ?? "-"}</div>
-        <div class="meta-row">Longitude: ${data.gps?.lon ?? "-"}</div>
+        <input type="range" id="slider" min="0" max="100" value="50" class="slider">
 
-        <img src="${data.ela?.overlay}" />
-      `;
+      </div>
+    `;
+
+    // ===== SLIDER LOGIC =====
+    const slider = document.getElementById("slider");
+    const overlay = document.getElementById("overlay");
+    const divider = document.getElementById("divider");
+
+    if (slider && overlay) {
+      overlay.style.width = "50%";
+
+      slider.oninput = () => {
+        overlay.style.width = slider.value + "%";
+        if (divider) divider.style.left = slider.value + "%";
+      };
     }
-  </script>
+
+  } catch (err) {
+    console.error(err);
+    resultEl.innerHTML = "Error analyzing image";
+  }
+}
+</script>
 
 </body>
 </html>
