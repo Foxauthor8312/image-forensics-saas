@@ -249,21 +249,7 @@ document.getElementById("file").onchange = async e => {
   const conf = Math.round((data.classification?.confidence || 0.5) * 100);
   const type = data.classification?.type || "Unknown";
 
-  let explanation = "";
-  let guidance = "";
-
-  if (type === "Likely Original") {
-    explanation = "No strong indicators of manipulation were detected.";
-    guidance = "Image appears authentic.";
-  } else if (type === "Recompressed") {
-    explanation = "The image has been resaved or shared.";
-    guidance = "Recompression does not necessarily indicate editing.";
-  } else {
-    explanation = "Compression inconsistencies suggest possible editing.";
-    guidance = "Review carefully before trusting.";
-  }
-
-let explanation = "";
+ let explanation = "";
 let guidance = "";
 let confidenceNote = "";
 
