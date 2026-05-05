@@ -149,7 +149,7 @@
   </div>
 
   <script>
-    const API = "";
+    cconst API = "https://image-forensics-saas-1.onrender.com";
 
     function scrollToTool() {
       document.getElementById("tool").scrollIntoView({ behavior: "smooth" });
@@ -186,7 +186,16 @@
           body: form
         });
 
-        const data = await res.json();
+        coconst text = await res.text();
+
+let data;
+try {
+  data = JSON.parse(text);
+} catch {
+  console.error("Non-JSON response:", text);
+  resultEl.innerHTML = "Server error — check API URL";
+  return;
+}
 
         const lat = data.gps?.lat;
         const lon = data.gps?.lon;
