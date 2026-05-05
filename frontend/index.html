@@ -1,425 +1,198 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PixelProof</title>
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <title>PixelProof</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<style>
-:root {
-  --bg: #0a0a0a;
-  --panel: #0f172a;
-  --border: #1e293b;
-  --muted: #9ca3af;
-  --text: #e5e7eb;
-  --blue: #3b82f6;
-}
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      margin: 0;
+      padding: 20px;
+    }
 
-body {
-  font-family: 'Inter', sans-serif;
-  background: radial-gradient(circle at 50% 30%, #111827 0%, #0a0a0a 60%);
-  color: var(--text);
-  margin: 0;
-}
+    h1 {
+      text-align: center;
+      margin-bottom: 25px;
+      font-size: 2.2rem;
+      letter-spacing: 1px;
+      font-weight: 700;
+    }
 
-/* SCREENS */
-.screen {
-  display: none;
-  min-height: 100vh;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-}
-.screen.active {
-  display: flex;
-}
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    }
 
-/* HERO */
-.hero {
-  text-align: center;
-  max-width: 540px;
-  padding: 60px 20px;
-}
+    input {
+      width: 100%;
+      margin-bottom: 15px;
+    }
 
-.hero-logo {
-  height: 80px;
-  margin-bottom: 26px;
+    button {
+      width: 100%;
+      padding: 8px;
+      background: #334155;
+      border: 1px solid #475569;
+      color: #e2e8f0;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
 
-  /* subtle glow instead of box */
-  filter: brightness(1.3) contrast(1.15) drop-shadow(0 0 12px rgba(59,130,246,0.25));
-}
+    button:hover {
+      background: #475569;
+    }
 
-.hero-logo {
-  height: 80px;
-  filter: brightness(1.4) contrast(1.2);
-}
+    .section {
+      margin-top: 20px;
+    }
 
-.hero-title {
-  font-size: 34px;
-  font-weight: 600;
-  margin-bottom: 14px;
-}
+    .meta-row {
+      padding: 6px 0;
+      border-bottom: 1px solid #334155;
+    }
 
-.hero-sub {
-  font-size: 15px;
-  color: var(--muted);
-  line-height: 1.6;
-  margin-bottom: 34px;
-}
+    img {
+      width: 100%;
+      margin-top: 10px;
+      border-radius: 6px;
+    }
 
-.hero-cta {
-  background: var(--blue);
-  padding: 14px 28px;
-  border-radius: 10px;
-  cursor: pointer;
-  display: inline-block;
-}
+    .label {
+      font-weight: bold;
+    }
 
-/* UPLOAD */
-.upload {
-  border: 2px dashed #2a2a2a;
-  padding: 30px;
-  border-radius: 12px;
-  cursor: pointer;
-}
+    .warning {
+      color: #facc15;
+    }
 
-/* PANEL */
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  padding: 18px;
-  border-radius: 12px;
-  max-width: 520px;
-  width: 90%;
-  margin-top: 20px;
-}
-
-/* VIEWER */
-.viewer {
-  max-width: 520px;
-  width: 90%;
-}
-
-.slider-container {
-  position: relative;
-}
-
-.slider-container img {
-  width: 100%;
-  border-radius: 8px;
-}
-
-.overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 50%;
-  overflow: hidden;
-}
-
-.overlay img {
-  width: 100%;
-  mix-blend-mode: screen;
-  opacity: 0.8;
-}
-
-.slider {
-  width: 100%;
-  margin-top: 12px;
-}
-
-/* TEXT */
-.small {
-  font-size: 13px;
-  color: var(--muted);
-}
-  /* SPINNER */
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #1e293b;
-  border-top: 4px solid #3b82f6;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: auto;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-</style>
+    a.map-link {
+      color: #38bdf8;
+      text-decoration: none;
+      font-size: 0.9em;
+    }
+  </style>
 </head>
 
 <body>
 
-<!-- INTRO -->
-<div id="intro" class="screen active">
+  <h1>Pixel<span style="color:#38bdf8;">Proof</span></h1>
 
-  <div class="hero">
+  <div class="container">
 
- <img src="logo.png" class="hero-logo">
+    <input type="file" id="fileInput" accept="image/*" />
 
-    <div class="hero-title">
-      Know if an image is real.
-    </div>
+    <button onclick="analyze()">Analyze Image</button>
 
-    <div class="hero-sub">
-      Ever wonder if a photo has been tampered with or altered?<br><br>
-      PixelProof uses forensic analysis of compression patterns and metadata to detect edits, recompression, and authenticity.<br><br>
-      Upload an image—or capture one—to verify camera data and GPS location on an interactive map.<br><br>
-      <span style="font-size:13px;color:#6b7280;">3 free scans • Instant results • No data stored</span>
-    </div>
-
-    <div class="hero-cta" onclick="show('uploadScreen')">
-      Analyze Image
-    </div>
+    <div id="result" class="section"></div>
 
   </div>
 
-</div>
+  <script>
+    const API = "";
 
-<!-- UPLOAD -->
-<div id="uploadScreen" class="screen">
-  <label class="upload">
-    <input type="file" id="file" hidden>
-    Click to select image
-  </label>
-</div>
+    function formatCoord(val) {
+      return (typeof val === "number") ? val.toFixed(6) : "Not available";
+    }
 
-<!-- RESULT -->
-<div id="resultScreen" class="screen">
-<div id="loader" style="display:none;text-align:center;margin-bottom:20px;">
-  <div class="spinner"></div>
-  <div class="small" style="margin-top:10px;">Analyzing image...</div>
-</div>
-  <div id="result" class="panel"></div>
-  <div id="meta" class="panel" style="display:none;"></div>
+    function mapLink(lat, lon) {
+      if (typeof lat === "number" && typeof lon === "number") {
+        return `<div><a class="map-link" target="_blank" href="https://maps.google.com/?q=${lat},${lon}">View on map</a></div>`;
+      }
+      return "";
+    }
 
-  <div id="viewer" class="viewer" style="display:none;">
-    <div class="slider-container">
-      <img id="img">
-      <div class="overlay" id="overlay">
-        <img id="ela">
-      </div>
-    </div>
-    <input type="range" id="slider" min="0" max="100" value="50" class="slider">
-  </div>
+    async function analyze() {
+      const fileInput = document.getElementById("fileInput");
+      const resultEl = document.getElementById("result");
 
-</div>
+      if (!fileInput.files.length) {
+        alert("Please select an image");
+        return;
+      }
 
-<!-- FULL METADATA -->
-<div id="metaScreen" class="screen">
+      const form = new FormData();
+      form.append("image", fileInput.files[0]);
 
-  <div class="panel">
-    <div style="font-size:18px;font-weight:600;margin-bottom:12px;">
-      Full Metadata
-    </div>
+      resultEl.innerHTML = "Analyzing...";
 
-    <div id="fullMeta" style="font-size:13px;color:#cbd5f5;"></div>
+      try {
+        const res = await fetch(API + "/analyze", {
+          method: "POST",
+          body: form
+        });
 
-    <div style="margin-top:20px;">
-      <div class="hero-cta" onclick="show('resultScreen')">
-        Back to Results
-      </div>
-    </div>
-  </div>
+        const data = await res.json();
 
-</div>
+        console.log("FULL RESPONSE:", data);
 
-<script>
-const API = "https://image-forensics-saas-1.onrender.com";
+        const lat = data.gps?.lat;
+        const lon = data.gps?.lon;
+        const hasGPS = (typeof lat === "number" && typeof lon === "number");
 
-function show(id) {
-  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
-}
+        resultEl.innerHTML = `
+          <div class="section">
+            <div class="meta-row">
+              <span class="label">Classification:</span>
+              ${data.classification ?? "Unknown"}
+            </div>
+          </div>
 
-const slider = document.getElementById("slider");
-const overlay = document.getElementById("overlay");
+          <div class="section">
+            <div class="meta-row">
+              <span class="label">Camera:</span>
+              ${data.exif?.Make ?? "—"}
+            </div>
 
-slider.oninput = () => overlay.style.width = slider.value + "%";
+            <div class="meta-row">
+              <span class="label">Date:</span>
+              ${data.exif?.DateTimeOriginal ?? "—"}
+            </div>
 
-document.getElementById("file").onchange = async e => {
-document.getElementById("loader").style.display = "block";
-document.getElementById("result").innerHTML = "";
-document.getElementById("meta").style.display = "none";
-  const file = e.target.files[0];
-  if (!file) return;
+            <div class="meta-row">
+              <span class="label">Latitude:</span>
+              ${formatCoord(lat)}
+            </div>
 
-  show("resultScreen");
+            <div class="meta-row">
+              <span class="label">Longitude:</span>
+              ${formatCoord(lon)}
+            </div>
 
-  document.getElementById("viewer").style.display = "block";
-  document.getElementById("img").src = URL.createObjectURL(file);
+            ${mapLink(lat, lon)}
 
-  const form = new FormData();
-  form.append("image", file);
+            ${
+              !hasGPS
+                ? `<div class="meta-row warning">
+                     Location data missing — may indicate metadata removal or privacy filtering
+                   </div>`
+                : ""
+            }
+          </div>
 
-  const res = await fetch(API + "/analyze", {
-    method: "POST",
-    body: form
-  });
+          <div class="section">
+            <div class="meta-row">
+              <span class="label">ELA Analysis</span>
+            </div>
+            <img src="${data.ela}" />
+          </div>
+        `;
 
-  const data = await res.json();
-  // ===== GPS DISPLAY =====
-
-const metaDiv = document.getElementById("meta");
-
-// clear previous
-metaDiv.innerHTML = "";
-
-if (
-  data.exif &&
-  data.exif.gps &&
-  data.exif.gps.lat &&
-  data.exif.gps.lon
-) {
-  const { lat, lon } = data.exif.gps;
-
-  metaDiv.innerHTML = `
-    <div style="margin-bottom:8px;">
-      <strong>Location (GPS)</strong><br>
-      <span style="color:#9ca3af;">
-        ${lat.toFixed(5)}, ${lon.toFixed(5)}
-      </span>
-    </div>
-
-    <iframe
-      width="100%"
-      height="200"
-      style="border-radius:8px;border:0;"
-      src="https://maps.google.com/maps?q=${lat},${lon}&z=14&output=embed">
-    </iframe>
-  `;
-
-  metaDiv.style.display = "block";
-
-} else {
-
-  metaDiv.innerHTML = `
-    <div style="color:#9ca3af;font-size:13px;">
-      No GPS metadata found.<br>
-      <span style="font-size:12px;">
-        This is common when images are shared, edited, or stripped of location data.
-      </span>
-    </div>
-  `;
-
-  metaDiv.style.display = "block";
-}
-  document.getElementById("loader").style.display = "none";
-  window._lastMeta = data.exif || {};
-
-  const conf = Math.round((data.classification?.confidence || 0.5) * 100);
-  const type = data.classification?.type || "Unknown";
-
- let explanation = "";
-let guidance = "";
-let confidenceNote = "";
-
-// ===== INTERPRETATION =====
-if (type === "Likely Original") {
-  explanation = "No strong indicators of manipulation were detected. Compression patterns remain consistent across the image, and available metadata aligns with a typical camera-generated file.";
-
-  guidance = "This image appears authentic. Minor variations may still occur from normal processes like resizing or sharing, but there is no evidence of intentional editing.";
-
-  confidenceNote = "High confidence results typically indicate consistent image structure and intact metadata.";
-}
-
-else if (type === "Recompressed") {
-  explanation = "The image shows clear signs of recompression. This commonly occurs when a photo is saved again, uploaded to a platform, or shared through messaging services.";
-
-  guidance = "Recompression alone does not indicate tampering. However, it may obscure prior edits, so results should be interpreted with moderate caution.";
-
-  confidenceNote = "Moderate confidence reflects structural changes without strong localized anomalies.";
-}
-
-else if (type === "Edited") {
-  explanation = "Compression inconsistencies and structural irregularities were detected. These patterns are commonly associated with localized image edits or alterations.";
-
-  guidance = "This result suggests possible manipulation. Pay close attention to highlighted regions in the heatmap and verify the image source before relying on it.";
-
-  confidenceNote = "Lower confidence may occur when edits are subtle or partially masked by recompression.";
-}
-
-else {
-  explanation = "The analysis did not produce a strong or consistent signal.";
-
-  guidance = "This result is inconclusive. A higher-quality or original version of the image may provide more reliable results.";
-
-  confidenceNote = "Inconclusive results often occur with heavily compressed or low-resolution images.";
-}
-
-// ===== RENDER =====
-document.getElementById("result").innerHTML = `
-  <div style="font-size:18px;font-weight:600;margin-bottom:6px;">
-    ${type}
-  </div>
-
-  <div style="color:#9ca3af;font-size:14px;margin-bottom:12px;">
-    Confidence: ${conf}%
-  </div>
-
-  <div style="height:6px;background:#1e293b;border-radius:4px;margin-bottom:14px;">
-    <div style="width:${conf}%;height:100%;background:#3b82f6;"></div>
-  </div>
-
-  <div style="margin-bottom:12px;">
-    <strong>What this means</strong>
-    <div style="font-size:14px;color:#cbd5f5;margin-top:4px;">
-      ${explanation}
-    </div>
-  </div>
-
-  <div style="margin-bottom:12px;">
-    <strong>How to interpret this</strong>
-    <div style="font-size:14px;color:#cbd5f5;margin-top:4px;">
-      ${guidance}
-    </div>
-  </div>
-
-  <div style="margin-bottom:12px;">
-    <strong>Tampering likelihood</strong>
-    <div style="height:8px;background:#1e293b;border-radius:4px;margin-top:6px;">
-      <div style="width:${100-conf}%;height:100%;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);"></div>
-    </div>
-    <div style="font-size:12px;color:#9ca3af;margin-top:4px;">
-      Estimated likelihood of manipulation based on detected patterns
-    </div>
-  </div>
-
-  <div style="font-size:13px;color:#9ca3af;margin-top:10px;">
-    ${confidenceNote}
-  </div>
-
-  <div style="margin-top:14px;">
-    <span style="color:#3b82f6;cursor:pointer;font-size:13px;" onclick="showFullMeta()">
-      View full metadata →
-    </span>
-  </div>
-`;
-
-
-  if (data.ela?.overlay) {
-    document.getElementById("ela").src = data.ela.overlay;
-  }
-};
-
-function showFullMeta() {
-  let html = "";
-  const meta = window._lastMeta || {};
-
-  for (let k in meta) {
-    html += `<div><strong>${k}</strong>: ${JSON.stringify(meta[k])}</div><br>`;
-  }
-
-  document.getElementById("fullMeta").innerHTML = html;
-  show("metaScreen");
-}
-</script>
+      } catch (err) {
+        console.error(err);
+        resultEl.innerHTML = "Error analyzing image";
+      }
+    }
+  </script>
 
 </body>
 </html>
