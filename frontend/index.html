@@ -16,7 +16,6 @@
   --blue: #3b82f6;
 }
 
-/* BACKGROUND */
 body {
   font-family: 'Inter', sans-serif;
   background: radial-gradient(circle at 50% 30%, #111827 0%, #0a0a0a 60%);
@@ -24,7 +23,7 @@ body {
   margin: 0;
 }
 
-/* SCREEN SYSTEM */
+/* SCREENS */
 .screen {
   display: none;
   min-height: 100vh;
@@ -44,10 +43,9 @@ body {
 }
 
 .hero-logo-wrap {
-  display: inline-block;
   padding: 14px 20px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
   border-radius: 14px;
   margin-bottom: 30px;
 }
@@ -58,7 +56,7 @@ body {
 }
 
 .hero-title {
-  font-size: 36px;
+  font-size: 34px;
   font-weight: 600;
   margin-bottom: 14px;
 }
@@ -71,23 +69,11 @@ body {
 }
 
 .hero-cta {
-  display: inline-block;
   background: var(--blue);
   padding: 14px 28px;
   border-radius: 10px;
-  font-weight: 500;
   cursor: pointer;
-  transition: 0.2s;
-}
-.hero-cta:hover {
-  transform: translateY(-2px);
-  background: #2563eb;
-}
-
-.hero-note {
-  font-size: 12px;
-  color: #6b7280;
-  margin-top: 14px;
+  display: inline-block;
 }
 
 /* UPLOAD */
@@ -95,7 +81,6 @@ body {
   border: 2px dashed #2a2a2a;
   padding: 30px;
   border-radius: 12px;
-  text-align: center;
   cursor: pointer;
 }
 
@@ -119,6 +104,7 @@ body {
 .slider-container {
   position: relative;
 }
+
 .slider-container img {
   width: 100%;
   border-radius: 8px;
@@ -131,6 +117,7 @@ body {
   width: 50%;
   overflow: hidden;
 }
+
 .overlay img {
   width: 100%;
   mix-blend-mode: screen;
@@ -138,7 +125,6 @@ body {
 }
 
 .slider {
-  display: block;
   width: 100%;
   margin-top: 12px;
 }
@@ -165,32 +151,16 @@ body {
     <div class="hero-title">
       Know if an image is real.
     </div>
-<div class="hero-sub">
 
-  <div style="margin-bottom:12px;">
-    Ever wonder if a photo has been tampered with or altered?
-  </div>
-
-  <div style="margin-bottom:12px;">
-    PixelProof uses forensic analysis of compression patterns and metadata to detect edits, recompression, and authenticity with precision.
-  </div>
-
-  <div style="margin-bottom:12px;">
-    Upload an image—or capture one directly—to verify camera data and GPS location on an interactive map.
-  </div>
-
-  <div style="font-size:13px;color:#6b7280;">
-    3 free scans included • Instant results • No data stored
-  </div>
-
-</div>
+    <div class="hero-sub">
+      Ever wonder if a photo has been tampered with or altered?<br><br>
+      PixelProof uses forensic analysis of compression patterns and metadata to detect edits, recompression, and authenticity.<br><br>
+      Upload an image—or capture one—to verify camera data and GPS location on an interactive map.<br><br>
+      <span style="font-size:13px;color:#6b7280;">3 free scans • Instant results • No data stored</span>
+    </div>
 
     <div class="hero-cta" onclick="show('uploadScreen')">
       Analyze Image
-    </div>
-
-    <div class="hero-note">
-      Instant results • No data stored
     </div>
 
   </div>
@@ -199,12 +169,10 @@ body {
 
 <!-- UPLOAD -->
 <div id="uploadScreen" class="screen">
-
   <label class="upload">
     <input type="file" id="file" hidden>
     Click to select image
   </label>
-
 </div>
 
 <!-- RESULT -->
@@ -225,6 +193,25 @@ body {
 
 </div>
 
+<!-- FULL METADATA -->
+<div id="metaScreen" class="screen">
+
+  <div class="panel">
+    <div style="font-size:18px;font-weight:600;margin-bottom:12px;">
+      Full Metadata
+    </div>
+
+    <div id="fullMeta" style="font-size:13px;color:#cbd5f5;"></div>
+
+    <div style="margin-top:20px;">
+      <div class="hero-cta" onclick="show('resultScreen')">
+        Back to Results
+      </div>
+    </div>
+  </div>
+
+</div>
+
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
@@ -236,9 +223,7 @@ function show(id) {
 const slider = document.getElementById("slider");
 const overlay = document.getElementById("overlay");
 
-slider.oninput = () => {
-  overlay.style.width = slider.value + "%";
-};
+slider.oninput = () => overlay.style.width = slider.value + "%";
 
 document.getElementById("file").onchange = async e => {
 
@@ -259,94 +244,47 @@ document.getElementById("file").onchange = async e => {
   });
 
   const data = await res.json();
+  window._lastMeta = data.exif || {};
 
   const conf = Math.round((data.classification?.confidence || 0.5) * 100);
   const type = data.classification?.type || "Unknown";
 
- let explanation = "";
-let guidance = "";
+  let explanation = "";
+  let guidance = "";
 
-// ===== INTERPRETATION =====
-if (type === "Likely Original") {
-  explanation = "No strong indicators of manipulation were detected. Compression patterns are consistent across the image, and available metadata aligns with a typical camera capture.";
+  if (type === "Likely Original") {
+    explanation = "No strong indicators of manipulation were detected.";
+    guidance = "Image appears authentic.";
+  } else if (type === "Recompressed") {
+    explanation = "The image has been resaved or shared.";
+    guidance = "Recompression does not necessarily indicate editing.";
+  } else {
+    explanation = "Compression inconsistencies suggest possible editing.";
+    guidance = "Review carefully before trusting.";
+  }
 
-  guidance = "This image appears authentic. Minor variations can still occur due to normal processing (e.g., sharing or resizing), but no evidence suggests intentional editing.";
-}
+  document.getElementById("result").innerHTML = `
+    <strong>${type}</strong> (${conf}%)
 
-else if (type === "Recompressed") {
-  explanation = "The image shows signs of recompression. This typically occurs when an image is saved again, uploaded to a platform, or shared through messaging apps.";
-
-  guidance = "Recompression alone does not indicate tampering. However, it may obscure traces of prior edits, so results should be interpreted with moderate caution.";
-}
-
-else if (type === "Edited") {
-  explanation = "Compression inconsistencies and structural differences were detected. These patterns can indicate that parts of the image were altered or modified.";
-
-  guidance = "This result suggests potential editing. Review highlighted regions carefully and consider the source of the image before relying on it.";
-}
-
-else {
-  explanation = "The analysis did not produce a strong or consistent signal.";
-
-  guidance = "This result is inconclusive. Additional context or a higher-quality version of the image may improve analysis.";
-}
-
-// ===== BUILD UI =====
-document.getElementById("result").innerHTML = `
-  <div style="font-size:18px;font-weight:600;margin-bottom:6px;">
-    ${type}
-  </div>
-
-  <div style="color:#9ca3af;font-size:14px;margin-bottom:12px;">
-    Confidence: ${conf}%
-  </div>
-
-  <div style="height:6px;background:#1e293b;border-radius:4px;margin-bottom:14px;">
-    <div style="width:${conf}%;height:100%;background:#3b82f6;"></div>
-  </div>
-
-  <div style="margin-bottom:12px;">
-    <strong>What this means</strong>
-    <div style="font-size:14px;color:#cbd5f5;margin-top:4px;">
-      ${explanation}
+    <div style="height:6px;background:#1e293b;margin:10px 0;">
+      <div style="width:${conf}%;height:100%;background:#3b82f6;"></div>
     </div>
-  </div>
 
-  <div style="margin-bottom:12px;">
-    <strong>How to interpret this</strong>
-    <div style="font-size:14px;color:#cbd5f5;margin-top:4px;">
-      ${guidance}
+    <div><strong>What this means</strong><br>${explanation}</div><br>
+    <div><strong>How to interpret</strong><br>${guidance}</div>
+
+    <div style="margin-top:12px;">
+      <span style="color:#3b82f6;cursor:pointer;" onclick="showFullMeta()">
+        View full metadata →
+      </span>
     </div>
-  </div>
+  `;
 
-  <div style="margin-bottom:12px;">
-    <strong>Tampering likelihood</strong>
-    <div style="height:8px;background:#1e293b;border-radius:4px;margin-top:6px;">
-      <div style="width:${100-conf}%;height:100%;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);"></div>
-    </div>
-    <div style="font-size:12px;color:#9ca3af;margin-top:4px;">
-      Estimated likelihood of manipulation based on detected patterns
-    </div>
-  </div>
-
-  <div style="font-size:13px;color:#9ca3af;">
-    This analysis evaluates compression artifacts, structural consistency, and available metadata. It does not guarantee authenticity, but provides strong indicators based on forensic patterns.
-  </div>
-`;
-
-  if (data.exif) {
-    let html = "";
-
-    if (data.exif.make) html += `Camera: ${data.exif.make} ${data.exif.model||""}<br>`;
-    if (data.exif.date) html += `Date: ${new Date(data.exif.date).toLocaleString()}<br>`;
-
-    if (data.exif.gps) {
-      html += `Location: ${data.exif.gps.lat.toFixed(5)}, ${data.exif.gps.lon.toFixed(5)}<br>`;
-      html += `<iframe width="100%" height="200"
-        src="https://maps.google.com/maps?q=${data.exif.gps.lat},${data.exif.gps.lon}&z=14&output=embed"></iframe>`;
-    }
-
-    document.getElementById("meta").innerHTML = html;
+  if (data.exif?.gps) {
+    document.getElementById("meta").innerHTML =
+      `Location: ${data.exif.gps.lat}, ${data.exif.gps.lon}
+       <iframe width="100%" height="200"
+       src="https://maps.google.com/maps?q=${data.exif.gps.lat},${data.exif.gps.lon}&output=embed"></iframe>`;
     document.getElementById("meta").style.display = "block";
   }
 
@@ -354,6 +292,18 @@ document.getElementById("result").innerHTML = `
     document.getElementById("ela").src = data.ela.overlay;
   }
 };
+
+function showFullMeta() {
+  let html = "";
+  const meta = window._lastMeta || {};
+
+  for (let k in meta) {
+    html += `<div><strong>${k}</strong>: ${JSON.stringify(meta[k])}</div><br>`;
+  }
+
+  document.getElementById("fullMeta").innerHTML = html;
+  show("metaScreen");
+}
 </script>
 
 </body>
