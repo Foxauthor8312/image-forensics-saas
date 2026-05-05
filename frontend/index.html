@@ -4,11 +4,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PixelProof</title>
 
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
 <style>
+:root {
+  --bg: #0a0a0a;
+  --panel: #0f172a;
+  --border: #1e293b;
+  --muted: #9ca3af;
+  --text: #e5e7eb;
+  --blue: #3b82f6;
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #0a0a0a;
-  color: #e5e7eb;
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
   margin: 0;
 }
 
@@ -17,15 +28,16 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 16px 32px;
+  padding: 18px 32px;
 }
 .header img { height: 56px; }
-.header span { opacity: 0.7; }
+.header span { opacity: 0.7; font-size: 15px; }
 
 /* LAYOUT */
 .wrapper {
   display: grid;
   grid-template-columns: 420px 1fr;
+  min-height: calc(100vh - 80px);
 }
 
 /* LEFT */
@@ -35,24 +47,28 @@ body {
   flex-direction: column;
   align-items: center;
 }
+
 .tagline {
-  color: #9ca3af;
-  margin-bottom: 30px;
+  color: var(--muted);
   text-align: center;
+  margin-bottom: 30px;
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 /* UPLOAD */
 .upload {
-  display: block;
   width: 100%;
   max-width: 320px;
   border: 2px dashed #2a2a2a;
-  padding: 24px;
+  padding: 26px;
   border-radius: 12px;
+  text-align: center;
   cursor: pointer;
+  transition: 0.2s;
 }
 .upload:hover {
-  border-color: #3b82f6;
+  border-color: var(--blue);
   background: rgba(59,130,246,0.05);
 }
 
@@ -64,19 +80,36 @@ body {
 
 /* PANEL */
 .panel {
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 18px;
   border-radius: 12px;
   max-width: 520px;
   margin: 0 auto 20px auto;
 }
 
+/* RESULT */
+.result-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+.conf-bar {
+  height: 6px;
+  background: var(--border);
+  margin: 10px 0;
+}
+.conf-fill {
+  height: 100%;
+  background: var(--blue);
+}
+
 /* SLIDER */
+.viewer {
+  max-width: 520px;
+  margin: 0 auto;
+}
 .slider-container {
   position: relative;
-  max-width: 520px;
-  margin: auto;
 }
 .slider-container img {
   width: 100%;
@@ -95,15 +128,17 @@ body {
   opacity: 0.8;
 }
 .slider {
+  display: block;
   width: 100%;
-  max-width: 520px;
-  margin: 10px auto;
+  margin-top: 12px;
 }
 
-/* TEXT */
-.meta { font-size: 14px; color: #cbd5f5; }
-.label { color: #9ca3af; }
+/* META */
+.meta { font-size: 14px; margin-bottom: 6px; }
+.label { color: var(--muted); }
 
+/* SMALL */
+.small { font-size: 13px; color: var(--muted); }
 </style>
 </head>
 
@@ -132,7 +167,7 @@ body {
 <div id="result" class="panel"></div>
 <div id="meta" class="panel" style="display:none;"></div>
 
-<div id="viewer" style="display:none;">
+<div id="viewer" class="viewer" style="display:none;">
   <div class="slider-container">
     <img id="img">
     <div class="overlay" id="overlay">
@@ -143,7 +178,6 @@ body {
 </div>
 
 </div>
-
 </div>
 
 <script>
@@ -157,6 +191,7 @@ slider.oninput = () => {
 };
 
 document.getElementById("file").onchange = async e => {
+
   const file = e.target.files[0];
   if (!file) return;
 
@@ -176,62 +211,54 @@ document.getElementById("file").onchange = async e => {
   const conf = Math.round((data.classification?.confidence || 0.5) * 100);
   const type = data.classification?.type || "Unknown";
 
-  // ===== BREAKDOWN =====
   let breakdown = [];
-
   if (data.ela?.score > 25) breakdown.push(["High compression anomalies", -30]);
-  else if (data.ela?.score > 10) breakdown.push(["Moderate compression variation", -15]);
+  else if (data.ela?.score > 10) breakdown.push(["Moderate variation", -15]);
   else breakdown.push(["Consistent compression", +20]);
 
   if (data.exif?.make) breakdown.push(["Camera metadata present", +10]);
-  else breakdown.push(["Missing camera metadata", -15]);
+  else breakdown.push(["Missing metadata", -15]);
 
-  if (data.exif?.gps) breakdown.push(["GPS metadata present", +5]);
-  else breakdown.push(["No GPS metadata", -5]);
+  if (data.exif?.gps) breakdown.push(["GPS present", +5]);
 
-  // ===== RESULT =====
   document.getElementById("result").innerHTML = `
-    <strong>${type}</strong> (${conf}%)
+    <div class="result-title">${type} (${conf}%)</div>
 
-    <div style="height:6px;background:#1e293b;margin:10px 0;">
-      <div style="width:${conf}%;height:100%;background:#3b82f6;"></div>
+    <div class="conf-bar">
+      <div class="conf-fill" style="width:${conf}%"></div>
     </div>
 
-    <div style="margin-top:10px;font-size:14px;">
-      Tampering Probability
-      <div style="height:8px;background:#1e293b;">
-        <div style="width:${100-conf}%;height:100%;background:linear-gradient(90deg,green,orange,red);"></div>
-      </div>
+    <div class="small">Tampering Probability</div>
+    <div class="conf-bar">
+      <div style="width:${100-conf}%;height:100%;
+        background:linear-gradient(90deg,green,orange,red);"></div>
     </div>
 
-    <div style="margin-top:10px;font-size:13px;color:#9ca3af;">
+    <div class="small" style="margin-top:10px;">
       ${breakdown.map(b => `${b[0]} (${b[1]})`).join("<br>")}
     </div>
   `;
 
-  // ===== METADATA =====
   if (data.exif) {
     const ex = data.exif;
     let html = "";
 
-    if (ex.make) html += `<div class="meta"><span class="label">Camera:</span> ${ex.make} ${ex.model || ""}</div>`;
+    if (ex.make) html += `<div class="meta"><span class="label">Camera:</span> ${ex.make} ${ex.model||""}</div>`;
     if (ex.date) html += `<div class="meta"><span class="label">Date:</span> ${new Date(ex.date).toLocaleString()}</div>`;
     if (ex.iso) html += `<div class="meta"><span class="label">ISO:</span> ${ex.iso}</div>`;
 
     if (ex.gps) {
       html += `<div class="meta"><span class="label">Location:</span> ${ex.gps.lat.toFixed(5)}, ${ex.gps.lon.toFixed(5)}</div>`;
-      html += `<iframe width="100%" height="200" src="https://maps.google.com/maps?q=${ex.gps.lat},${ex.gps.lon}&z=14&output=embed"></iframe>`;
+      html += `<iframe width="100%" height="200"
+        src="https://maps.google.com/maps?q=${ex.gps.lat},${ex.gps.lon}&z=14&output=embed"></iframe>`;
     }
 
-    // integrity
     let score = 100;
     if (!ex.make) score -= 20;
     if (!ex.date) score -= 20;
     if (!ex.gps) score -= 10;
 
-    html += `<div class="meta" style="margin-top:10px;">
-      <span class="label">Metadata Integrity:</span> ${score}%
-    </div>`;
+    html += `<div class="meta"><span class="label">Metadata Integrity:</span> ${score}%</div>`;
 
     document.getElementById("meta").innerHTML = html;
     document.getElementById("meta").style.display = "block";
