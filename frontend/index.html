@@ -35,11 +35,12 @@ body {
   grid-template-columns: 420px 1fr;
 }
 
+/* LEFT */
 .left {
   padding: 40px;
   display: flex;
   flex-direction: column;
-  align-items: center;   /* 🔥 keeps box centered */
+  align-items: center;
 }
 
 .tagline {
@@ -47,129 +48,18 @@ body {
   color: #9ca3af;
   margin-bottom: 30px;
   max-width: 320px;
+  text-align: center;
 }
 
+/* UPLOAD */
 .upload {
-  display: block;              /* 🔥 critical fix */
-  width: 100%;                 /* prevents wrapping break */
+  display: block;
+  width: 100%;
   max-width: 320px;
-
-  border: 2px dashed #2a2a2a;
-  padding: 24px;
-  border-radius: 12px;
-
-  cursor: pointer;
-  transition: 0.2s;
-}
-.upload:hover {
-  border-color: #3b82f6;
-}
-
-/* RIGHT */
-.right {
-  background: #111;
-  padding: 40px;
-}
-
-/* RESULT PANEL */
-#resultCard {
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  padding: 20px;
-  border-radius: 12px;
-  max-width: 520px;
-  margin: 0 auto 20px auto;
-}
-
-.result-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.result-type {
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.result-confidence {
-  color: #3b82f6;
-  font-size: 18px;
-}
-
-.confidence-bar {
-  height: 6px;
-  background: #1e293b;
-  border-radius: 4px;
-  margin-bottom: 15px;
-  overflow: hidden;
-}
-
-.confidence-fill {
-  height: 100%;
-  background: #3b82f6;
-}
-
-.result-summary {
-  font-weight: 600;
-}
-
-.result-explanation {
-  color: #9ca3af;
-}
-
-.result-reasons {
-  padding-left: 18px;
-  font-size: 14px;
-  color: #cbd5f5;
-}
-
-.confidence-note {
-  font-size: 12px;
-  color: #9ca3af;
-  margin-top: 10px;
-}
-
-/* SLIDER */
-.slider-container {
-  position: relative;
-  max-width: 520px;
-  margin: auto;
-}
-
-.slider-container img {
-  width: 100%;
-  display: block;
-  border-radius: 8px;
-}
-
-.overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 50%;
-  overflow: hidden;
-}
-
-.overlay img {
-  width: 100%;
-  mix-blend-mode: difference;
-}
-
-.slider {
-  width: 100%;
-  max-width: 520px;
-  margin: 10px auto 0 auto;
-  display: block;
-}
-  /* ===== UPLOAD BOX FIX ===== */
-
-.upload {
   border: 2px dashed #2a2a2a;
   padding: 24px;
   border-radius: 12px;
   cursor: pointer;
-  max-width: 320px;
   transition: 0.2s;
 }
 
@@ -180,19 +70,34 @@ body {
 
 .upload-content {
   text-align: center;
-  width: 100%;
 }
+
 .upload-title {
   font-weight: 600;
-  margin-bottom: 4px;
 }
 
 .upload-sub {
   font-size: 13px;
   color: #9ca3af;
 }
-  /* ===== METADATA PANEL ===== */
 
+/* RIGHT */
+.right {
+  background: #111;
+  padding: 40px;
+}
+
+/* RESULT */
+#resultCard {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  padding: 20px;
+  border-radius: 12px;
+  max-width: 520px;
+  margin: 0 auto 20px auto;
+}
+
+/* METADATA */
 #metaBlock {
   background: #0f172a;
   border: 1px solid #1e293b;
@@ -216,6 +121,38 @@ body {
   margin-top: 10px;
   border-radius: 8px;
   overflow: hidden;
+}
+
+/* SLIDER */
+.slider-container {
+  position: relative;
+  max-width: 520px;
+  margin: auto;
+}
+
+.slider-container img {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  overflow: hidden;
+}
+
+.overlay img {
+  width: 100%;
+  mix-blend-mode: difference;
+}
+
+.slider {
+  width: 100%;
+  max-width: 520px;
+  margin: 10px auto;
+  display: block;
 }
 </style>
 </head>
@@ -266,6 +203,8 @@ Detect edits and verify image authenticity instantly.
 
 </div>
 
+</div>
+
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
@@ -276,50 +215,11 @@ slider.addEventListener("input", () => {
   overlay.style.width = slider.value + "%";
 });
 
-function interpret(type, data) {
-  const reasons = [];
-
-  if (!data.exif) {
-    reasons.push("No metadata present");
-  }
-
-  if (data.ela && data.ela.score > 25) {
-    reasons.push("High compression inconsistencies detected");
-  } else if (data.ela && data.ela.score > 10) {
-    reasons.push("Moderate compression differences detected");
-  } else {
-    reasons.push("Low compression differences");
-  }
-
-  if (type === "Likely Original") {
-    return {
-      summary: "No strong evidence of manipulation detected.",
-      explanation: "Image structure appears consistent.",
-      reasons
-    };
-  }
-
-  if (type === "Recompressed") {
-    return {
-      summary: "Image has been resaved or shared.",
-      explanation: "Compression artifacts detected.",
-      reasons
-    };
-  }
-
-  if (type === "Edited") {
-    return {
-      summary: "Possible image modification detected.",
-      explanation: "Compression inconsistencies suggest alteration.",
-      reasons
-    };
-  }
-
-  return {
-    summary: "Inconclusive result.",
-    explanation: "",
-    reasons
-  };
+function interpret(type) {
+  if (type === "Likely Original") return "No strong evidence of manipulation.";
+  if (type === "Recompressed") return "Image has been resaved or shared.";
+  if (type === "Edited") return "Possible modification detected.";
+  return "Inconclusive.";
 }
 
 document.getElementById("file").onchange = async (e) => {
@@ -327,8 +227,9 @@ document.getElementById("file").onchange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  document.getElementById("originalImage").src = URL.createObjectURL(file);
   document.getElementById("viewerBlock").style.display = "block";
+  document.getElementById("originalImage").src = URL.createObjectURL(file);
+
   const form = new FormData();
   form.append("image", file);
 
@@ -338,105 +239,76 @@ document.getElementById("file").onchange = async (e) => {
   });
 
   const data = await res.json();
-  cconst metaBlock = document.getElementById("metaBlock");
-
-if (data.exif) {
-  const ex = data.exif;
-  let html = "";
-
-  // --- BASIC ---
-  if (ex.make || ex.model) {
-    html += `<div class="meta-row"><span class="meta-label">Camera:</span> ${ex.make || ""} ${ex.model || ""}</div>`;
-  }
-
-  if (ex.date) {
-    html += `<div class="meta-row"><span class="meta-label">Date:</span> ${new Date(ex.date).toLocaleString()}</div>`;
-  }
-
-  // --- EXPOSURE ---
-  if (ex.iso) {
-    html += `<div class="meta-row"><span class="meta-label">ISO:</span> ${ex.iso}</div>`;
-  }
-
-  if (ex.exposureTime) {
-    html += `<div class="meta-row"><span class="meta-label">Shutter:</span> ${ex.exposureTime}</div>`;
-  }
-
-  if (ex.fNumber) {
-    html += `<div class="meta-row"><span class="meta-label">Aperture:</span> f/${ex.fNumber}</div>`;
-  }
-
-  if (ex.focalLength) {
-    html += `<div class="meta-row"><span class="meta-label">Focal Length:</span> ${ex.focalLength}mm</div>`;
-  }
-
-  // --- LENS ---
-  if (ex.lens) {
-    html += `<div class="meta-row"><span class="meta-label">Lens:</span> ${ex.lens}</div>`;
-  }
-
-  // --- RESOLUTION ---
-  if (data.size) {
-    html += `<div class="meta-row"><span class="meta-label">File Size:</span> ${(data.size / 1024).toFixed(1)} KB</div>`;
-  }
-
-  // --- GPS ---
-  if (ex.gps) {
-    const { lat, lon } = ex.gps;
-
-    html += `<div class="meta-row"><span class="meta-label">Location:</span> ${lat.toFixed(5)}, ${lon.toFixed(5)}</div>`;
-
-    html += `
-      <div class="map">
-        <iframe
-          width="100%"
-          height="200"
-          frameborder="0"
-          style="border:0"
-          src="https://maps.google.com/maps?q=${lat},${lon}&z=14&output=embed"
-          allowfullscreen>
-        </iframe>
-      </div>
-    `;
-  }
-
-  metaBlock.innerHTML = html;
-  metaBlock.style.display = "block";
-} else {
-  metaBlock.style.display = "none";
-}
-
-  metaBlock.innerHTML = html;
-  metaBlock.style.display = "block";
-} else {
-  metaBlock.style.display = "none";
-}
 
   const type = data.classification?.type || "Result";
   const conf = Math.round((data.classification?.confidence || 0.5) * 100);
-  const result = interpret(type, data);
 
   document.getElementById("resultCard").innerHTML = `
-    <div class="result-header">
-      <div class="result-type">${type}</div>
-      <div class="result-confidence">${conf}%</div>
-    </div>
-
-    <div class="confidence-bar">
-      <div class="confidence-fill" style="width:${conf}%"></div>
-    </div>
-
-    <p class="result-summary">${result.summary}</p>
-    <p class="result-explanation">${result.explanation}</p>
-
-    <ul class="result-reasons">
-      ${result.reasons.map(r => `<li>${r}</li>`).join("")}
-    </ul>
-
-    <p class="confidence-note">
-      Confidence reflects how strongly the observed patterns support this classification.
-    </p>
+    <h2>${type}</h2>
+    <p>${interpret(type)}</p>
+    <p><strong>Confidence:</strong> ${conf}%</p>
   `;
+
+  // ===== METADATA =====
+  const metaBlock = document.getElementById("metaBlock");
+
+  if (data.exif) {
+    const ex = data.exif;
+    let html = "";
+
+    if (ex.make || ex.model) {
+      html += `<div class="meta-row"><span class="meta-label">Camera:</span> ${ex.make} ${ex.model}</div>`;
+    }
+
+    if (ex.date) {
+      html += `<div class="meta-row"><span class="meta-label">Date:</span> ${new Date(ex.date).toLocaleString()}</div>`;
+    }
+
+    if (ex.iso) {
+      html += `<div class="meta-row"><span class="meta-label">ISO:</span> ${ex.iso}</div>`;
+    }
+
+    if (ex.exposureTime) {
+      html += `<div class="meta-row"><span class="meta-label">Shutter:</span> ${ex.exposureTime}</div>`;
+    }
+
+    if (ex.fNumber) {
+      html += `<div class="meta-row"><span class="meta-label">Aperture:</span> f/${ex.fNumber}</div>`;
+    }
+
+    if (ex.focalLength) {
+      html += `<div class="meta-row"><span class="meta-label">Focal Length:</span> ${ex.focalLength}mm</div>`;
+    }
+
+    if (ex.lens) {
+      html += `<div class="meta-row"><span class="meta-label">Lens:</span> ${ex.lens}</div>`;
+    }
+
+    if (data.size) {
+      html += `<div class="meta-row"><span class="meta-label">File Size:</span> ${(data.size / 1024).toFixed(1)} KB</div>`;
+    }
+
+    if (ex.gps) {
+      const { lat, lon } = ex.gps;
+
+      html += `<div class="meta-row"><span class="meta-label">Location:</span> ${lat.toFixed(5)}, ${lon.toFixed(5)}</div>`;
+
+      html += `
+        <div class="map">
+          <iframe
+            width="100%"
+            height="200"
+            src="https://maps.google.com/maps?q=${lat},${lon}&z=14&output=embed">
+          </iframe>
+        </div>
+      `;
+    }
+
+    metaBlock.innerHTML = html;
+    metaBlock.style.display = "block";
+  } else {
+    metaBlock.style.display = "none";
+  }
 
   if (data.ela && data.ela.overlay) {
     document.getElementById("elaOverlay").src = data.ela.overlay;
