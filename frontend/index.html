@@ -191,6 +191,32 @@ body {
   font-size: 13px;
   color: #9ca3af;
 }
+  /* ===== METADATA PANEL ===== */
+
+#metaBlock {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  padding: 16px;
+  border-radius: 12px;
+  max-width: 520px;
+  margin: 0 auto 20px auto;
+  font-size: 14px;
+}
+
+.meta-row {
+  margin-bottom: 6px;
+  color: #cbd5f5;
+}
+
+.meta-label {
+  color: #9ca3af;
+}
+
+.map {
+  margin-top: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+}
 </style>
 </head>
 
@@ -222,6 +248,7 @@ Detect edits and verify image authenticity instantly.
 <div class="right">
 
 <div id="resultCard"></div>
+<div id="metaBlock" style="display:none;"></div>
 
 <div id="viewerBlock" style="display:none;">
 
@@ -311,6 +338,47 @@ document.getElementById("file").onchange = async (e) => {
   });
 
   const data = await res.json();
+  const metaBlock = document.getElementById("metaBlock");
+
+if (data.exif) {
+  let html = "";
+
+  if (data.exif.make || data.exif.model) {
+    html += `<div class="meta-row"><span class="meta-label">Camera:</span> ${data.exif.make || ""} ${data.exif.model || ""}</div>`;
+  }
+
+  if (data.exif.date) {
+    html += `<div class="meta-row"><span class="meta-label">Date:</span> ${new Date(data.exif.date).toLocaleString()}</div>`;
+  }
+
+  if (data.exif.iso) {
+    html += `<div class="meta-row"><span class="meta-label">ISO:</span> ${data.exif.iso}</div>`;
+  }
+
+  if (data.exif.gps) {
+    const { lat, lon } = data.exif.gps;
+
+    html += `<div class="meta-row"><span class="meta-label">Location:</span> ${lat.toFixed(5)}, ${lon.toFixed(5)}</div>`;
+
+    html += `
+      <div class="map">
+        <iframe
+          width="100%"
+          height="200"
+          frameborder="0"
+          style="border:0"
+          src="https://maps.google.com/maps?q=${lat},${lon}&z=14&output=embed"
+          allowfullscreen>
+        </iframe>
+      </div>
+    `;
+  }
+
+  metaBlock.innerHTML = html;
+  metaBlock.style.display = "block";
+} else {
+  metaBlock.style.display = "none";
+}
 
   const type = data.classification?.type || "Result";
   const conf = Math.round((data.classification?.confidence || 0.5) * 100);
