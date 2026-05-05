@@ -22,20 +22,14 @@ body {
   border-radius: 10px;
 }
 
-/* 🔙 BACK BUTTON */
+/* BACK */
 .back {
-  display: inline-block;
-  margin-bottom: 15px;
   color: #94a3b8;
   text-decoration: none;
   font-size: 14px;
 }
 
-.back:hover {
-  color: #e2e8f0;
-}
-
-input { width: 100%; margin-bottom: 15px; }
+input { width: 100%; margin: 15px 0; }
 
 button {
   display: block;
@@ -48,15 +42,41 @@ button {
   cursor: pointer;
 }
 
-.section { margin-top: 18px; }
+/* TABS */
+.tabs {
+  display: flex;
+  margin-top: 20px;
+  border-bottom: 1px solid #334155;
+}
 
+.tab {
+  padding: 10px;
+  cursor: pointer;
+  color: #94a3b8;
+}
+
+.tab.active {
+  color: white;
+  border-bottom: 2px solid white;
+}
+
+.tab-content {
+  display: none;
+  margin-top: 15px;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* META */
 .meta-row {
   padding: 6px 0;
   border-bottom: 1px solid #334155;
 }
 
-.signal { font-size: 14px; margin: 4px 0; }
-
+/* SIGNALS */
+.signal { margin: 4px 0; }
 .good { color: #22c55e; }
 .warn { color: #f59e0b; }
 .bad { color: #ef4444; }
@@ -87,7 +107,6 @@ button {
   width: 2px;
   height: 100%;
   background: white;
-  opacity: 0.7;
 }
 
 .slider { width: 100%; margin-top: 12px; }
@@ -98,13 +117,12 @@ button {
 
 <div class="container">
 
-  <!-- 🔙 BACK LINK -->
-  <a href="index.html" class="back">← Back to Home</a>
+<a href="index.html" class="back">← Back</a>
 
-  <input type="file" id="fileInput" accept="image/*" />
-  <button onclick="analyze()">Run Analysis</button>
+<input type="file" id="fileInput" accept="image/*" />
+<button onclick="analyze()">Run Analysis</button>
 
-  <div id="result"></div>
+<div id="result"></div>
 
 </div>
 
@@ -114,25 +132,33 @@ const API = "https://image-forensics-saas-1.onrender.com";
 const REPORT = {
   "Likely Original": {
     color: "#22c55e",
-    explanation: "Compression patterns and metadata are consistent with an original image.",
-    guidance: "No strong evidence of manipulation detected."
+    explanation: "Compression and metadata are consistent with an original image.",
+    guidance: "No strong signs of manipulation."
   },
   "Recompressed": {
     color: "#f59e0b",
-    explanation: "The image has been resaved or processed, altering compression patterns.",
-    guidance: "Recompression does not necessarily mean editing."
+    explanation: "Image has been resaved or processed.",
+    guidance: "May hide prior edits."
   },
   "Edited": {
     color: "#ef4444",
-    explanation: "Irregular compression patterns suggest localized changes.",
-    guidance: "Possible manipulation detected."
+    explanation: "Compression inconsistencies detected.",
+    guidance: "Possible manipulation."
   },
   "Unknown": {
     color: "#9ca3af",
-    explanation: "No strong signal detected.",
-    guidance: "Result inconclusive."
+    explanation: "No strong signal.",
+    guidance: "Inconclusive."
   }
 };
+
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+
+  document.getElementById("tab-" + name).classList.add("active");
+  document.getElementById(name).classList.add("active");
+}
 
 async function compressImage(file, maxWidth = 1200, quality = 0.75) {
   return new Promise(resolve => {
@@ -152,34 +178,20 @@ async function compressImage(file, maxWidth = 1200, quality = 0.75) {
   });
 }
 
-async function fetchWithRetry(url, options, retries = 2) {
-  try {
-    return await fetch(url, options);
-  } catch {
-    if (retries > 0) {
-      await new Promise(r => setTimeout(r, 2000));
-      return fetchWithRetry(url, options, retries - 1);
-    }
-    throw new Error("Network error");
-  }
-}
-
 async function analyze() {
-  const fileInput = document.getElementById("fileInput");
+  const file = document.getElementById("fileInput").files[0];
   const resultEl = document.getElementById("result");
+  if (!file) return alert("Select an image");
 
-  if (!fileInput.files.length) return alert("Select an image");
-
-  const originalFile = fileInput.files[0];
   resultEl.innerHTML = "Processing...";
 
-  const compressed = await compressImage(originalFile);
+  const compressed = await compressImage(file);
 
   const form = new FormData();
   form.append("image", compressed, "upload.jpg");
 
   try {
-    const res = await fetchWithRetry(API + "/analyze", {
+    const res = await fetch(API + "/analyze", {
       method: "POST",
       body: form
     });
@@ -194,57 +206,51 @@ async function analyze() {
     const lon = data.gps?.lon;
 
     const signals = [];
+    if (data.exif) signals.push('<div class="signal good">✔ Metadata present</div>');
+    else signals.push('<div class="signal warn">⚠ No metadata</div>');
 
-    if (data.exif) signals.push({ text: "Camera metadata present", class: "good" });
-    else signals.push({ text: "Metadata missing", class: "warn" });
+    if (lat && lon) signals.push('<div class="signal good">✔ GPS detected</div>');
+    else signals.push('<div class="signal warn">⚠ No GPS</div>');
 
-    if (lat && lon) signals.push({ text: "GPS location detected", class: "good" });
-    else signals.push({ text: "No GPS data", class: "warn" });
-
-    if (type === "Edited") signals.push({ text: "Compression anomalies detected", class: "bad" });
+    if (type === "Edited") signals.push('<div class="signal bad">✖ Compression anomalies</div>');
 
     resultEl.innerHTML = `
-      <div style="font-size:20px;font-weight:600;color:${cfg.color};">
-        ${type}
+      <div style="font-size:20px;color:${cfg.color};">${type}</div>
+      <div>Confidence: ${conf}%</div>
+
+      <div class="tabs">
+        <div class="tab active" id="tab-overview" onclick="switchTab('overview')">Overview</div>
+        <div class="tab" id="tab-metadata" onclick="switchTab('metadata')">Metadata</div>
+        <div class="tab" id="tab-ela" onclick="switchTab('ela')">ELA</div>
       </div>
 
-      <div style="color:#9ca3af;margin-bottom:10px;">
-        Confidence: ${conf}%
+      <div id="overview" class="tab-content active">
+        <p>${cfg.explanation}</p>
+        <div>${signals.join("")}</div>
+        <p>${cfg.guidance}</p>
       </div>
 
-      <div style="height:6px;background:#1e293b;border-radius:4px;margin-bottom:16px;">
-        <div style="width:${conf}%;height:100%;background:${cfg.color};"></div>
+      <div id="metadata" class="tab-content">
+        <div class="meta-row">Camera: ${data.exif?.make ?? "-"}</div>
+        <div class="meta-row">Date: ${data.exif?.date ?? "-"}</div>
+        <div class="meta-row">Latitude: ${lat ?? "-"}</div>
+        <div class="meta-row">Longitude: ${lon ?? "-"}</div>
       </div>
 
-      <div class="section">
-        <strong>Why this result was reached</strong>
-        <div style="margin-top:6px;color:#cbd5f5;">${cfg.explanation}</div>
-      </div>
+      <div id="ela" class="tab-content">
+        <div class="viewer">
+          <div class="slider-container">
+            <img src="${URL.createObjectURL(file)}">
 
-      <div class="section">
-        <strong>Signals detected</strong>
-        ${signals.map(s => `<div class="signal ${s.class}">• ${s.text}</div>`).join("")}
-      </div>
+            <div class="overlay" id="overlay">
+              <img src="${data.ela?.overlay}">
+            </div>
 
-      <div class="section">
-        <strong>How to interpret</strong>
-        <div style="margin-top:6px;color:#cbd5f5;">${cfg.guidance}</div>
-      </div>
-
-      <div class="section viewer">
-        <strong>ELA Analysis</strong>
-
-        <div class="slider-container">
-          <img src="${URL.createObjectURL(originalFile)}">
-
-          <div class="overlay" id="overlay">
-            <img src="${data.ela?.overlay}">
+            <div class="divider" id="divider"></div>
           </div>
 
-          <div class="divider" id="divider"></div>
+          <input type="range" id="slider" min="0" max="100" value="50" class="slider">
         </div>
-
-        <input type="range" id="slider" min="0" max="100" value="50" class="slider">
       </div>
     `;
 
@@ -252,12 +258,13 @@ async function analyze() {
     const overlay = document.getElementById("overlay");
     const divider = document.getElementById("divider");
 
-    overlay.style.width = "50%";
-
-    slider.oninput = () => {
-      overlay.style.width = slider.value + "%";
-      divider.style.left = slider.value + "%";
-    };
+    if (slider && overlay) {
+      overlay.style.width = "50%";
+      slider.oninput = () => {
+        overlay.style.width = slider.value + "%";
+        divider.style.left = slider.value + "%";
+      };
+    }
 
   } catch (err) {
     console.error(err);
