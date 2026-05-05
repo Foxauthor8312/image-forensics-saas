@@ -16,14 +16,15 @@
   --blue: #3b82f6;
 }
 
+/* BACKGROUND */
 body {
   font-family: 'Inter', sans-serif;
-  background: var(--bg);
+  background: radial-gradient(circle at 50% 30%, #111827 0%, #0a0a0a 60%);
   color: var(--text);
   margin: 0;
 }
 
-/* SCREENS */
+/* SCREEN SYSTEM */
 .screen {
   display: none;
   min-height: 100vh;
@@ -31,34 +32,62 @@ body {
   justify-content: center;
   flex-direction: column;
 }
-
 .screen.active {
   display: flex;
 }
 
-/* INTRO */
-.logo {
-  height: 80px;
-  margin-bottom: 20px;
-}
-
-.title {
-  font-size: 28px;
-  font-weight: 600;
-}
-
-.subtitle {
-  color: var(--muted);
-  margin: 10px 0 30px;
+/* HERO */
+.hero {
   text-align: center;
-  max-width: 400px;
+  max-width: 540px;
+  padding: 60px 20px;
 }
 
-.button {
+.hero-logo-wrap {
+  display: inline-block;
+  padding: 14px 20px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  margin-bottom: 30px;
+}
+
+.hero-logo {
+  height: 80px;
+  filter: brightness(1.4) contrast(1.2);
+}
+
+.hero-title {
+  font-size: 36px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.hero-sub {
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 34px;
+}
+
+.hero-cta {
+  display: inline-block;
   background: var(--blue);
-  padding: 12px 22px;
-  border-radius: 8px;
+  padding: 14px 28px;
+  border-radius: 10px;
+  font-weight: 500;
   cursor: pointer;
+  transition: 0.2s;
+}
+.hero-cta:hover {
+  transform: translateY(-2px);
+  background: #2563eb;
+}
+
+.hero-note {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 14px;
 }
 
 /* UPLOAD */
@@ -66,9 +95,8 @@ body {
   border: 2px dashed #2a2a2a;
   padding: 30px;
   border-radius: 12px;
-  cursor: pointer;
   text-align: center;
-  margin-top: 20px;
+  cursor: pointer;
 }
 
 /* PANEL */
@@ -91,7 +119,6 @@ body {
 .slider-container {
   position: relative;
 }
-
 .slider-container img {
   width: 100%;
   border-radius: 8px;
@@ -104,7 +131,6 @@ body {
   width: 50%;
   overflow: hidden;
 }
-
 .overlay img {
   width: 100%;
   mix-blend-mode: screen;
@@ -112,8 +138,9 @@ body {
 }
 
 .slider {
+  display: block;
   width: 100%;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 /* TEXT */
@@ -121,89 +148,42 @@ body {
   font-size: 13px;
   color: var(--muted);
 }
-  /* HERO */
-
-.hero {
-  text-align: center;
-  max-width: 520px;
-  padding: 40px 20px;
-}
-
-.hero-logo {
-  height: 70px;
-  margin-bottom: 25px;
-}
-
-.hero-title {
-  font-size: 36px;
-  font-weight: 600;
-  line-height: 1.2;
-  margin-bottom: 14px;
-}
-
-.hero-sub {
-  font-size: 15px;
-  color: #9ca3af;
-  line-height: 1.6;
-  margin-bottom: 30px;
-}
-
-.hero-cta {
-  display: inline-block;
-  background: #3b82f6;
-  padding: 14px 26px;
-  border-radius: 10px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: 0.2s;
-}
-
-.hero-cta:hover {
-  transform: translateY(-2px);
-  background: #2563eb;
-}
-
-.hero-note {
-  font-size: 12px;
-  color: #6b7280;
-  margin-top: 12px;
-}
 </style>
 </head>
 
 <body>
 
-<!-- INTRO SCREEN -->
+<!-- INTRO -->
 <div id="intro" class="screen active">
 
   <div class="hero">
 
-    <img src="logo.png" class="hero-logo">
+    <div class="hero-logo-wrap">
+      <img src="logo.png" class="hero-logo">
+    </div>
 
     <div class="hero-title">
-      Verify Images.<br>Expose Edits.
+      Know if an image is real.
     </div>
 
     <div class="hero-sub">
-      PixelProof analyzes compression patterns and metadata to detect manipulation, recompression, and authenticity with forensic-level insight.
+      PixelProof analyzes compression artifacts and metadata to detect edits, recompression, and manipulation.
     </div>
 
-    <div class="hero-cta" onclick="goToUpload()">
-      Analyze an Image
+    <div class="hero-cta" onclick="show('uploadScreen')">
+      Analyze Image
     </div>
 
     <div class="hero-note">
-      No upload stored • Instant analysis
+      Instant results • No data stored
     </div>
 
   </div>
 
 </div>
 
-<!-- UPLOAD SCREEN -->
+<!-- UPLOAD -->
 <div id="uploadScreen" class="screen">
-
-  <div class="title">Upload Image</div>
 
   <label class="upload">
     <input type="file" id="file" hidden>
@@ -212,7 +192,7 @@ body {
 
 </div>
 
-<!-- RESULT SCREEN -->
+<!-- RESULT -->
 <div id="resultScreen" class="screen">
 
   <div id="result" class="panel"></div>
@@ -233,13 +213,9 @@ body {
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
-function show(screen) {
+function show(id) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-  document.getElementById(screen).classList.add("active");
-}
-
-function goToUpload() {
-  show("uploadScreen");
+  document.getElementById(id).classList.add("active");
 }
 
 const slider = document.getElementById("slider");
@@ -287,6 +263,7 @@ document.getElementById("file").onchange = async e => {
 
   if (data.exif) {
     let html = "";
+
     if (data.exif.make) html += `Camera: ${data.exif.make} ${data.exif.model||""}<br>`;
     if (data.exif.date) html += `Date: ${new Date(data.exif.date).toLocaleString()}<br>`;
 
