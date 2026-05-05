@@ -96,14 +96,27 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
 
     const ela = await runELA(req.file.buffer);
 
-    const exif = rawExif
-      ? {
-          make: rawExif.Make || "Unknown",
-          model: rawExif.Model || "Unknown",
-          date: rawExif.DateTimeOriginal || rawExif.CreateDate || "Unknown"
-        }
-      : null;
+const exif = rawExif
+  ? {
+      make: rawExif.Make || "Unknown",
+      model: rawExif.Model || "Unknown",
+      date: rawExif.DateTimeOriginal || rawExif.CreateDate || "Unknown",
 
+      iso: rawExif.ISO || null,
+      lens: rawExif.LensModel || null,
+
+      exposureTime: rawExif.ExposureTime || null,
+      fNumber: rawExif.FNumber || null,
+      focalLength: rawExif.FocalLength || null,
+
+      gps: rawExif.latitude && rawExif.longitude
+        ? {
+            lat: rawExif.latitude,
+            lon: rawExif.longitude
+          }
+        : null
+    }
+  : null;
     const classification = classifyImage(
       exif,
       ela ? ela.score : 0
