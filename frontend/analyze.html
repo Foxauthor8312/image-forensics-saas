@@ -6,10 +6,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <style>
-body {
+html, body {
+  background: #000;
+  color: #fff;
   font-family: Arial, sans-serif;
-  background: #000000;
-  color: #ffffff;
   margin: 0;
   padding: 20px;
 }
@@ -19,14 +19,12 @@ body {
   margin: auto;
 }
 
-/* BACK */
 .back {
   color: #9ca3af;
   text-decoration: none;
   font-size: 14px;
 }
 
-/* INPUT */
 input { width: 100%; margin: 15px 0; }
 
 button {
@@ -55,8 +53,8 @@ button {
 }
 
 .tab.active {
-  color: #ffffff;
-  border-bottom: 2px solid #ffffff;
+  color: #fff;
+  border-bottom: 2px solid #fff;
 }
 
 .tab-content {
@@ -81,9 +79,7 @@ button {
 .bad { color: #ef4444; }
 
 /* SLIDER */
-.slider-container {
-  position: relative;
-}
+.slider-container { position: relative; }
 
 .slider-container img {
   width: 100%;
@@ -115,6 +111,14 @@ button {
   width: 100%;
   margin-top: 10px;
 }
+
+/* MAP */
+.map-container {
+  width: 100%;
+  height: 400px;
+  border-radius: 8px;
+  overflow: hidden;
+}
 </style>
 </head>
 
@@ -134,6 +138,7 @@ button {
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
+/* ===== TAB SWITCH ===== */
 function switchTab(name) {
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
@@ -142,6 +147,42 @@ function switchTab(name) {
   document.getElementById(name).classList.add("active");
 }
 
+/* ===== IMPROVED COMPRESSION EXPLANATION ===== */
+function getCompressionExplanation(type, hasExif) {
+
+  const base = "The ELA (Error Level Analysis) overlay highlights differences in compression. Brighter areas indicate regions that compress differently than the rest of the image.";
+
+  const map = {
+    "Likely Original": {
+      text: `${base} In this case, compression appears evenly distributed, which is typical of an unedited image.`,
+      insight: "No localized anomalies detected."
+    },
+    "Recompressed": {
+      text: `${base} The differences appear spread across the image, suggesting it was resaved or recompressed.`,
+      insight: "This pattern is consistent with platform compression or resaving."
+    },
+    "Edited": {
+      text: `${base} Notice brighter or uneven regions—these indicate localized compression differences often caused by editing.`,
+      insight: "Localized anomalies are commonly associated with manipulation."
+    },
+    "Unknown": {
+      text: `${base} No clear compression pattern was detected.`,
+      insight: "Result is inconclusive."
+    }
+  };
+
+  const result = map[type] || map["Unknown"];
+
+  return {
+    main: result.text,
+    detail: result.insight,
+    meta: hasExif
+      ? "Metadata is present and supports the structural analysis."
+      : "Missing metadata may indicate removal or privacy filtering."
+  };
+}
+
+/* ===== ANALYZE ===== */
 async function analyze() {
 
   const file = document.getElementById("fileInput").files[0];
@@ -166,30 +207,7 @@ async function analyze() {
     const type = data.classification?.type || "Unknown";
     const conf = Math.round((data.classification?.confidence || 0.5) * 100);
 
-    let explanation = "";
-    let guidance = "";
-    let confidenceNote = "";
-
-    if (type === "Likely Original") {
-      explanation = "No strong indicators of manipulation were detected.";
-      guidance = "This image appears authentic.";
-      confidenceNote = "High confidence result.";
-    } 
-    else if (type === "Recompressed") {
-      explanation = "Image has been resaved or processed.";
-      guidance = "This may hide earlier edits.";
-      confidenceNote = "Moderate confidence.";
-    } 
-    else if (type === "Edited") {
-      explanation = "Compression inconsistencies detected.";
-      guidance = "Possible manipulation.";
-      confidenceNote = "Lower confidence possible.";
-    } 
-    else {
-      explanation = "No strong signal detected.";
-      guidance = "Inconclusive.";
-      confidenceNote = "";
-    }
+    const comp = getCompressionExplanation(type, !!data.exif);
 
     const lat = data.gps?.lat;
     const lon = data.gps?.lon;
@@ -215,21 +233,36 @@ async function analyze() {
 
       <div class="tabs">
         <div class="tab active" id="tab-overview" onclick="switchTab('overview')">Overview</div>
-        <div class="tab" id="tab-ela" onclick="switchTab('ela')">ELA</div>
+        <div class="tab" id="tab-ela" onclick="switchTab('ela')">ELA (Compression Map)</div>
         <div class="tab" id="tab-metadata" onclick="switchTab('metadata')">Metadata</div>
+        <div class="tab" id="tab-map" onclick="switchTab('map')">Map</div>
       </div>
 
       <!-- OVERVIEW -->
       <div id="overview" class="tab-content active">
-        <p>${explanation}</p>
 
-        ${signals.join("")}
+        <div style="margin-bottom:12px;">
+          <strong>Compression Analysis</strong>
+          <div style="margin-top:6px;color:#cbd5f5;">
+            ${comp.main}
+          </div>
+        </div>
 
-        <p style="margin-top:10px;">${guidance}</p>
+        <div style="margin-bottom:12px;">
+          ${signals.join("")}
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <strong>Interpretation</strong>
+          <div style="margin-top:6px;color:#cbd5f5;">
+            ${comp.detail}
+          </div>
+        </div>
 
         <div style="color:#9ca3af;font-size:13px;">
-          ${confidenceNote}
+          ${comp.meta}
         </div>
+
       </div>
 
       <!-- ELA -->
@@ -254,6 +287,24 @@ async function analyze() {
         <div class="meta-row">Date: ${data.exif?.DateTimeOriginal ?? "-"}</div>
         <div class="meta-row">Latitude: ${lat ?? "-"}</div>
         <div class="meta-row">Longitude: ${lon ?? "-"}</div>
+      </div>
+
+      <!-- MAP -->
+      <div id="map" class="tab-content">
+        ${
+          (lat && lon)
+          ? `<div class="map-container">
+               <iframe
+                 width="100%"
+                 height="100%"
+                 frameborder="0"
+                 style="border:0"
+                 src="https://www.google.com/maps?q=${lat},${lon}&z=18&output=embed&t=k"
+                 allowfullscreen>
+               </iframe>
+             </div>`
+          : `<div style="color:#9ca3af;">No GPS data available</div>`
+        }
       </div>
     `;
 
