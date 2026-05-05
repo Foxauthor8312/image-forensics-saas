@@ -168,19 +168,19 @@ body {
 <div class="hero-sub">
 
   <div style="margin-bottom:12px;">
-    Ever wonder if a photo has been altered or manipulated?
+    Ever wonder if a photo has been tampered with or altered?
   </div>
 
   <div style="margin-bottom:12px;">
-    PixelProof analyzes image structure and metadata to detect edits, recompression, and authenticity with forensic-level insight.
+    PixelProof uses forensic analysis of compression patterns and metadata to detect edits, recompression, and authenticity with precision.
   </div>
 
   <div style="margin-bottom:12px;">
-    Upload an image—or take one—and verify details like camera data and GPS location on an interactive map.
+    Upload an image—or capture one directly—to verify camera data and GPS location on an interactive map.
   </div>
 
   <div style="font-size:13px;color:#6b7280;">
-    3 free scans included. No data stored.
+    3 free scans included • Instant results • No data stored
   </div>
 
 </div>
@@ -263,18 +263,76 @@ document.getElementById("file").onchange = async e => {
   const conf = Math.round((data.classification?.confidence || 0.5) * 100);
   const type = data.classification?.type || "Unknown";
 
-  document.getElementById("result").innerHTML = `
-    <strong>${type}</strong> (${conf}%)
+ let explanation = "";
+let guidance = "";
 
-    <div style="height:6px;background:#1e293b;margin:10px 0;">
-      <div style="width:${conf}%;height:100%;background:#3b82f6;"></div>
-    </div>
+// ===== INTERPRETATION =====
+if (type === "Likely Original") {
+  explanation = "No strong indicators of manipulation were detected. Compression patterns are consistent across the image, and available metadata aligns with a typical camera capture.";
 
-    <div class="small">Tampering Probability</div>
-    <div style="height:8px;background:#1e293b;">
-      <div style="width:${100-conf}%;height:100%;background:linear-gradient(90deg,green,orange,red);"></div>
+  guidance = "This image appears authentic. Minor variations can still occur due to normal processing (e.g., sharing or resizing), but no evidence suggests intentional editing.";
+}
+
+else if (type === "Recompressed") {
+  explanation = "The image shows signs of recompression. This typically occurs when an image is saved again, uploaded to a platform, or shared through messaging apps.";
+
+  guidance = "Recompression alone does not indicate tampering. However, it may obscure traces of prior edits, so results should be interpreted with moderate caution.";
+}
+
+else if (type === "Edited") {
+  explanation = "Compression inconsistencies and structural differences were detected. These patterns can indicate that parts of the image were altered or modified.";
+
+  guidance = "This result suggests potential editing. Review highlighted regions carefully and consider the source of the image before relying on it.";
+}
+
+else {
+  explanation = "The analysis did not produce a strong or consistent signal.";
+
+  guidance = "This result is inconclusive. Additional context or a higher-quality version of the image may improve analysis.";
+}
+
+// ===== BUILD UI =====
+document.getElementById("result").innerHTML = `
+  <div style="font-size:18px;font-weight:600;margin-bottom:6px;">
+    ${type}
+  </div>
+
+  <div style="color:#9ca3af;font-size:14px;margin-bottom:12px;">
+    Confidence: ${conf}%
+  </div>
+
+  <div style="height:6px;background:#1e293b;border-radius:4px;margin-bottom:14px;">
+    <div style="width:${conf}%;height:100%;background:#3b82f6;"></div>
+  </div>
+
+  <div style="margin-bottom:12px;">
+    <strong>What this means</strong>
+    <div style="font-size:14px;color:#cbd5f5;margin-top:4px;">
+      ${explanation}
     </div>
-  `;
+  </div>
+
+  <div style="margin-bottom:12px;">
+    <strong>How to interpret this</strong>
+    <div style="font-size:14px;color:#cbd5f5;margin-top:4px;">
+      ${guidance}
+    </div>
+  </div>
+
+  <div style="margin-bottom:12px;">
+    <strong>Tampering likelihood</strong>
+    <div style="height:8px;background:#1e293b;border-radius:4px;margin-top:6px;">
+      <div style="width:${100-conf}%;height:100%;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);"></div>
+    </div>
+    <div style="font-size:12px;color:#9ca3af;margin-top:4px;">
+      Estimated likelihood of manipulation based on detected patterns
+    </div>
+  </div>
+
+  <div style="font-size:13px;color:#9ca3af;">
+    This analysis evaluates compression artifacts, structural consistency, and available metadata. It does not guarantee authenticity, but provides strong indicators based on forensic patterns.
+  </div>
+`;
 
   if (data.exif) {
     let html = "";
