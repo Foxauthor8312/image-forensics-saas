@@ -78,7 +78,6 @@ button {
   height: 100%;
   background: white;
   opacity: 0.7;
-  pointer-events: none;
 }
 
 .slider {
@@ -103,6 +102,20 @@ button {
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
+/* ===== RETRY FETCH (handles Render sleep) ===== */
+async function fetchWithRetry(url, options, retries = 2) {
+  try {
+    return await fetch(url, options);
+  } catch (err) {
+    if (retries > 0) {
+      console.log("Retrying...");
+      await new Promise(r => setTimeout(r, 2000));
+      return fetchWithRetry(url, options, retries - 1);
+    }
+    throw err;
+  }
+}
+
 async function analyze() {
   const fileInput = document.getElementById("fileInput");
   const resultEl = document.getElementById("result");
@@ -112,13 +125,21 @@ async function analyze() {
     return;
   }
 
+  const file = fileInput.files[0];
+
+  /* ===== SIZE LIMIT (prevents crashes) ===== */
+  if (file.size > 5 * 1024 * 1024) {
+    alert("Please upload an image under 5MB");
+    return;
+  }
+
   const form = new FormData();
-  form.append("image", fileInput.files[0]);
+  form.append("image", file);
 
   resultEl.innerHTML = "Analyzing...";
 
   try {
-    const res = await fetch(API + "/analyze", {
+    const res = await fetchWithRetry(API + "/analyze", {
       method: "POST",
       body: form
     });
@@ -153,7 +174,7 @@ async function analyze() {
       confidenceNote = "Try a higher quality image.";
     }
 
-    const verdictColor = 
+    const verdictColor =
       type === "Likely Original" ? "#22c55e" :
       type === "Recompressed" ? "#f59e0b" :
       type === "Edited" ? "#ef4444" :
@@ -167,7 +188,7 @@ async function analyze() {
         ${type}
       </div>
 
-      <div style="color:#9ca3af;font-size:14px;margin:10px 0;">
+      <div style="color:#9ca3af;margin:10px 0;">
         Confidence: ${conf}%
       </div>
 
@@ -175,25 +196,20 @@ async function analyze() {
         <div style="width:${conf}%;height:100%;background:${verdictColor};"></div>
       </div>
 
-      <div style="margin-bottom:12px;">
-        <strong>What this means</strong>
-        <div style="font-size:14px;color:#cbd5f5;margin-top:6px;">
-          ${explanation}
-        </div>
+      <div><strong>What this means</strong>
+        <div style="color:#cbd5f5;margin-top:6px;">${explanation}</div>
       </div>
 
-      <div style="margin-bottom:12px;">
-        <strong>How to interpret</strong>
-        <div style="font-size:14px;color:#cbd5f5;margin-top:6px;">
-          ${guidance}
-        </div>
+      <div style="margin-top:10px;"><strong>How to interpret</strong>
+        <div style="color:#cbd5f5;margin-top:6px;">${guidance}</div>
       </div>
 
-      <div style="font-size:13px;color:#9ca3af;margin-bottom:16px;">
+      <div style="color:#9ca3af;margin-top:10px;">
         ${confidenceNote}
       </div>
 
-      <strong>Metadata</strong>
+      <div style="margin-top:16px;"><strong>Metadata</strong></div>
+
       <div class="meta-row">Camera: ${data.exif?.make ?? "-"}</div>
       <div class="meta-row">Date: ${data.exif?.date ?? "-"}</div>
       <div class="meta-row">Latitude: ${lat ?? "-"}</div>
@@ -210,12 +226,11 @@ async function analyze() {
       }
 
       <div class="viewer">
-
         <strong>ELA Analysis (drag slider)</strong>
 
         <div class="slider-container">
-          <img src="${URL.createObjectURL(fileInput.files[0])}">
-          
+          <img src="${URL.createObjectURL(file)}">
+
           <div class="overlay" id="overlay">
             <img src="${data.ela?.overlay}">
           </div>
@@ -224,11 +239,9 @@ async function analyze() {
         </div>
 
         <input type="range" id="slider" min="0" max="100" value="50" class="slider">
-
       </div>
     `;
 
-    // ===== SLIDER LOGIC =====
     const slider = document.getElementById("slider");
     const overlay = document.getElementById("overlay");
     const divider = document.getElementById("divider");
@@ -244,7 +257,7 @@ async function analyze() {
 
   } catch (err) {
     console.error(err);
-    resultEl.innerHTML = "Error analyzing image";
+    resultEl.innerHTML = "Server waking up — try again in a few seconds";
   }
 }
 </script>
