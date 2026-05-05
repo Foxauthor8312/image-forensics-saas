@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Analyze - PixelProof</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 10px;
+    }
+
+    input {
+      width: 100%;
+      margin-bottom: 15px;
+    }
+
+    button {
+      display: block;
+      margin: auto;
+      padding: 8px 18px;
+      background: #334155;
+      border: 1px solid #475569;
+      color: #e2e8f0;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .meta-row {
+      padding: 6px 0;
+      border-bottom: 1px solid #334155;
+    }
+
+    img {
+      width: 100%;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+
+    <input type="file" id="fileInput" accept="image/*" />
+
+    <button onclick="analyze()">Run Analysis</button>
+
+    <div id="result"></div>
+
+  </div>
+
+  <script>
+    const API = "https://image-forensics-saas-1.onrender.com";
+
+    async function analyze() {
+      const fileInput = document.getElementById("fileInput");
+      const resultEl = document.getElementById("result");
+
+      if (!fileInput.files.length) {
+        alert("Select an image");
+        return;
+      }
+
+      const form = new FormData();
+      form.append("image", fileInput.files[0]);
+
+      resultEl.innerHTML = "Analyzing...";
+
+      const res = await fetch(API + "/analyze", {
+        method: "POST",
+        body: form
+      });
+
+      const data = await res.json();
+
+      resultEl.innerHTML = `
+        <div class="meta-row">Classification: ${data.classification?.type}</div>
+        <div class="meta-row">Camera: ${data.exif?.make ?? "-"}</div>
+        <div class="meta-row">Date: ${data.exif?.date ?? "-"}</div>
+        <div class="meta-row">Latitude: ${data.gps?.lat ?? "-"}</div>
+        <div class="meta-row">Longitude: ${data.gps?.lon ?? "-"}</div>
+
+        <img src="${data.ela?.overlay}" />
+      `;
+    }
+  </script>
+
+</body>
+</html>
