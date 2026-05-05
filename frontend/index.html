@@ -1,79 +1,103 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>PixelProof</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PixelProof</title>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
-      margin: 0;
-      padding: 20px;
-      text-align: center;
-    }
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
-    .hero {
-      max-width: 700px;
-      margin: 60px auto;
-    }
+<style>
+:root {
+  --bg: #0a0a0a;
+  --panel: #0f172a;
+  --border: #1e293b;
+  --muted: #9ca3af;
+  --text: #e5e7eb;
+  --blue: #3b82f6;
+}
 
-    .logo {
-      width: 140px;
-      margin-bottom: 20px;
-    }
+body {
+  font-family: 'Inter', sans-serif;
+  background: radial-gradient(circle at 50% 30%, #111827 0%, #0a0a0a 60%);
+  color: var(--text);
+  margin: 0;
+}
 
-    h1 {
-      font-size: 2rem;
-      margin-bottom: 10px;
-      font-weight: 600;
-    }
+/* HERO */
+.hero {
+  text-align: center;
+  max-width: 540px;
+  padding: 80px 20px;
+  margin: auto;
+}
 
-    p {
-      color: #94a3b8;
-      line-height: 1.5;
-    }
+.hero-logo-wrap {
+  padding: 18px 24px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  margin-bottom: 30px;
+}
 
-    .cta-group {
-      margin-top: 30px;
-    }
+.hero-logo {
+  height: 100px; /* 🔥 bigger logo */
+  filter: brightness(1.4) contrast(1.2);
+}
 
-    .cta {
-      display: inline-block;
-      margin: 10px;
-      padding: 10px 20px;
-      background: #1e40af;
-      color: white;
-      border-radius: 8px;
-      text-decoration: none;
-      font-size: 0.95rem;
-    }
+.hero-title {
+  font-size: 30px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
 
-    .cta.secondary {
-      background: #334155;
-    }
-  </style>
+.hero-sub {
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 34px;
+}
+
+/* CTA FIXED */
+.hero-cta {
+  background: #1e40af; /* 🔥 toned down */
+  padding: 12px 22px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-block;
+  font-size: 14px;
+  transition: 0.2s;
+}
+
+.hero-cta:hover {
+  background: #1d4ed8;
+}
+</style>
 </head>
 
 <body>
 
-  <div class="hero">
-    <img src="logo.png" class="logo" />
+<div class="hero">
 
-    <h1>Know if an image is real.</h1>
-
-    <p>
-      PixelProof uses forensic analysis of compression artifacts and metadata
-      to detect edits, recompression, and authenticity.
-    </p>
-
-    <div class="cta-group">
-      <a href="analyze.html" class="cta">Analyze Image</a>
-      <a href="#" class="cta secondary">Learn More</a>
-    </div>
+  <div class="hero-logo-wrap">
+    <img src="logo.png" class="hero-logo">
   </div>
+
+  <div class="hero-title">
+    Know if an image is real.
+  </div>
+
+  <div class="hero-sub">
+    Ever wonder if a photo has been tampered with or altered?<br><br>
+    PixelProof uses forensic analysis of compression patterns and metadata to detect edits, recompression, and authenticity.<br><br>
+    Upload an image to verify camera data and GPS location.
+  </div>
+
+  <!-- 🔥 THIS IS THE KEY CHANGE -->
+  <a href="analyze.html" class="hero-cta">
+    Analyze Image
+  </a>
+
+</div>
 
 </body>
 </html>
