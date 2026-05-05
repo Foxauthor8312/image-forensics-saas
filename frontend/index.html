@@ -23,59 +23,52 @@ body {
   margin: 0;
 }
 
-/* HEADER */
-.header {
-  display: flex;
+/* SCREENS */
+.screen {
+  display: none;
+  min-height: 100vh;
   align-items: center;
-  gap: 16px;
-  padding: 18px 32px;
-}
-.header img { height: 56px; }
-.header span { opacity: 0.7; font-size: 15px; }
-
-/* LAYOUT */
-.wrapper {
-  display: grid;
-  grid-template-columns: 420px 1fr;
-  min-height: calc(100vh - 80px);
-}
-
-/* LEFT */
-.left {
-  padding: 40px;
-  display: flex;
+  justify-content: center;
   flex-direction: column;
-  align-items: center;
 }
 
-.tagline {
+.screen.active {
+  display: flex;
+}
+
+/* INTRO */
+.logo {
+  height: 80px;
+  margin-bottom: 20px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.subtitle {
   color: var(--muted);
+  margin: 10px 0 30px;
   text-align: center;
-  margin-bottom: 30px;
-  font-size: 15px;
-  line-height: 1.5;
+  max-width: 400px;
+}
+
+.button {
+  background: var(--blue);
+  padding: 12px 22px;
+  border-radius: 8px;
+  cursor: pointer;
 }
 
 /* UPLOAD */
 .upload {
-  width: 100%;
-  max-width: 320px;
   border: 2px dashed #2a2a2a;
-  padding: 26px;
+  padding: 30px;
   border-radius: 12px;
-  text-align: center;
   cursor: pointer;
-  transition: 0.2s;
-}
-.upload:hover {
-  border-color: var(--blue);
-  background: rgba(59,130,246,0.05);
-}
-
-/* RIGHT */
-.right {
-  background: #111;
-  padding: 40px;
+  text-align: center;
+  margin-top: 20px;
 }
 
 /* PANEL */
@@ -85,36 +78,25 @@ body {
   padding: 18px;
   border-radius: 12px;
   max-width: 520px;
-  margin: 0 auto 20px auto;
+  width: 90%;
+  margin-top: 20px;
 }
 
-/* RESULT */
-.result-title {
-  font-size: 18px;
-  font-weight: 600;
-}
-.conf-bar {
-  height: 6px;
-  background: var(--border);
-  margin: 10px 0;
-}
-.conf-fill {
-  height: 100%;
-  background: var(--blue);
-}
-
-/* SLIDER */
+/* VIEWER */
 .viewer {
   max-width: 520px;
-  margin: 0 auto;
+  width: 90%;
 }
+
 .slider-container {
   position: relative;
 }
+
 .slider-container img {
   width: 100%;
   border-radius: 8px;
 }
+
 .overlay {
   position: absolute;
   top: 0;
@@ -122,116 +104,84 @@ body {
   width: 50%;
   overflow: hidden;
 }
+
 .overlay img {
   width: 100%;
   mix-blend-mode: screen;
   opacity: 0.8;
 }
+
 .slider {
-  display: block;
   width: 100%;
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
-/* META */
-.meta { font-size: 14px; margin-bottom: 6px; }
-.label { color: var(--muted); }
-
-/* SMALL */
-.small { font-size: 13px; color: var(--muted); }
-  /* INFO PANEL */
-
-.info {
-  text-align: left;
-}
-
-.info-title {
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.info-sub {
-  font-weight: 600;
-  margin-top: 12px;
-  margin-bottom: 4px;
-}
-
-.info-text {
-  font-size: 14px;
-  color: #9ca3af;
-  margin-bottom: 8px;
-  line-height: 1.4;
-}
-
-.info-list {
-  padding-left: 18px;
-  font-size: 14px;
-  margin: 8px 0;
+/* TEXT */
+.small {
+  font-size: 13px;
+  color: var(--muted);
 }
 </style>
 </head>
 
 <body>
 
-<div class="header">
-  <img src="logo.png">
-  <span>PixelProof</span>
-</div>
+<!-- INTRO SCREEN -->
+<div id="intro" class="screen active">
 
-<div class="wrapper">
+  <img src="logo.png" class="logo">
 
-<div class="left">
- <div class="tagline">
-  Detect edits and verify image authenticity instantly.
-</div>
+  <div class="title">PixelProof</div>
 
-<div class="panel info">
-
-  <div class="info-title">How it works</div>
-
-  <div class="info-text">
-    PixelProof analyzes compression patterns and embedded metadata to detect signs of image manipulation.
+  <div class="subtitle">
+    Detect image edits, verify authenticity, and uncover hidden manipulation using compression analysis and metadata inspection.
   </div>
 
-  <ul class="info-list">
-    <li><strong>Likely Original</strong> — Image structure and metadata are consistent</li>
-    <li><strong>Recompressed</strong> — Image has been saved or shared again</li>
-    <li><strong>Edited</strong> — Compression inconsistencies suggest modification</li>
-  </ul>
-
-  <div class="info-sub">Heatmap</div>
-  <div class="info-text">
-    Brighter areas indicate regions with higher compression differences and potential edits.
-  </div>
+  <div class="button" onclick="goToUpload()">Start Analysis</div>
 
 </div>
+
+<!-- UPLOAD SCREEN -->
+<div id="uploadScreen" class="screen">
+
+  <div class="title">Upload Image</div>
 
   <label class="upload">
     <input type="file" id="file" hidden>
-    Select an image
+    Click to select image
   </label>
+
 </div>
 
-<div class="right">
+<!-- RESULT SCREEN -->
+<div id="resultScreen" class="screen">
 
-<div id="result" class="panel"></div>
-<div id="meta" class="panel" style="display:none;"></div>
+  <div id="result" class="panel"></div>
+  <div id="meta" class="panel" style="display:none;"></div>
 
-<div id="viewer" class="viewer" style="display:none;">
-  <div class="slider-container">
-    <img id="img">
-    <div class="overlay" id="overlay">
-      <img id="ela">
+  <div id="viewer" class="viewer" style="display:none;">
+    <div class="slider-container">
+      <img id="img">
+      <div class="overlay" id="overlay">
+        <img id="ela">
+      </div>
     </div>
+    <input type="range" id="slider" min="0" max="100" value="50" class="slider">
   </div>
-  <input type="range" id="slider" min="0" max="100" value="50" class="slider">
-</div>
 
-</div>
 </div>
 
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
+
+function show(screen) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(screen).classList.add("active");
+}
+
+function goToUpload() {
+  show("uploadScreen");
+}
 
 const slider = document.getElementById("slider");
 const overlay = document.getElementById("overlay");
@@ -244,6 +194,8 @@ document.getElementById("file").onchange = async e => {
 
   const file = e.target.files[0];
   if (!file) return;
+
+  show("resultScreen");
 
   document.getElementById("viewer").style.display = "block";
   document.getElementById("img").src = URL.createObjectURL(file);
@@ -261,54 +213,29 @@ document.getElementById("file").onchange = async e => {
   const conf = Math.round((data.classification?.confidence || 0.5) * 100);
   const type = data.classification?.type || "Unknown";
 
-  let breakdown = [];
-  if (data.ela?.score > 25) breakdown.push(["High compression anomalies", -30]);
-  else if (data.ela?.score > 10) breakdown.push(["Moderate variation", -15]);
-  else breakdown.push(["Consistent compression", +20]);
-
-  if (data.exif?.make) breakdown.push(["Camera metadata present", +10]);
-  else breakdown.push(["Missing metadata", -15]);
-
-  if (data.exif?.gps) breakdown.push(["GPS present", +5]);
-
   document.getElementById("result").innerHTML = `
-    <div class="result-title">${type} (${conf}%)</div>
+    <strong>${type}</strong> (${conf}%)
 
-    <div class="conf-bar">
-      <div class="conf-fill" style="width:${conf}%"></div>
+    <div style="height:6px;background:#1e293b;margin:10px 0;">
+      <div style="width:${conf}%;height:100%;background:#3b82f6;"></div>
     </div>
 
     <div class="small">Tampering Probability</div>
-    <div class="conf-bar">
-      <div style="width:${100-conf}%;height:100%;
-        background:linear-gradient(90deg,green,orange,red);"></div>
-    </div>
-
-    <div class="small" style="margin-top:10px;">
-      ${breakdown.map(b => `${b[0]} (${b[1]})`).join("<br>")}
+    <div style="height:8px;background:#1e293b;">
+      <div style="width:${100-conf}%;height:100%;background:linear-gradient(90deg,green,orange,red);"></div>
     </div>
   `;
 
   if (data.exif) {
-    const ex = data.exif;
     let html = "";
+    if (data.exif.make) html += `Camera: ${data.exif.make} ${data.exif.model||""}<br>`;
+    if (data.exif.date) html += `Date: ${new Date(data.exif.date).toLocaleString()}<br>`;
 
-    if (ex.make) html += `<div class="meta"><span class="label">Camera:</span> ${ex.make} ${ex.model||""}</div>`;
-    if (ex.date) html += `<div class="meta"><span class="label">Date:</span> ${new Date(ex.date).toLocaleString()}</div>`;
-    if (ex.iso) html += `<div class="meta"><span class="label">ISO:</span> ${ex.iso}</div>`;
-
-    if (ex.gps) {
-      html += `<div class="meta"><span class="label">Location:</span> ${ex.gps.lat.toFixed(5)}, ${ex.gps.lon.toFixed(5)}</div>`;
+    if (data.exif.gps) {
+      html += `Location: ${data.exif.gps.lat.toFixed(5)}, ${data.exif.gps.lon.toFixed(5)}<br>`;
       html += `<iframe width="100%" height="200"
-        src="https://maps.google.com/maps?q=${ex.gps.lat},${ex.gps.lon}&z=14&output=embed"></iframe>`;
+        src="https://maps.google.com/maps?q=${data.exif.gps.lat},${data.exif.gps.lon}&z=14&output=embed"></iframe>`;
     }
-
-    let score = 100;
-    if (!ex.make) score -= 20;
-    if (!ex.date) score -= 20;
-    if (!ex.gps) score -= 10;
-
-    html += `<div class="meta"><span class="label">Metadata Integrity:</span> ${score}%</div>`;
 
     document.getElementById("meta").innerHTML = html;
     document.getElementById("meta").style.display = "block";
