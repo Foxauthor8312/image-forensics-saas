@@ -22,6 +22,19 @@ body {
   border-radius: 10px;
 }
 
+/* 🔙 BACK BUTTON */
+.back {
+  display: inline-block;
+  margin-bottom: 15px;
+  color: #94a3b8;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.back:hover {
+  color: #e2e8f0;
+}
+
 input { width: 100%; margin-bottom: 15px; }
 
 button {
@@ -42,10 +55,7 @@ button {
   border-bottom: 1px solid #334155;
 }
 
-.signal {
-  font-size: 14px;
-  margin: 4px 0;
-}
+.signal { font-size: 14px; margin: 4px 0; }
 
 .good { color: #22c55e; }
 .warn { color: #f59e0b; }
@@ -54,7 +64,11 @@ button {
 /* SLIDER */
 .viewer { margin-top: 20px; }
 .slider-container { position: relative; }
-.slider-container img { width: 100%; border-radius: 8px; }
+
+.slider-container img {
+  width: 100%;
+  border-radius: 8px;
+}
 
 .overlay {
   position: absolute;
@@ -83,15 +97,20 @@ button {
 <body>
 
 <div class="container">
+
+  <!-- 🔙 BACK LINK -->
+  <a href="index.html" class="back">← Back to Home</a>
+
   <input type="file" id="fileInput" accept="image/*" />
   <button onclick="analyze()">Run Analysis</button>
+
   <div id="result"></div>
+
 </div>
 
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
-/* ===== CONFIG (NO MORE IF CHAINS) ===== */
 const REPORT = {
   "Likely Original": {
     color: "#22c55e",
@@ -101,44 +120,38 @@ const REPORT = {
   "Recompressed": {
     color: "#f59e0b",
     explanation: "The image has been resaved or processed, altering compression patterns.",
-    guidance: "Recompression does not necessarily mean editing, but may hide prior changes."
+    guidance: "Recompression does not necessarily mean editing."
   },
   "Edited": {
     color: "#ef4444",
     explanation: "Irregular compression patterns suggest localized changes.",
-    guidance: "Possible manipulation detected. Review carefully."
+    guidance: "Possible manipulation detected."
   },
   "Unknown": {
     color: "#9ca3af",
     explanation: "No strong signal detected.",
-    guidance: "Result is inconclusive."
+    guidance: "Result inconclusive."
   }
 };
 
-/* ===== IMAGE COMPRESSION ===== */
 async function compressImage(file, maxWidth = 1200, quality = 0.75) {
   return new Promise(resolve => {
     const img = new Image();
     const reader = new FileReader();
-
     reader.onload = e => img.src = e.target.result;
     reader.readAsDataURL(file);
 
     img.onload = () => {
       const canvas = document.createElement("canvas");
       const scale = Math.min(1, maxWidth / img.width);
-
       canvas.width = img.width * scale;
       canvas.height = img.height * scale;
-
       canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-
       canvas.toBlob(blob => resolve(blob), "image/jpeg", quality);
     };
   });
 }
 
-/* ===== RETRY ===== */
 async function fetchWithRetry(url, options, retries = 2) {
   try {
     return await fetch(url, options);
@@ -147,7 +160,7 @@ async function fetchWithRetry(url, options, retries = 2) {
       await new Promise(r => setTimeout(r, 2000));
       return fetchWithRetry(url, options, retries - 1);
     }
-    throw new Error("Network failure");
+    throw new Error("Network error");
   }
 }
 
@@ -175,13 +188,11 @@ async function analyze() {
 
     const type = data.classification?.type || "Unknown";
     const conf = Math.round((data.classification?.confidence || 0.5) * 100);
-
     const cfg = REPORT[type] || REPORT["Unknown"];
 
     const lat = data.gps?.lat;
     const lon = data.gps?.lon;
 
-    /* ===== SIGNAL SCORING ===== */
     const signals = [];
 
     if (data.exif) signals.push({ text: "Camera metadata present", class: "good" });
@@ -220,16 +231,8 @@ async function analyze() {
         <div style="margin-top:6px;color:#cbd5f5;">${cfg.guidance}</div>
       </div>
 
-      <div class="section">
-        <strong>Metadata</strong>
-        <div class="meta-row">Camera: ${data.exif?.make ?? "-"}</div>
-        <div class="meta-row">Date: ${data.exif?.date ?? "-"}</div>
-        <div class="meta-row">Latitude: ${lat ?? "-"}</div>
-        <div class="meta-row">Longitude: ${lon ?? "-"}</div>
-      </div>
-
       <div class="section viewer">
-        <strong>ELA Analysis (drag slider)</strong>
+        <strong>ELA Analysis</strong>
 
         <div class="slider-container">
           <img src="${URL.createObjectURL(originalFile)}">
