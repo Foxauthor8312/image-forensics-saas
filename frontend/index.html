@@ -139,6 +139,35 @@ body {
 
 /* SMALL */
 .small { font-size: 13px; color: var(--muted); }
+  /* INFO PANEL */
+
+.info {
+  text-align: left;
+}
+
+.info-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.info-sub {
+  font-weight: 600;
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+
+.info-text {
+  font-size: 14px;
+  color: #9ca3af;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.info-list {
+  padding-left: 18px;
+  font-size: 14px;
+  margin: 8px 0;
+}
 </style>
 </head>
 
@@ -152,9 +181,30 @@ body {
 <div class="wrapper">
 
 <div class="left">
-  <div class="tagline">
-    Detect edits and verify image authenticity instantly.
+ <div class="tagline">
+  Detect edits and verify image authenticity instantly.
+</div>
+
+<div class="panel info">
+
+  <div class="info-title">How it works</div>
+
+  <div class="info-text">
+    PixelProof analyzes compression patterns and embedded metadata to detect signs of image manipulation.
   </div>
+
+  <ul class="info-list">
+    <li><strong>Likely Original</strong> — Image structure and metadata are consistent</li>
+    <li><strong>Recompressed</strong> — Image has been saved or shared again</li>
+    <li><strong>Edited</strong> — Compression inconsistencies suggest modification</li>
+  </ul>
+
+  <div class="info-sub">Heatmap</div>
+  <div class="info-text">
+    Brighter areas indicate regions with higher compression differences and potential edits.
+  </div>
+
+</div>
 
   <label class="upload">
     <input type="file" id="file" hidden>
