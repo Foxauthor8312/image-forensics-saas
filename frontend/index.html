@@ -157,8 +157,9 @@ body {
 }
 
 .slider {
-  width: 520px;
-  margin: 10px auto;
+  width: 100%;
+  max-width: 520px;
+  margin: 10px auto 0 auto;
   display: block;
 }
   /* ===== UPLOAD BOX FIX ===== */
@@ -222,15 +223,17 @@ Detect edits and verify image authenticity instantly.
 
 <div id="resultCard"></div>
 
-<div class="slider-container">
-  <img id="originalImage">
+<div id="viewerBlock" style="display:none;">
 
-  <div class="overlay" id="overlay">
-    <img id="elaOverlay">
+  <div class="slider-container">
+    <img id="originalImage">
+
+    <div class="overlay" id="overlay">
+      <img id="elaOverlay">
+    </div>
   </div>
-</div>
 
-<input type="range" min="0" max="100" value="50" id="slider" class="slider">
+  <input type="range" min="0" max="100" value="50" id="slider" class="slider">
 
 </div>
 
@@ -298,7 +301,7 @@ document.getElementById("file").onchange = async (e) => {
   if (!file) return;
 
   document.getElementById("originalImage").src = URL.createObjectURL(file);
-
+  document.getElementById("viewerBlock").style.display = "block";
   const form = new FormData();
   form.append("image", file);
 
