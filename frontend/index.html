@@ -338,25 +338,51 @@ document.getElementById("file").onchange = async (e) => {
   });
 
   const data = await res.json();
-  const metaBlock = document.getElementById("metaBlock");
+  cconst metaBlock = document.getElementById("metaBlock");
 
 if (data.exif) {
+  const ex = data.exif;
   let html = "";
 
-  if (data.exif.make || data.exif.model) {
-    html += `<div class="meta-row"><span class="meta-label">Camera:</span> ${data.exif.make || ""} ${data.exif.model || ""}</div>`;
+  // --- BASIC ---
+  if (ex.make || ex.model) {
+    html += `<div class="meta-row"><span class="meta-label">Camera:</span> ${ex.make || ""} ${ex.model || ""}</div>`;
   }
 
-  if (data.exif.date) {
-    html += `<div class="meta-row"><span class="meta-label">Date:</span> ${new Date(data.exif.date).toLocaleString()}</div>`;
+  if (ex.date) {
+    html += `<div class="meta-row"><span class="meta-label">Date:</span> ${new Date(ex.date).toLocaleString()}</div>`;
   }
 
-  if (data.exif.iso) {
-    html += `<div class="meta-row"><span class="meta-label">ISO:</span> ${data.exif.iso}</div>`;
+  // --- EXPOSURE ---
+  if (ex.iso) {
+    html += `<div class="meta-row"><span class="meta-label">ISO:</span> ${ex.iso}</div>`;
   }
 
-  if (data.exif.gps) {
-    const { lat, lon } = data.exif.gps;
+  if (ex.exposureTime) {
+    html += `<div class="meta-row"><span class="meta-label">Shutter:</span> ${ex.exposureTime}</div>`;
+  }
+
+  if (ex.fNumber) {
+    html += `<div class="meta-row"><span class="meta-label">Aperture:</span> f/${ex.fNumber}</div>`;
+  }
+
+  if (ex.focalLength) {
+    html += `<div class="meta-row"><span class="meta-label">Focal Length:</span> ${ex.focalLength}mm</div>`;
+  }
+
+  // --- LENS ---
+  if (ex.lens) {
+    html += `<div class="meta-row"><span class="meta-label">Lens:</span> ${ex.lens}</div>`;
+  }
+
+  // --- RESOLUTION ---
+  if (data.size) {
+    html += `<div class="meta-row"><span class="meta-label">File Size:</span> ${(data.size / 1024).toFixed(1)} KB</div>`;
+  }
+
+  // --- GPS ---
+  if (ex.gps) {
+    const { lat, lon } = ex.gps;
 
     html += `<div class="meta-row"><span class="meta-label">Location:</span> ${lat.toFixed(5)}, ${lon.toFixed(5)}</div>`;
 
@@ -373,6 +399,12 @@ if (data.exif) {
       </div>
     `;
   }
+
+  metaBlock.innerHTML = html;
+  metaBlock.style.display = "block";
+} else {
+  metaBlock.style.display = "none";
+}
 
   metaBlock.innerHTML = html;
   metaBlock.style.display = "block";
