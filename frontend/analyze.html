@@ -9,14 +9,41 @@
 body { background:#000; color:#fff; font-family:Arial; padding:16px; }
 .container { max-width:720px; margin:auto; }
 
-button {
-  width:100%; padding:12px;
-  background:#1f2937;
-  border:1px solid #374151;
-  color:white; border-radius:8px;
+.back {
+  display:inline-block;
+  margin-bottom:10px;
+  color:#9ca3af;
+  text-decoration:none;
+  font-size:14px;
 }
 
-.tabs { display:flex; gap:6px; margin-top:16px; border-bottom:1px solid #1f2937; }
+button {
+  width:100%;
+  padding:12px;
+  background:#1f2937;
+  border:1px solid #374151;
+  color:white;
+  border-radius:8px;
+}
+
+.spinner {
+  width:40px;
+  height:40px;
+  border:4px solid #1e293b;
+  border-top:4px solid #3b82f6;
+  border-radius:50%;
+  animation:spin 1s linear infinite;
+  margin:auto;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.tabs {
+  display:flex;
+  gap:6px;
+  margin-top:16px;
+  border-bottom:1px solid #1f2937;
+  overflow-x:auto;
+}
 .tab { padding:10px; color:#9ca3af; cursor:pointer; }
 .tab.active { color:white; background:#111827; }
 
@@ -33,11 +60,9 @@ button {
 
 .slider-container { position:relative; }
 .slider-container img { width:100%; }
+.overlay { position:absolute; top:0; left:0; width:50%; overflow:hidden; }
 
-.overlay {
-  position:absolute; top:0; left:0;
-  width:50%; overflow:hidden;
-}
+.map-container { width:100%; height:60vh; }
 
 .preview {
   position:relative;
@@ -45,7 +70,6 @@ button {
   padding:20px;
   border:1px solid #374151;
 }
-
 .watermark {
   position:absolute;
   top:50%; left:50%;
@@ -53,8 +77,6 @@ button {
   font-size:34px;
   color:rgba(255,255,255,0.08);
 }
-
-.map-container { width:100%; height:60vh; }
 </style>
 </head>
 
@@ -62,8 +84,15 @@ button {
 
 <div class="container">
 
+<a href="index.html" class="back">← Back to Home</a>
+
 <input type="file" id="fileInput" />
 <button onclick="analyze()">Analyze Image</button>
+
+<div id="loader" style="display:none;text-align:center;margin:20px 0;">
+  <div class="spinner"></div>
+  <div style="margin-top:10px;">Analyzing image...</div>
+</div>
 
 <div id="result"></div>
 
@@ -74,6 +103,7 @@ button {
 const API = "https://image-forensics-saas-1.onrender.com";
 let currentFile = null;
 
+/* tabs */
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
@@ -81,83 +111,116 @@ function switchTab(name){
   document.getElementById(name).classList.add("active");
 }
 
-async function downloadReport(){
-  const form = new FormData();
-  form.append("image", currentFile);
+/* report */
+function buildReport(type, score){
+  const risk = score>=80?"Low":score<=50?"High":"Moderate";
 
-  const res = await fetch(API + "/report", { method:"POST", body:form });
-  const blob = await res.blob();
+  const map={
+    "Edited":{
+      summary:"Parts of this image may have been altered.",
+      details:"Some regions compress differently than others.",
+      meaning:"Verify before trusting."
+    },
+    "Recompressed":{
+      summary:"Image has been saved multiple times.",
+      details:"Compression changed but may not indicate edits.",
+      meaning:"Could hide earlier changes."
+    },
+    "Likely Original":{
+      summary:"No signs of editing detected.",
+      details:"Compression is consistent.",
+      meaning:"Image appears authentic."
+    },
+    "Unknown":{
+      summary:"Result unclear.",
+      details:"Not enough consistent signals.",
+      meaning:"Use higher quality image."
+    }
+  };
 
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "pixelproof-report.pdf";
-  a.click();
+  return {risk,...(map[type]||map["Unknown"])};
 }
 
+/* confidence */
 function buildConfidence(data){
-
-  const elaScore = data.ela.score;
-
+  const ela=data.ela.score;
   return [
-    { label:"Compression", value:Math.max(0,100-elaScore*4) },
-    { label:"Anomalies", value:Math.min(elaScore*4,100) },
-    { label:"Metadata", value:data.exif ? 85 : 30 },
-    { label:"AI Likelihood", value:data.ai?.likelihood || 0 }
+    {label:"Compression", value:Math.max(0,100-ela*4)},
+    {label:"Anomalies", value:Math.min(ela*4,100)},
+    {label:"Metadata", value:data.exif?85:30},
+    {label:"AI Likelihood", value:data.ai?.likelihood||0}
   ];
 }
 
+/* download */
+async function downloadReport(){
+  const form=new FormData();
+  form.append("image",currentFile);
+  const res=await fetch(API+"/report",{method:"POST",body:form});
+  const blob=await res.blob();
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="report.pdf";
+  a.click();
+}
+
+/* analyze */
 async function analyze(){
 
-  const file = document.getElementById("fileInput").files[0];
+  const file=document.getElementById("fileInput").files[0];
   if(!file) return alert("Select image");
 
-  currentFile = file;
+  currentFile=file;
 
-  const form = new FormData();
-  form.append("image", file);
+  document.getElementById("loader").style.display="block";
+  document.getElementById("result").innerHTML="";
 
-  const res = await fetch(API + "/analyze", { method:"POST", body:form });
-  const data = await res.json();
+  const form=new FormData();
+  form.append("image",file);
 
-  const type = data.classification.type;
-  const score = Math.round(data.classification.confidence * 100);
+  const res=await fetch(API+"/analyze",{method:"POST",body:form});
+  const data=await res.json();
 
-  const breakdown = buildConfidence(data);
+  document.getElementById("loader").style.display="none";
 
-  document.getElementById("result").innerHTML = `
+  const type=data.classification.type;
+  const score=Math.round(data.classification.confidence*100);
+
+  const report=buildReport(type,score);
+  const breakdown=buildConfidence(data);
+
+  document.getElementById("result").innerHTML=`
 
     <div class="tabs">
       <div class="tab active" id="tab-overview" onclick="switchTab('overview')">Overview</div>
       <div class="tab" id="tab-ela" onclick="switchTab('ela')">ELA</div>
-      <div class="tab" id="tab-ai" onclick="switchTab('ai')">AI</div>
+      <div class="tab" id="tab-metadata" onclick="switchTab('metadata')">Metadata</div>
       <div class="tab" id="tab-map" onclick="switchTab('map')">Map</div>
+      <div class="tab" id="tab-raw" onclick="switchTab('raw')">Full Metadata</div>
+      <div class="tab" id="tab-guide" onclick="switchTab('guide')">Guide</div>
+      <div class="tab" id="tab-ai" onclick="switchTab('ai')">AI</div>
     </div>
 
     <div id="overview" class="tab-content active">
-
-      <div class="card">
-        <strong>${type}</strong><br>
-        Score: ${score}/100
-      </div>
+      <div class="card"><strong>${type}</strong><br>Score: ${score}/100 (${report.risk})</div>
+      <div class="card"><strong>Summary</strong><br>${report.summary}</div>
+      <div class="card"><strong>Details</strong><br>${report.details}</div>
+      <div class="card"><strong>What this means</strong><br>${report.meaning}</div>
 
       <div class="card">
         <strong>Confidence Reasoning</strong><br><br>
-
-        ${breakdown.map(b => `
-          <div style="margin-bottom:10px;">
-            ${b.label}
-            <div style="height:6px;background:#1e293b;margin-top:4px;">
-              <div style="width:${b.value}%;height:100%;
-                background:${b.value>70?'#22c55e':b.value>40?'#f59e0b':'#ef4444'};">
-              </div>
+        ${breakdown.map(b=>`
+          ${b.label}
+          <div style="height:6px;background:#1e293b;margin:4px 0;">
+            <div style="width:${b.value}%;height:100%;
+              background:${b.value>70?'#22c55e':b.value>40?'#f59e0b':'#ef4444'};">
             </div>
           </div>
         `).join("")}
       </div>
 
       <button onclick="downloadReport()">Download Report</button>
-
     </div>
 
     <div id="ela" class="tab-content">
@@ -170,10 +233,10 @@ async function analyze(){
       <input type="range" id="slider" value="50">
     </div>
 
-    <div id="ai" class="tab-content">
+    <div id="metadata" class="tab-content">
       <div class="card">
-        AI Likelihood: ${data.ai.likelihood}%<br><br>
-        This is an estimate, not proof.
+        Camera: ${data.exif?.Make||"-"}<br>
+        Date: ${data.exif?.DateTimeOriginal||"-"}
       </div>
     </div>
 
@@ -181,14 +244,33 @@ async function analyze(){
       ${
         data.gps.lat
         ? `<iframe class="map-container"
-            src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed&t=k"></iframe>`
+           src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed&t=k"></iframe>`
         : "No GPS data"
       }
     </div>
+
+    <div id="raw" class="tab-content">
+      <pre>${JSON.stringify(data.exif,null,2)}</pre>
+    </div>
+
+    <div id="guide" class="tab-content">
+      <div class="card">
+        Bright patches = possible edits<br>
+        Uniform = likely original<br>
+        Even brightness = recompression
+      </div>
+    </div>
+
+    <div id="ai" class="tab-content">
+      <div class="card">
+        AI Likelihood: ${data.ai.likelihood}%<br>
+        This is an estimate, not proof.
+      </div>
+    </div>
   `;
 
-  document.getElementById("slider").oninput = e=>{
-    document.getElementById("overlay").style.width = e.target.value + "%";
+  document.getElementById("slider").oninput=e=>{
+    document.getElementById("overlay").style.width=e.target.value+"%";
   };
 }
 
