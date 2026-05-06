@@ -173,7 +173,7 @@ if (!gpsData?.lat) {
 
   const riskClass = score>=80?"low":score>=55?"mid":"high";
 
-  document.getElementById("result").innerHTML=
+  document.getElementById("result").innerHTML=`
 
   <button onclick="downloadPDF()">Download Report</button>
   <button class="secondary" onclick="resetAnalysis()">Analyze Another</button>
