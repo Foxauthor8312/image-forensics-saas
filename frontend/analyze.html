@@ -6,92 +6,65 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <style>
-* { box-sizing: border-box; }
-
 body {
-  background: #000;
-  color: #fff;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  margin: 0;
-  padding: 16px;
+  background:#000;
+  color:#fff;
+  font-family:Arial;
+  padding:16px;
 }
 
-.container {
-  max-width: 720px;
-  margin: auto;
-}
+.container { max-width:700px; margin:auto; }
 
-.back {
-  color: #9ca3af;
-  text-decoration: none;
-  font-size: 14px;
-}
-
-/* buttons */
 button {
-  width: 100%;
-  padding: 12px;
-  background: #1f2937;
-  border: 1px solid #374151;
-  color: white;
-  border-radius: 8px;
-  cursor: pointer;
+  width:100%;
+  padding:12px;
+  background:#1f2937;
+  border:1px solid #374151;
+  color:white;
+  border-radius:8px;
 }
 
-/* cards */
 .card {
-  background: #0b0f19;
-  border: 1px solid #1f2937;
-  border-radius: 10px;
-  padding: 14px;
-  margin-bottom: 14px;
+  background:#0b0f19;
+  border:1px solid #1f2937;
+  border-radius:10px;
+  padding:14px;
+  margin-bottom:14px;
 }
 
-/* slider */
-.slider-container {
-  position: relative;
-}
-
-.slider-container img {
-  width: 100%;
-  border-radius: 8px;
-}
+.slider-container { position:relative; }
+.slider-container img { width:100%; }
 
 .overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 50%;
-  overflow: hidden;
+  position:absolute;
+  top:0;
+  left:0;
+  width:50%;
+  overflow:hidden;
 }
-
 .overlay::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  width: 6px;
-  height: 100%;
-  background: linear-gradient(to right, transparent, rgba(255,255,255,0.6));
+  content:"";
+  position:absolute;
+  right:0;
+  width:6px;
+  height:100%;
+  background:linear-gradient(to right,transparent,rgba(255,255,255,0.6));
 }
 
-/* watermark preview */
-.preview-box {
-  position: relative;
-  border: 1px solid #374151;
-  background: #05070d;
-  padding: 20px;
-  border-radius: 10px;
+.preview {
+  position:relative;
+  padding:20px;
+  border:1px solid #374151;
+  background:#05070d;
 }
 
 .watermark {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(-20deg);
-  font-size: 34px;
-  color: rgba(255,255,255,0.08);
-  pointer-events: none;
-  user-select: none;
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%) rotate(-20deg);
+  font-size:36px;
+  color:rgba(255,255,255,0.08);
 }
 </style>
 </head>
@@ -99,8 +72,6 @@ button {
 <body>
 
 <div class="container">
-
-<a href="index.html" class="back">← Back</a>
 
 <input type="file" id="fileInput" />
 <button onclick="analyze()">Analyze Image</button>
@@ -110,66 +81,53 @@ button {
 </div>
 
 <script>
+
 const API = "https://image-forensics-saas-1.onrender.com";
 
-/* ===== REPORT BUILDER ===== */
-function buildReport(type, confidence){
+let currentFile = null;
 
-  const score = Math.round(confidence * 100);
-  const risk = score >= 80 ? "Low" : score <= 50 ? "High" : "Moderate";
+/* ===== DOWNLOAD PDF ===== */
+async function downloadReport(){
+  try {
+    const form = new FormData();
+    form.append("image", currentFile);
 
-  const reports = {
+    const res = await fetch(API + "/report", {
+      method:"POST",
+      body:form
+    });
 
-    "Likely Original": {
-      summary: "No clear signs of editing were found.",
-      meaning: "This image appears authentic and has likely not been altered."
-    },
+    if(!res.ok) throw new Error();
 
-    "Recompressed": {
-      summary: "This image has been saved or shared multiple times.",
-      meaning: "This does not mean it was edited, but repeated saving can hide earlier changes."
-    },
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
 
-    "Edited": {
-      summary: "Parts of this image may have been changed.",
-      meaning: "You should not fully trust this image without verifying the source."
-    },
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pixelproof-report.pdf";
+    a.click();
 
-    "Unknown": {
-      summary: "The result is not clear.",
-      meaning: "Try analyzing a higher-quality version of the image."
-    }
-  };
-
-  return {
-    score,
-    risk,
-    ...(reports[type] || reports["Unknown"])
-  };
+  } catch {
+    alert("Server waking up — try again");
+  }
 }
 
-/* ===== PREVIEW REPORT (WITH WATERMARK) ===== */
+/* ===== PREVIEW ===== */
 function showPreview(report){
 
   document.getElementById("result").innerHTML += `
-    <div class="card preview-box">
-
+    <div class="card preview">
       <div class="watermark">FORENSIC PREVIEW</div>
 
-      <h3>Forensic Report (Preview)</h3>
+      <h3>Forensic Report Preview</h3>
 
-      <div><strong>Integrity Score:</strong> ${report.score}/100 (${report.risk})</div><br>
+      Score: ${report.score}/100 (${report.risk})<br><br>
 
-      <strong>Summary</strong><br>
       ${report.summary}<br><br>
 
-      <strong>What this means for you</strong><br>
       ${report.meaning}<br><br>
 
-      <button onclick="alert('Upgrade required to download full report')">
-        Unlock Full Report
-      </button>
-
+      <button onclick="downloadReport()">Unlock Full Report</button>
     </div>
   `;
 }
@@ -178,18 +136,16 @@ function showPreview(report){
 async function analyze(){
 
   const file = document.getElementById("fileInput").files[0];
-  const resultEl = document.getElementById("result");
+  if(!file) return alert("Select image");
 
-  if (!file) return alert("Select image");
-
-  resultEl.innerHTML = "Analyzing...";
+  currentFile = file;
 
   const form = new FormData();
   form.append("image", file);
 
   const res = await fetch(API + "/analyze", {
-    method: "POST",
-    body: form
+    method:"POST",
+    body:form
   });
 
   const data = await res.json();
@@ -197,12 +153,26 @@ async function analyze(){
   const type = data.classification?.type || "Unknown";
   const confidence = data.classification?.confidence || 0.5;
 
-  const report = buildReport(type, confidence);
+  const score = Math.round(confidence * 100);
+  const risk = score >= 80 ? "Low" : score <= 50 ? "High" : "Moderate";
 
-  resultEl.innerHTML = `
+  const report = {
+    score,
+    risk,
+    summary: type === "Edited"
+      ? "Parts of this image may have been changed."
+      : type === "Recompressed"
+      ? "Image has been saved multiple times."
+      : "No signs of editing detected.",
+    meaning: type === "Edited"
+      ? "Verify this image before trusting it."
+      : "This image appears reliable."
+  };
+
+  document.getElementById("result").innerHTML = `
     <div class="card">
       <strong>${type}</strong><br>
-      Score: ${report.score}/100 (${report.risk})
+      Score: ${score}/100 (${risk})
     </div>
 
     <div class="card">
@@ -229,12 +199,11 @@ async function analyze(){
   const slider = document.getElementById("slider");
   const overlay = document.getElementById("overlay");
 
-  if (slider) {
-    slider.oninput = () => {
-      overlay.style.width = slider.value + "%";
-    };
-  }
+  slider.oninput = () => {
+    overlay.style.width = slider.value + "%";
+  };
 }
+
 </script>
 
 </body>
