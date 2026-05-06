@@ -119,7 +119,10 @@ async function fetchWithRetry(url, options, retries = 2) {
     return await fetch(url, options);
   } catch (err) {
     if (retries === 0) throw err;
-    await new Promise(r => setTimeout(r, 1000));
+
+    console.log("Retrying request...");
+
+    await new Promise(r => setTimeout(r, 1200)); // smoother retry
     return fetchWithRetry(url, options, retries - 1);
   }
 }
@@ -148,7 +151,7 @@ async function analyze(){
   document.getElementById("result").innerHTML = `
   <div class="card" style="text-align:center">
     <div style="width:40px;height:40px;border:4px solid #374151;border-top:4px solid #3b82f6;border-radius:50%;margin:auto;animation:spin 1s linear infinite"></div>
-    <div class="small" style="margin-top:10px">Analyzing image...</div>
+    <div class="small" style="margin-top:10px">Analyzing image... (may take a few seconds)</div>
   </div>
 `;
 let data;
