@@ -25,9 +25,13 @@ function classifyImage(exif, elaScore) {
 /* ===== AI DETECTION ===== */
 function detectAI(elaScore, exif) {
   let score = 0;
-  if (!exif) score += 40;
-  if (elaScore < 8) score += 30;
-  if (elaScore < 5) score += 20;
+
+  if (!exif) score += 30;
+
+  if (elaScore < 20) score += 20;
+  if (elaScore < 10) score += 20;
+  if (elaScore < 5)  score += 20;
+
   return Math.min(score, 100);
 }
 
@@ -69,9 +73,15 @@ async function runELA(buffer) {
   }).jpeg().toBuffer();
 
   return {
-    score: total / orig.data.length,
-    buffer: elaImage
-  };
+  const rawScore = total / orig.data.length;
+
+// normalize to 0–100 range
+const normalized = Math.min(100, rawScore * 10);
+
+return {
+  score: normalized,
+  buffer: elaImage
+};
 }
 
 /* ===== ANALYZE ===== */
@@ -114,9 +124,11 @@ app.post('/report', upload.single('image'), async (req, res) => {
 
   /* ===== SIGNALS ===== */
   const signals = {
-    compression: Math.max(0,100-ela.score*4),
-    anomalies: Math.min(ela.score*4,100),
-    metadata: rawExif?85:30,
+   compression: Math.max(0,100-ela),
+    anomalies: ela,
+    metadata: data.exif
+  ? (data.exif.Make ? 90 : 70)
+  : 20,
     ai: aiScore
   };
 
