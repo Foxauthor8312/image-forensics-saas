@@ -141,8 +141,32 @@ async function analyze(){
     <div class="small" style="margin-top:10px">Analyzing image...</div>
   </div>
 `;
+  let data;
+
+try {
   const res = await fetch(API+"/analyze",{method:"POST",body:form});
-  const data = await res.json();
+
+  if(!res.ok){
+    throw new Error("Server error");
+  }
+
+  data = await res.json();
+
+} catch(err){
+
+  document.getElementById("result").innerHTML = `
+    <div class="card">
+      <div class="section-title">Analysis Failed</div>
+      Unable to process the image.<br><br>
+
+      This is usually a temporary connection issue.<br><br>
+
+      Please try again.
+    </div>
+  `;
+
+  return; // 🚨 stops execution so spinner doesn’t hang
+}
 console.log("API RESPONSE:", data);
   let gpsData = data.gps;
 
