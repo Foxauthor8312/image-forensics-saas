@@ -41,6 +41,7 @@ button {
   border-radius: 8px;
 }
 
+/* LOADER */
 .spinner {
   width: 40px;
   height: 40px;
@@ -52,6 +53,7 @@ button {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* TABS */
 .tabs {
   display: flex;
   gap: 6px;
@@ -71,6 +73,7 @@ button {
   background: #111827;
 }
 
+/* CONTENT */
 .tab-content {
   display: none;
   margin-top: 14px;
@@ -80,6 +83,7 @@ button {
   display: block;
 }
 
+/* CARDS */
 .card {
   background: #0b0f19;
   border: 1px solid #1f2937;
@@ -88,14 +92,23 @@ button {
   margin-bottom: 14px;
 }
 
+/* META */
 .meta-row {
   padding: 6px 0;
   border-bottom: 1px solid #1f2937;
 }
 
-.slider-container { position: relative; }
-.slider-container img { width: 100%; border-radius: 8px; }
+/* SLIDER */
+.slider-container {
+  position: relative;
+}
 
+.slider-container img {
+  width: 100%;
+  border-radius: 8px;
+}
+
+/* overlay edge subtle gradient instead of divider */
 .overlay {
   position: absolute;
   top: 0;
@@ -104,14 +117,21 @@ button {
   overflow: hidden;
 }
 
-.divider {
+.overlay::after {
+  content: "";
   position: absolute;
-  left: 50%;
-  width: 2px;
+  right: 0;
+  top: 0;
+  width: 6px;
   height: 100%;
-  background: white;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.6));
 }
 
+.overlay img {
+  width: 100%;
+}
+
+/* MAP */
 .map-container {
   width: 100%;
   height: 60vh;
@@ -218,7 +238,6 @@ async function analyze(){
         <div class="overlay" id="overlay">
           <img src="${data.ela?.overlay}">
         </div>
-      
       </div>
       <input type="range" id="slider" min="0" max="100" value="50">
     </div>
@@ -233,52 +252,34 @@ async function analyze(){
     </div>
 
     <div id="map" class="tab-content">
-      ${lat && lon
+      ${
+        lat && lon
         ? `<div class="map-container">
              <iframe width="100%" height="100%"
              src="https://www.google.com/maps?q=${lat},${lon}&z=18&output=embed&t=k"></iframe>
            </div>`
-        : "No GPS data"}
+        : "No GPS data"
+      }
     </div>
 
     <div id="raw" class="tab-content">
       <pre>${JSON.stringify(data.rawMetadata, null, 2)}</pre>
     </div>
 
-    <!-- ✅ GUIDE TAB FIXED -->
     <div id="guide" class="tab-content">
-
-      <div class="card">
-        <strong>Understanding the Analysis</strong><br><br>
-        PixelProof analyzes compression patterns and metadata to identify signs of manipulation.
-      </div>
-
-      <div class="card">
-        <strong>ELA (Error Level Analysis)</strong><br><br>
-        Uniform = normal<br>
-        Bright patches = possible edits
-      </div>
-
-      <div class="card">
-        <strong>Metadata</strong><br><br>
-        Metadata provides context but can be removed or altered.
-      </div>
-
-      <div class="card" style="font-size:13px;color:#9ca3af;">
-        Results are indicators, not proof.
-      </div>
-
+      <div class="card"><strong>Understanding the Analysis</strong><br>Compression + metadata signals.</div>
+      <div class="card"><strong>ELA</strong><br>Bright = differences. Uniform = normal.</div>
+      <div class="card"><strong>Metadata</strong><br>Context only. Can be altered.</div>
+      <div class="card" style="font-size:13px;color:#9ca3af;">Results are indicators, not proof.</div>
     </div>
   `;
 
   const slider=document.getElementById("slider");
   const overlay=document.getElementById("overlay");
-  const divider=document.getElementById("divider");
 
   if(slider){
     slider.oninput=()=>{
       overlay.style.width=slider.value+"%";
-      divider.style.left=slider.value+"%";
     };
   }
 }
