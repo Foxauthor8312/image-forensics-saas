@@ -22,9 +22,17 @@ function classifyImage(exif, elaScore) {
   return { type: "Unknown", confidence: 0.6 };
 }
 
+/* ===== AI DETECTION ===== */
+function detectAI(elaScore, exif) {
+  let score = 0;
+  if (!exif) score += 40;
+  if (elaScore < 8) score += 30;
+  if (elaScore < 5) score += 20;
+  return Math.min(score, 100);
+}
+
 /* ===== ELA ===== */
 async function runELA(buffer) {
-
   const normalized = await sharp(buffer)
     .resize({ width: 800, withoutEnlargement: true })
     .jpeg()
@@ -43,13 +51,11 @@ async function runELA(buffer) {
     .toBuffer({ resolveWithObject: true });
 
   let total = 0;
-
   for (let i = 0; i < orig.data.length; i++) {
     total += Math.abs(orig.data[i] - comp.data[i]);
   }
 
   const diff = Buffer.alloc(orig.data.length);
-
   for (let i = 0; i < orig.data.length; i++) {
     diff[i] = Math.min(255, Math.abs(orig.data[i] - comp.data[i]) * 10);
   }
@@ -71,80 +77,66 @@ async function runELA(buffer) {
 /* ===== ANALYZE ===== */
 app.post('/analyze', upload.single('image'), async (req, res) => {
 
-  try {
-    const buffer = req.file.buffer;
+  const buffer = req.file.buffer;
 
-    const rawExif = await exifr.parse(buffer, { gps: true });
-    const ela = await runELA(buffer);
-    const classification = classifyImage(rawExif, ela.score);
+  const rawExif = await exifr.parse(buffer, { gps: true });
+  const ela = await runELA(buffer);
+  const classification = classifyImage(rawExif, ela.score);
+  const aiScore = detectAI(ela.score, rawExif);
 
-    res.json({
-      ela: {
-        score: ela.score,
-        overlay: `data:image/jpeg;base64,${ela.buffer.toString('base64')}`
-      },
-      exif: rawExif,
-      gps: {
-        lat: rawExif?.latitude || null,
-        lon: rawExif?.longitude || null
-      },
-      classification
-    });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Analyze error");
-  }
+  res.json({
+    ela: {
+      score: ela.score,
+      overlay: `data:image/jpeg;base64,${ela.buffer.toString('base64')}`
+    },
+    exif: rawExif,
+    gps: {
+      lat: rawExif?.latitude || null,
+      lon: rawExif?.longitude || null
+    },
+    classification,
+    ai: {
+      likelihood: aiScore
+    }
+  });
 });
 
 /* ===== PDF REPORT ===== */
 app.post('/report', upload.single('image'), async (req, res) => {
 
-  try {
+  const buffer = req.file.buffer;
 
-    const buffer = req.file.buffer;
+  const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+  const rawExif = await exifr.parse(buffer, { gps: true });
+  const ela = await runELA(buffer);
+  const classification = classifyImage(rawExif, ela.score);
 
-    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
-    const rawExif = await exifr.parse(buffer, { gps: true });
-    const ela = await runELA(buffer);
-    const classification = classifyImage(rawExif, ela.score);
+  const doc = new PDFDocument({ margin: 40 });
 
-    const doc = new PDFDocument({ margin: 40 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'attachment; filename=pixelproof-report.pdf');
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename=pixelproof-report.pdf');
+  doc.pipe(res);
 
-    doc.pipe(res);
+  doc.fontSize(20).text('PixelProof Forensic Report');
+  doc.moveDown();
 
-    /* TITLE */
-    doc.fontSize(20).text('PixelProof Forensic Report');
-    doc.moveDown();
+  doc.fontSize(10).text('SHA-256 Hash:');
+  doc.text(hash);
+  doc.moveDown();
 
-    /* HASH */
-    doc.fontSize(10).text('SHA-256 Hash:');
-    doc.text(hash);
-    doc.moveDown();
+  doc.fontSize(14).text(`Result: ${classification.type}`);
+  doc.text(`Confidence: ${Math.round(classification.confidence * 100)}%`);
+  doc.moveDown();
 
-    /* RESULT */
-    doc.fontSize(14).text(`Result: ${classification.type}`);
-    doc.text(`Confidence: ${Math.round(classification.confidence * 100)}%`);
-    doc.moveDown();
+  doc.text('Original Image');
+  doc.image(buffer, { width: 250 });
+  doc.moveDown();
 
-    /* IMAGE */
-    doc.text('Original Image');
-    doc.image(buffer, { width: 250 });
-    doc.moveDown();
+  doc.text('ELA Analysis');
+  doc.image(ela.buffer, { width: 250 });
 
-    /* ELA */
-    doc.text('ELA Analysis');
-    doc.image(ela.buffer, { width: 250 });
-
-    doc.end();
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Report error");
-  }
+  doc.end();
 });
 
 app.listen(PORT, () => console.log("Server running on port " + PORT));
