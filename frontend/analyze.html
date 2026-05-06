@@ -274,11 +274,46 @@ async function analyze(){
   </div>
 
   <div id="ela" class="tab-content">
-    <div class="card">
-      <strong>ELA (Error Level Analysis)</strong><br><br>
-      Shows compression differences. Bright areas may indicate edits.
-      Use slider to compare original vs analysis.
-    </div>
+   <div class="card">
+  <div class="section-title">Error Level Analysis (ELA)</div>
+
+  <strong>What you are seeing</strong><br><br>
+
+  This view highlights how different parts of the image were compressed when it was saved.<br><br>
+
+  • Bright areas = parts of the image that were saved differently<br>
+  • Dark/consistent areas = parts that were saved uniformly<br><br>
+
+  <strong>How to use the slider</strong><br><br>
+
+  Move the slider to compare the original image with the analysis overlay.<br>
+  This helps you visually identify areas that behave differently from the rest of the image.<br><br>
+
+  <strong>What to look for</strong><br><br>
+
+  ${
+    signals.anomalies > 65
+    ? `
+    In this image, look for **bright or inconsistent regions** that stand out from surrounding areas.<br><br>
+
+    These areas may indicate:
+    • Edited or altered sections<br>
+    • Objects added or removed<br>
+    • Selective re-saving of part of the image<br><br>
+
+    The presence of these differences supports the finding that the image may not be fully original.
+    `
+    : `
+    In this image, the brightness appears **fairly uniform across the entire image**.<br><br>
+
+    This suggests:
+    • The image was processed consistently<br>
+    • No strong signs of localized editing are visible<br><br>
+
+    This supports the finding that the image behaves like a typical, unedited photo.
+    `
+  }
+</div>
 
     <div class="slider-container">
       <img src="${URL.createObjectURL(file)}">
