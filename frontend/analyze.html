@@ -9,26 +9,17 @@
 body { background:#000; color:#fff; font-family:Arial; padding:16px; }
 .container { max-width:720px; margin:auto; }
 
-.back {
-  display:inline-block;
-  margin-bottom:10px;
-  color:#9ca3af;
-  text-decoration:none;
-  font-size:14px;
-}
+.back { color:#9ca3af; text-decoration:none; display:inline-block; margin-bottom:10px; }
 
 button {
-  width:100%;
-  padding:12px;
+  width:100%; padding:12px;
   background:#1f2937;
   border:1px solid #374151;
-  color:white;
-  border-radius:8px;
+  color:white; border-radius:8px;
 }
 
 .spinner {
-  width:40px;
-  height:40px;
+  width:40px;height:40px;
   border:4px solid #1e293b;
   border-top:4px solid #3b82f6;
   border-radius:50%;
@@ -37,15 +28,9 @@ button {
 }
 @keyframes spin { to { transform:rotate(360deg); } }
 
-.tabs {
-  display:flex;
-  gap:6px;
-  margin-top:16px;
-  border-bottom:1px solid #1f2937;
-  overflow-x:auto;
-}
+.tabs { display:flex; gap:6px; border-bottom:1px solid #1f2937; overflow-x:auto; }
 .tab { padding:10px; color:#9ca3af; cursor:pointer; }
-.tab.active { color:white; background:#111827; }
+.tab.active { color:#fff; background:#111827; }
 
 .tab-content { display:none; margin-top:14px; }
 .tab-content.active { display:block; }
@@ -63,20 +48,6 @@ button {
 .overlay { position:absolute; top:0; left:0; width:50%; overflow:hidden; }
 
 .map-container { width:100%; height:60vh; }
-
-.preview {
-  position:relative;
-  background:#05070d;
-  padding:20px;
-  border:1px solid #374151;
-}
-.watermark {
-  position:absolute;
-  top:50%; left:50%;
-  transform:translate(-50%,-50%) rotate(-20deg);
-  font-size:34px;
-  color:rgba(255,255,255,0.08);
-}
 </style>
 </head>
 
@@ -84,7 +55,7 @@ button {
 
 <div class="container">
 
-<a href="index.html" class="back">← Back to Home</a>
+<a href="index.html" class="back">← Back</a>
 
 <input type="file" id="fileInput" />
 <button onclick="analyze()">Analyze Image</button>
@@ -101,9 +72,8 @@ button {
 <script>
 
 const API = "https://image-forensics-saas-1.onrender.com";
-let currentFile = null;
+let currentFile=null;
 
-/* tabs */
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
@@ -111,48 +81,54 @@ function switchTab(name){
   document.getElementById(name).classList.add("active");
 }
 
-/* report */
+/* ===== REPORT ===== */
 function buildReport(type, score){
+
   const risk = score>=80?"Low":score<=50?"High":"Moderate";
 
-  const map={
+  const reports={
+
     "Edited":{
       summary:"Parts of this image may have been altered.",
-      details:"Some regions compress differently than others.",
-      meaning:"Verify before trusting."
+      explanation:"Certain areas compress differently than surrounding regions. This often happens when content is added, removed, or modified.",
+      meaning:"You should treat this image as potentially manipulated and verify it using trusted sources."
     },
+
     "Recompressed":{
-      summary:"Image has been saved multiple times.",
-      details:"Compression changed but may not indicate edits.",
-      meaning:"Could hide earlier changes."
+      summary:"This image has been saved or processed multiple times.",
+      explanation:"Recompression changes how an image is stored. This can happen naturally when images are uploaded or shared.",
+      meaning:"Recompression alone is not proof of editing, but it can hide previous changes."
     },
+
     "Likely Original":{
-      summary:"No signs of editing detected.",
-      details:"Compression is consistent.",
-      meaning:"Image appears authentic."
+      summary:"No clear signs of editing were found.",
+      explanation:"Compression patterns are consistent across the image, which typically indicates the image has not been modified.",
+      meaning:"This image appears authentic and can generally be trusted."
     },
+
     "Unknown":{
-      summary:"Result unclear.",
-      details:"Not enough consistent signals.",
-      meaning:"Use higher quality image."
+      summary:"The result is inconclusive.",
+      explanation:"The system could not find strong enough patterns to make a determination.",
+      meaning:"Try analyzing a higher-quality version of the image."
     }
   };
 
-  return {risk,...(map[type]||map["Unknown"])};
+  return {risk,...(reports[type]||reports["Unknown"])};
 }
 
-/* confidence */
+/* ===== CONFIDENCE ===== */
 function buildConfidence(data){
   const ela=data.ela.score;
+
   return [
-    {label:"Compression", value:Math.max(0,100-ela*4)},
-    {label:"Anomalies", value:Math.min(ela*4,100)},
-    {label:"Metadata", value:data.exif?85:30},
+    {label:"Compression Consistency", value:Math.max(0,100-ela*4)},
+    {label:"Localized Anomalies", value:Math.min(ela*4,100)},
+    {label:"Metadata Presence", value:data.exif?85:30},
     {label:"AI Likelihood", value:data.ai?.likelihood||0}
   ];
 }
 
-/* download */
+/* ===== DOWNLOAD ===== */
 async function downloadReport(){
   const form=new FormData();
   form.append("image",currentFile);
@@ -165,7 +141,7 @@ async function downloadReport(){
   a.click();
 }
 
-/* analyze */
+/* ===== ANALYZE ===== */
 async function analyze(){
 
   const file=document.getElementById("fileInput").files[0];
@@ -198,15 +174,31 @@ async function analyze(){
       <div class="tab" id="tab-metadata" onclick="switchTab('metadata')">Metadata</div>
       <div class="tab" id="tab-map" onclick="switchTab('map')">Map</div>
       <div class="tab" id="tab-raw" onclick="switchTab('raw')">Full Metadata</div>
-      <div class="tab" id="tab-guide" onclick="switchTab('guide')">Guide</div>
+      <div class="tab" id="tab-guide" onclick="switchTab('guide')">How to Read</div>
       <div class="tab" id="tab-ai" onclick="switchTab('ai')">AI</div>
     </div>
 
     <div id="overview" class="tab-content active">
-      <div class="card"><strong>${type}</strong><br>Score: ${score}/100 (${report.risk})</div>
-      <div class="card"><strong>Summary</strong><br>${report.summary}</div>
-      <div class="card"><strong>Details</strong><br>${report.details}</div>
-      <div class="card"><strong>What this means</strong><br>${report.meaning}</div>
+
+      <div class="card">
+        <strong>${type}</strong><br>
+        Score: ${score}/100 (${report.risk})
+      </div>
+
+      <div class="card">
+        <strong>Summary</strong><br><br>
+        ${report.summary}
+      </div>
+
+      <div class="card">
+        <strong>Why this result was given</strong><br><br>
+        ${report.explanation}
+      </div>
+
+      <div class="card">
+        <strong>What this means for you</strong><br><br>
+        ${report.meaning}
+      </div>
 
       <div class="card">
         <strong>Confidence Reasoning</strong><br><br>
@@ -221,15 +213,23 @@ async function analyze(){
       </div>
 
       <button onclick="downloadReport()">Download Report</button>
+
     </div>
 
     <div id="ela" class="tab-content">
+      <div class="card">
+        <strong>What is ELA?</strong><br><br>
+        Error Level Analysis highlights differences in compression.<br><br>
+        Bright areas may indicate edits.
+      </div>
+
       <div class="slider-container">
         <img src="${URL.createObjectURL(file)}">
         <div class="overlay" id="overlay">
           <img src="${data.ela.overlay}">
         </div>
       </div>
+
       <input type="range" id="slider" value="50">
     </div>
 
@@ -255,16 +255,21 @@ async function analyze(){
 
     <div id="guide" class="tab-content">
       <div class="card">
-        Bright patches = possible edits<br>
-        Uniform = likely original<br>
-        Even brightness = recompression
+        <strong>How to interpret results</strong><br><br>
+
+        <b>ELA:</b> Highlights compression differences<br>
+        <b>Recompression:</b> Image saved multiple times<br>
+        <b>Metadata:</b> Camera info & timestamps<br>
+        <b>AI:</b> Indicates likelihood of synthetic origin<br><br>
+
+        Always combine all signals before making conclusions.
       </div>
     </div>
 
     <div id="ai" class="tab-content">
       <div class="card">
-        AI Likelihood: ${data.ai.likelihood}%<br>
-        This is an estimate, not proof.
+        AI Likelihood: ${data.ai.likelihood}%<br><br>
+        This is a probability estimate, not proof.
       </div>
     </div>
   `;
