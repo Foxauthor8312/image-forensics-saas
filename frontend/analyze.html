@@ -15,24 +15,10 @@ body {
 
 .container { max-width:900px; margin:auto; }
 
-.header {
-  font-size:22px;
-  font-weight:600;
-  margin-bottom:6px;
-}
+.header { font-size:22px; font-weight:600; margin-bottom:6px; }
+.sub { font-size:13px; color:#9ca3af; margin-bottom:20px; }
 
-.sub {
-  font-size:13px;
-  color:#9ca3af;
-  margin-bottom:20px;
-}
-
-.back {
-  color:#9ca3af;
-  text-decoration:none;
-  display:inline-block;
-  margin-bottom:12px;
-}
+.back { color:#9ca3af; text-decoration:none; display:inline-block; margin-bottom:12px; }
 
 button {
   width:100%;
@@ -54,24 +40,9 @@ button {
 }
 @keyframes spin { to { transform:rotate(360deg); } }
 
-.tabs {
-  display:flex;
-  gap:8px;
-  margin-top:20px;
-  border-bottom:1px solid #1f2937;
-  overflow-x:auto;
-}
-
-.tab {
-  padding:10px 14px;
-  cursor:pointer;
-  color:#9ca3af;
-}
-
-.tab.active {
-  color:white;
-  border-bottom:2px solid #3b82f6;
-}
+.tabs { display:flex; gap:8px; border-bottom:1px solid #1f2937; overflow-x:auto; }
+.tab { padding:10px 14px; cursor:pointer; color:#9ca3af; }
+.tab.active { color:white; border-bottom:2px solid #3b82f6; }
 
 .tab-content { display:none; margin-top:16px; }
 .tab-content.active { display:block; }
@@ -84,17 +55,9 @@ button {
   margin-bottom:16px;
 }
 
-.section-title {
-  font-size:14px;
-  font-weight:600;
-  margin-bottom:8px;
-}
+.section-title { font-size:14px; font-weight:600; margin-bottom:8px; }
 
-.score {
-  font-size:36px;
-  font-weight:700;
-}
-
+.score { font-size:36px; font-weight:700; }
 .low { color:#22c55e; }
 .mid { color:#f59e0b; }
 .high { color:#ef4444; }
@@ -113,6 +76,18 @@ button {
 }
 
 .map-container { width:100%; height:60vh; border-radius:10px; }
+
+.verify-buttons a {
+  display:block;
+  text-align:center;
+  padding:10px;
+  margin-top:8px;
+  border-radius:8px;
+  background:#111827;
+  border:1px solid #374151;
+  color:#e5e7eb;
+  text-decoration:none;
+}
 </style>
 </head>
 
@@ -123,7 +98,7 @@ button {
 <a href="index.html" class="back">← Back</a>
 
 <div class="header">PixelProof Analysis</div>
-<div class="sub">Forensic evaluation of image authenticity using compression, metadata, and AI signals</div>
+<div class="sub">Evaluate whether an image is likely authentic or altered</div>
 
 <input type="file" id="fileInput" />
 <button onclick="analyze()">Analyze Image</button>
@@ -159,50 +134,60 @@ async function safeFetch(url, options, retries=2){
 /* SCORING */
 function buildSignals(data){
   const ela = data.ela.score;
-
   return {
-    compression:{label:"Compression",value:Math.max(0,100-ela*4),weight:0.3},
-    anomalies:{label:"Anomalies",value:Math.min(ela*4,100),weight:0.3},
-    metadata:{label:"Metadata",value:data.exif?85:30,weight:0.2},
-    ai:{label:"AI Likelihood",value:data.ai?.likelihood||0,weight:0.2}
+    compression: Math.max(0,100-ela*4),
+    anomalies: Math.min(ela*4,100),
+    metadata: data.exif?85:30,
+    ai: data.ai?.likelihood||0
   };
 }
 
-function calcScore(signals){
-  let t=0;
-  for(const k in signals){ t+=signals[k].value*signals[k].weight; }
-  return Math.round(t);
+function calcScore(s){
+  return Math.round(
+    s.compression*0.3 +
+    s.anomalies*0.3 +
+    s.metadata*0.2 +
+    s.ai*0.2
+  );
 }
 
-/* CONFIDENCE (HUMAN MEANING) */
+/* CONFIDENCE */
 function getConfidence(score){
-  if(score>=85) return {label:"Very Strong", meaning:"You can rely on this result. The evidence is consistent across multiple checks."};
-  if(score>=70) return {label:"Strong", meaning:"This result is reliable. Most indicators agree."};
-  if(score>=55) return {label:"Moderate", meaning:"Some signals suggest this result, but normal processing could also explain it."};
-  if(score>=40) return {label:"Weak", meaning:"The result is uncertain and should not be relied on alone."};
-  return {label:"Insufficient", meaning:"Not enough reliable data to determine anything meaningful."};
+  if(score>=85) return ["Very Strong","You can rely on this result."];
+  if(score>=70) return ["Strong","Most indicators agree."];
+  if(score>=55) return ["Moderate","Mixed signals—verify before trusting."];
+  if(score>=40) return ["Weak","Uncertain result."];
+  return ["Insufficient","Not enough reliable data."];
 }
 
-/* FINAL INTERPRETATION */
-function interpret(score){
+/* NARRATIVE */
+function buildNarrative(s, score){
 
-  if(score>=80){
-    return {
-      conclusion:"No significant signs of manipulation detected.",
-      action:"Image appears consistent. Verify source if needed."
-    };
-  }
+  let observation = s.anomalies>65
+    ? "Parts of the image were saved differently than others."
+    : "The image appears to have been processed uniformly.";
 
-  if(score>=55){
-    return {
-      conclusion:"Some inconsistencies detected.",
-      action:"Check the source and compare with other versions before relying on this image."
-    };
-  }
+  let reasoning = s.anomalies>65
+    ? "This often happens when only part of an image is edited and re-saved."
+    : "This pattern is typical of normal resizing or compression.";
 
+  let strength = score>=70
+    ? "Multiple indicators support this finding."
+    : "Indicators are limited or mixed.";
+
+  let action = score>=70
+    ? "You should verify this image before relying on it."
+    : "This result is inconclusive—use caution.";
+
+  return { observation, reasoning, strength, action };
+}
+
+/* VERIFY LINKS */
+function buildVerifyLinks(gps){
   return {
-    conclusion:"Indicators suggest possible manipulation.",
-    action:"Do not rely on this image without independent verification."
+    reverse:"https://images.google.com/",
+    news:"https://news.google.com/",
+    maps: gps?.lat ? `https://maps.google.com?q=${gps.lat},${gps.lon}` : null
   };
 }
 
@@ -234,7 +219,8 @@ async function analyze(){
   const signals = buildSignals(data);
   const score = calcScore(signals);
   const confidence = getConfidence(score);
-  const result = interpret(score);
+  const narrative = buildNarrative(signals, score);
+  const links = buildVerifyLinks(data.gps);
 
   const riskClass = score>=80?"low":score>=55?"mid":"high";
 
@@ -253,24 +239,38 @@ async function analyze(){
 
       <div class="card">
         <div class="score ${riskClass}">${score}/100</div>
-        <strong>${confidence.label} confidence</strong><br>
-        ${confidence.meaning}
+        <strong>${confidence[0]} confidence</strong><br>
+        ${confidence[1]}
       </div>
 
       <div class="card">
-        <div class="section-title">Conclusion</div>
-        ${result.conclusion}
+        <div class="section-title">What was found</div>
+        ${narrative.observation}
+      </div>
+
+      <div class="card">
+        <div class="section-title">Why it matters</div>
+        ${narrative.reasoning}
+      </div>
+
+      <div class="card">
+        <div class="section-title">How strong is this</div>
+        ${narrative.strength}
       </div>
 
       <div class="card">
         <div class="section-title">What you should do</div>
-        ${result.action}
+        ${narrative.action}
       </div>
 
       <div class="card">
-        <div class="section-title">AI Assessment</div>
-        AI Likelihood: ${data.ai.likelihood}%<br>
-        <div class="small">Indicates probability of synthetic origin.</div>
+        <div class="section-title">Verify this image</div>
+
+        <div class="verify-buttons">
+          <a href="${links.reverse}" target="_blank">Search image online</a>
+          <a href="${links.news}" target="_blank">Check news sources</a>
+          ${links.maps ? `<a href="${links.maps}" target="_blank">Verify location</a>` : ""}
+        </div>
       </div>
 
     </div>
@@ -310,7 +310,7 @@ async function analyze(){
     <div id="ai" class="tab-content">
       <div class="card">
         AI Likelihood: ${data.ai.likelihood}%<br>
-        This is a probabilistic indicator, not proof.
+        This estimates whether the image may have been generated by AI.
       </div>
     </div>
   `;
