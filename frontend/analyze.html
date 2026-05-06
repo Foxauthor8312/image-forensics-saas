@@ -166,27 +166,110 @@ async function analyze(){
 
   <div id="overview" class="tab-content active">
 
-    <div class="card">
-      <div class="score ${riskClass}">${score}/100</div>
-      ${scoreText}
-      <div class="small">
-      Score based on compression consistency, anomalies, metadata, and AI patterns.
-      </div>
-    </div>
+   <div class="card">
+  <div class="section-title">Analysis Summary</div>
 
-    <div class="card">
-      <div class="section-title">What was found</div>
-      ${signals.anomalies > 65
-        ? "Localized differences were detected across the image."
-        : "The image appears consistent across all areas."}
-    </div>
+  This image was analyzed using compression patterns, structural consistency, metadata, and synthetic image indicators.<br><br>
 
-    <div class="card">
-      <div class="section-title">What this means</div>
-      ${score >= 70
-        ? "There is a meaningful risk the image may have been altered."
-        : "No strong evidence of manipulation was detected."}
-    </div>
+  The goal is to determine whether the image behaves like a typical, unedited photograph or shows signs of alteration or artificial generation.
+</div>
+
+<div class="card">
+  <div class="section-title">What was found</div>
+
+  ${signals.anomalies > 65
+    ? `
+    The image shows **non-uniform compression patterns**, meaning different parts of the image were processed differently.
+
+    This is commonly seen when:
+    • A portion of the image has been edited or inserted  
+    • The image was selectively modified and re-saved  
+    • Multiple image sources were combined
+    `
+    : `
+    The image shows **consistent compression across all areas**, meaning it was likely processed as a single, uniform file.
+
+    This is typical of:
+    • Original photos from a camera or phone  
+    • Images that have only been resized or lightly compressed  
+    `
+  }
+</div>
+
+<div class="card">
+  <div class="section-title">Why this matters</div>
+
+  <strong>What is image compression?</strong><br><br>
+
+  Digital images are compressed to reduce file size. This process slightly simplifies the image so it can be stored and shared efficiently.<br><br>
+
+  When an image is saved normally, compression is applied evenly across the entire image.<br><br>
+
+  ${
+    signals.anomalies > 65
+    ? `
+    When part of an image is edited, that section is often saved differently. This creates subtle inconsistencies that are not visible to the eye but can be detected through analysis.<br><br>
+
+    These inconsistencies are one of the strongest indicators that an image may not be fully original.
+    `
+    : `
+    Because this image shows consistent compression, there are no strong signs of selective editing based on this analysis.<br><br>
+
+    This consistency is a strong indicator that the image has not been altered in a targeted way.
+    `
+  }
+</div>
+
+<div class="card">
+  <div class="section-title">How strong is this finding?</div>
+
+  ${
+    score >= 80
+    ? `
+    **High confidence:**  
+    The image behaves like a normal, unedited photograph.  
+    There are no meaningful indicators of manipulation.
+    `
+    : score >= 55
+    ? `
+    **Moderate confidence:**  
+    Some inconsistencies are present. These could be caused by editing or normal recompression (such as social media uploads).
+
+    This result is **inconclusive** and should be verified using additional context.
+    `
+    : `
+    **Elevated concern:**  
+    Multiple indicators suggest the image may have been altered or processed in a non-uniform way.
+
+    This pattern is commonly associated with edited or manipulated images.
+    `
+  }
+</div>
+
+<div class="card">
+  <div class="section-title">What this means for you</div>
+
+  ${
+    score >= 70
+    ? `
+    You should **not rely on this image without verification**.
+
+    Recommended next steps:
+    • Search for other versions of the image  
+    • Check trusted news or original sources  
+    • Compare details across multiple copies  
+    `
+    : `
+    There are no strong indicators of manipulation, but this does **not guarantee authenticity**.
+
+    Images can still be misleading even if they are technically unedited.
+
+    Always consider:
+    • Source credibility  
+    • Context of where the image was found  
+    `
+  }
+</div>
 
   </div>
 
