@@ -345,16 +345,16 @@ ${
     <div class="section-title">Metadata</div>
 
     ${
-      data.exif
-      ? `
-      Make: ${data.exif.Make || "-"}<br>
-      Model: ${data.exif.Model || "-"}<br>
-      Date: ${data.exif.ModifyDate || "-"}<br>
-      Width: ${data.exif.ImageWidth || "-"}<br>
-      Height: ${data.exif.ImageHeight || "-"}<br>
-      `
-      : `No metadata found`
-    }
+  (data.exif || data.metadata)
+  ? `
+  Make: ${(data.exif || data.metadata).Make || "-"}<br>
+  Model: ${(data.exif || data.metadata).Model || "-"}<br>
+  Date: ${(data.exif || data.metadata).ModifyDate || "-"}<br>
+  Width: ${(data.exif || data.metadata).ImageWidth || "-"}<br>
+  Height: ${(data.exif || data.metadata).ImageHeight || "-"}<br>
+  `
+  : `No metadata found`
+}
 
   </div>
 </div>
