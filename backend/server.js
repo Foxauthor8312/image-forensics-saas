@@ -24,15 +24,20 @@ function classifyImage(exif, elaScore) {
 
 /* ===== AI DETECTION ===== */
 function detectAI(elaScore, exif) {
+
   let score = 0;
 
-  if (!exif) score += 30;
+  // Missing metadata (common in AI, but also screenshots)
+  if (!exif) score += 15;
 
-  if (elaScore < 20) score += 20;
-  if (elaScore < 10) score += 20;
-  if (elaScore < 5)  score += 20;
+  // Extremely uniform compression (common in AI renders)
+  if (elaScore < 5) score += 25;
 
-  return Math.min(score, 100);
+  // Very low variation (over-smoothed images)
+  if (elaScore < 10) score += 15;
+
+  // Clamp result
+  return Math.min(score, 60);
 }
 
 /* ===== ELA ===== */
