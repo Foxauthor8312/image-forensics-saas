@@ -180,7 +180,7 @@ try {
 
 console.log("API RESPONSE:", data);
 
-console.log("API RESPONSE:", data);
+console.log("ALL KEYS:", Object.keys(data));
   let gpsData = data.gps;
 
   if (!gpsData?.lat) {
@@ -344,18 +344,20 @@ ${
   <div class="card">
     <div class="section-title">Metadata</div>
 
-    ${
+${
   (data.exif || data.metadata)
-  ? `
-  Make: ${(data.exif || data.metadata).Make || "-"}<br>
-  Model: ${(data.exif || data.metadata).Model || "-"}<br>
-  Date: ${(data.exif || data.metadata).ModifyDate || "-"}<br>
-  Width: ${(data.exif || data.metadata).ImageWidth || "-"}<br>
-  Height: ${(data.exif || data.metadata).ImageHeight || "-"}<br>
-  `
+  ? (() => {
+      const m = data.exif || data.metadata;
+      return `
+      Make: ${m.Make || m.make || "-"}<br>
+      Model: ${m.Model || m.model || "-"}<br>
+      Date: ${m.ModifyDate || m.DateTimeOriginal || m.CreateDate || "-"}<br>
+      Width: ${m.ImageWidth || m.width || "-"}<br>
+      Height: ${m.ImageHeight || m.height || "-"}<br>
+      `;
+    })()
   : `No metadata found`
 }
-
   </div>
 </div>
 <div id="map" class="tab-content">
@@ -367,7 +369,7 @@ ${
 </div>
 
 <div id="raw" class="tab-content">
-<pre>${JSON.stringify(data.exif,null,2)}</pre>
+<pre>${JSON.stringify(data, null, 2)}</pre>
 </div>
 <div id="ai" class="tab-content">
   <div class="card">
