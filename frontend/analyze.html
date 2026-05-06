@@ -16,21 +16,11 @@ html, body {
   padding: 16px;
 }
 
-.container {
-  max-width: 720px;
-  margin: auto;
-}
+.container { max-width: 720px; margin: auto; }
 
-.back {
-  color: #9ca3af;
-  text-decoration: none;
-  font-size: 14px;
-}
+.back { color: #9ca3af; text-decoration: none; font-size: 14px; }
 
-input {
-  width: 100%;
-  margin: 16px 0;
-}
+input { width: 100%; margin: 16px 0; }
 
 button {
   width: 100%;
@@ -41,6 +31,7 @@ button {
   border-radius: 8px;
 }
 
+/* loader */
 .spinner {
   width: 40px;
   height: 40px;
@@ -52,6 +43,7 @@ button {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* tabs */
 .tabs {
   display: flex;
   gap: 6px;
@@ -60,26 +52,13 @@ button {
   overflow-x: auto;
 }
 
-.tab {
-  padding: 10px 14px;
-  cursor: pointer;
-  color: #9ca3af;
-}
+.tab { padding: 10px 14px; cursor: pointer; color: #9ca3af; }
+.tab.active { color: white; background: #111827; }
 
-.tab.active {
-  color: white;
-  background: #111827;
-}
+.tab-content { display: none; margin-top: 14px; }
+.tab-content.active { display: block; }
 
-.tab-content {
-  display: none;
-  margin-top: 14px;
-}
-
-.tab-content.active {
-  display: block;
-}
-
+/* cards */
 .card {
   background: #0b0f19;
   border: 1px solid #1f2937;
@@ -88,19 +67,12 @@ button {
   margin-bottom: 14px;
 }
 
-.meta-row {
-  padding: 6px 0;
-  border-bottom: 1px solid #1f2937;
-}
+/* meta */
+.meta-row { padding: 6px 0; border-bottom: 1px solid #1f2937; }
 
-.slider-container {
-  position: relative;
-}
-
-.slider-container img {
-  width: 100%;
-  border-radius: 8px;
-}
+/* slider */
+.slider-container { position: relative; }
+.slider-container img { width: 100%; border-radius: 8px; }
 
 .overlay {
   position: absolute;
@@ -109,21 +81,17 @@ button {
   width: 50%;
   overflow: hidden;
 }
-
 .overlay::after {
   content: "";
   position: absolute;
   right: 0;
-  top: 0;
   width: 6px;
   height: 100%;
   background: linear-gradient(to right, transparent, rgba(255,255,255,0.6));
 }
+.overlay img { width: 100%; }
 
-.overlay img {
-  width: 100%;
-}
-
+/* map */
 .map-container {
   width: 100%;
   height: 60vh;
@@ -149,6 +117,7 @@ button {
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
+/* tab switch */
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
@@ -156,35 +125,76 @@ function switchTab(name){
   document.getElementById(name).classList.add("active");
 }
 
+/* report builder */
 function buildReport(type, confidence, hasExif, hasGPS){
 
   const score = Math.round(confidence * 100);
   let risk = score >= 80 ? "Low" : score <= 50 ? "High" : "Moderate";
 
   const reports = {
+
     "Likely Original": {
-      summary: "No strong indicators of manipulation were detected.",
-      findings: "Compression patterns are consistent across the image with no localized anomalies.",
-      visual: "ELA appears uniform with no bright isolated regions.",
-      conclusion: "The image is likely authentic."
+      summary: "No clear signs of editing were found.",
+
+      findings:
+        "The image data looks consistent across the entire photo. This usually means the image has not been selectively altered.",
+
+      visual:
+        "The analysis overlay (ELA) should look even, without bright patches.",
+
+      meaning:
+        "You can generally trust this image as authentic. Minor changes like resizing or sharing may still occur, but there are no signs of deliberate manipulation.",
+
+      conclusion:
+        "This image appears to be original."
     },
+
     "Recompressed": {
-      summary: "The image shows signs of recompression.",
-      findings: "Compression differences are evenly distributed, typical of resaving or platform processing.",
-      visual: "ELA appears globally elevated rather than localized.",
-      conclusion: "Recompression is present, not necessarily editing."
+      summary: "This image has been saved or processed more than once.",
+
+      findings:
+        "Recompression happens when an image is uploaded, shared, or saved again. This changes how it is stored but does not necessarily mean it was edited.",
+
+      visual:
+        "The overlay may appear brighter across the entire image rather than in specific spots.",
+
+      meaning:
+        "This image may be perfectly legitimate, but because it was resaved, it can hide earlier edits. Be cautious if the source is unknown.",
+
+      conclusion:
+        "Recompression detected. Not proof of editing."
     },
+
     "Edited": {
-      summary: "Compression inconsistencies suggest localized changes.",
-      findings: "ELA reveals uneven compression patterns in specific regions.",
-      visual: "Look for bright, patchy areas that stand out from surroundings.",
-      conclusion: "The image may have been altered."
+      summary: "Parts of this image may have been changed.",
+
+      findings:
+        "Some areas are compressed differently than others. This often happens when something is added, removed, or altered in specific regions.",
+
+      visual:
+        "Look for bright or uneven patches in the overlay. These may highlight edited areas.",
+
+      meaning:
+        "Do not fully trust this image without verification. Check the source and compare with original versions if possible.",
+
+      conclusion:
+        "Possible manipulation detected."
     },
+
     "Unknown": {
-      summary: "No clear signal detected.",
-      findings: "Compression patterns are inconclusive.",
-      visual: "ELA lacks consistent structure.",
-      conclusion: "Result is inconclusive."
+      summary: "The results are not clear.",
+
+      findings:
+        "The image does not show strong patterns. This often happens with low-quality or heavily compressed images.",
+
+      visual:
+        "The overlay may look noisy or unclear.",
+
+      meaning:
+        "You should not rely on this result alone. Try analyzing a higher-quality version of the image.",
+
+      conclusion:
+        "Result inconclusive."
     }
   };
 
@@ -195,14 +205,15 @@ function buildReport(type, confidence, hasExif, hasGPS){
     risk,
     ...selected,
     metaNote: hasExif
-      ? "Metadata is present and supports context."
+      ? "Metadata is present and provides context."
       : "Metadata is missing and may have been removed.",
     gpsNote: hasGPS
-      ? "GPS data is embedded."
-      : "No GPS data detected."
+      ? "GPS data is included."
+      : "No GPS data found."
   };
 }
 
+/* analyze */
 async function analyze(){
 
   const file = document.getElementById("fileInput").files[0];
@@ -246,7 +257,9 @@ async function analyze(){
       <div class="tab" id="tab-guide" onclick="switchTab('guide')">How to Read</div>
     </div>
 
+    <!-- OVERVIEW -->
     <div id="overview" class="tab-content active">
+
       <div class="card">
         <strong>Integrity Score:</strong> ${report.score}/100<br>
         <span style="color:${
@@ -260,15 +273,28 @@ async function analyze(){
       <div class="card"><strong>Summary</strong><br>${report.summary}</div>
       <div class="card"><strong>Technical Findings</strong><br>${report.findings}</div>
       <div class="card"><strong>What to Look For</strong><br>${report.visual}</div>
+
+      <!-- 🔥 NEW SECTION -->
+      <div class="card">
+        <strong>What this means for you</strong><br><br>
+        ${report.meaning}
+      </div>
+
       <div class="card"><strong>Conclusion</strong><br>${report.conclusion}</div>
 
       <div class="card" style="font-size:13px;color:#9ca3af;">
         ${report.metaNote}<br>${report.gpsNote}<br><br>
         Metadata can be altered or removed and is not definitive proof.
       </div>
+
     </div>
 
+    <!-- ELA -->
     <div id="ela" class="tab-content">
+      <div style="margin-bottom:10px;color:#9ca3af;font-size:13px;">
+        <strong>ELA (Error Level Analysis):</strong> highlights compression differences.
+      </div>
+
       <div class="slider-container">
         <img src="${URL.createObjectURL(file)}">
         <div class="overlay" id="overlay">
@@ -278,6 +304,7 @@ async function analyze(){
       <input type="range" id="slider" min="0" max="100" value="50">
     </div>
 
+    <!-- METADATA -->
     <div id="metadata" class="tab-content">
       <div class="card">
         <div class="meta-row">Camera: ${data.exif?.Make ?? "-"}</div>
@@ -287,40 +314,29 @@ async function analyze(){
       </div>
     </div>
 
+    <!-- MAP -->
     <div id="map" class="tab-content">
-      ${lat && lon
+      ${
+        lat && lon
         ? `<div class="map-container">
              <iframe width="100%" height="100%"
              src="https://www.google.com/maps?q=${lat},${lon}&z=18&output=embed&t=k"></iframe>
            </div>`
-        : "No GPS data"}
+        : "No GPS data"
+      }
     </div>
 
+    <!-- RAW -->
     <div id="raw" class="tab-content">
       <pre>${JSON.stringify(data.rawMetadata, null, 2)}</pre>
     </div>
 
+    <!-- GUIDE -->
     <div id="guide" class="tab-content">
-      <div class="card">
-        <strong>How to Interpret Results</strong><br><br>
-        Use the score as a guide, not proof. Focus on patterns across ELA, metadata, and context.
-      </div>
-
-      <div class="card">
-        <strong>ELA</strong><br>
-        Uniform = normal<br>
-        Bright/local = suspicious<br>
-        Global brightness = recompression
-      </div>
-
-      <div class="card">
-        <strong>Metadata</strong><br>
-        Useful for context but can be removed or altered.
-      </div>
-
-      <div class="card" style="font-size:13px;color:#9ca3af;">
-        Always combine signals before forming conclusions.
-      </div>
+      <div class="card"><strong>How to Interpret Results</strong><br>Combine score, ELA, and metadata.</div>
+      <div class="card"><strong>ELA</strong><br>Uniform = normal, bright patches = possible edits.</div>
+      <div class="card"><strong>Metadata</strong><br>Helpful but not proof.</div>
+      <div class="card" style="font-size:13px;color:#9ca3af;">Use multiple signals before deciding.</div>
     </div>
   `;
 
