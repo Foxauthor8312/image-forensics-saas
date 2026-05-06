@@ -135,6 +135,59 @@ button {
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
+function buildReport(type, confidence, hasExif, hasGPS) {
+
+  const score = Math.round(confidence * 100);
+
+  let risk = "Moderate";
+  if (score >= 80) risk = "Low";
+  else if (score <= 50) risk = "High";
+
+  const base = {
+    "Likely Original": {
+      summary: "No strong indicators of manipulation were detected.",
+      findings: "Compression is consistent across the image with no localized anomalies.",
+      visual: "ELA overlay should appear evenly distributed without bright hotspots.",
+      conclusion: "The image is likely authentic."
+    },
+
+    "Recompressed": {
+      summary: "The image shows signs of recompression.",
+      findings: "Compression differences are spread across the entire image.",
+      visual: "ELA appears uniformly elevated rather than localized.",
+      conclusion: "Recompression is present but does not confirm editing."
+    },
+
+    "Edited": {
+      summary: "Compression inconsistencies suggest localized changes.",
+      findings: "ELA reveals uneven compression patterns typical of edited regions.",
+      visual: "Look for brighter, patchy regions in specific areas.",
+      conclusion: "The image may have been altered."
+    },
+
+    "Unknown": {
+      summary: "No strong or consistent signal detected.",
+      findings: "Compression patterns are inconclusive.",
+      visual: "ELA does not show a clear pattern.",
+      conclusion: "Result is inconclusive."
+    }
+  };
+
+  const selected = base[type] || base["Unknown"];
+
+  return {
+    score,
+    risk,
+    ...selected,
+    meta: hasExif
+      ? "Metadata present — supports structural analysis."
+      : "Metadata missing — may indicate removal or privacy filtering.",
+    gps: hasGPS
+      ? "Location data present."
+      : "No GPS data detected."
+  };
+}
+  
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
@@ -172,6 +225,13 @@ async function analyze(){
   const lat = data.gps?.lat;
   const lon = data.gps?.lon;
 
+const report = buildReport(
+  type,
+  data.classification?.confidence || 0.5,
+  !!data.exif,
+  !!(lat && lon)
+);
+  
   resultEl.innerHTML = `
     <div style="font-size:22px;">${type}</div>
     <div style="color:#9ca3af;">Confidence: ${conf}%</div>
@@ -184,9 +244,71 @@ async function analyze(){
       <div class="tab" id="tab-raw" onclick="switchTab('raw')">Full Metadata</div>
     </div>
 
-    <div id="overview" class="tab-content active">
-      <p>ELA highlights compression differences. Bright areas may indicate edits.</p>
+   <div id="overview" class="tab-content active">
+
+  <!-- SCORE -->
+  <div style="margin-bottom:16px;">
+    <div style="font-size:20px;font-weight:600;">
+      Integrity Score: ${report.score}/100
     </div>
+    <div style="color:#9ca3af;">
+      Risk Level: ${report.risk}
+    </div>
+
+    <div style="height:6px;background:#111;margin-top:8px;border-radius:4px;">
+      <div style="
+        width:${report.score}%;
+        height:100%;
+        background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);
+      "></div>
+    </div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div style="margin-bottom:14px;">
+    <strong>Summary</strong>
+    <div style="color:#cbd5f5;margin-top:4px;">
+      ${report.summary}
+    </div>
+  </div>
+
+  <!-- TECHNICAL -->
+  <div style="margin-bottom:14px;">
+    <strong>Technical Findings</strong>
+    <div style="color:#cbd5f5;margin-top:4px;">
+      ${report.findings}
+    </div>
+  </div>
+
+  <!-- VISUAL -->
+  <div style="margin-bottom:14px;">
+    <strong>What to Look For</strong>
+    <div style="color:#cbd5f5;margin-top:4px;">
+      ${report.visual}
+    </div>
+  </div>
+
+  <!-- CONCLUSION -->
+  <div style="margin-bottom:14px;">
+    <strong>Conclusion</strong>
+    <div style="color:#cbd5f5;margin-top:4px;">
+      ${report.conclusion}
+    </div>
+  </div>
+
+  <!-- SIGNALS -->
+  <div style="margin-top:10px;">
+    ${signals.join("")}
+  </div>
+
+  <!-- FOOTNOTE -->
+  <div style="margin-top:12px;font-size:12px;color:#9ca3af;">
+    ${report.meta}<br>
+    ${report.gps}<br><br>
+    Metadata can be altered or removed and should not be considered definitive proof.
+  </div>
+
+</div>
 
     <div id="ela" class="tab-content">
       <div class="slider-container">
