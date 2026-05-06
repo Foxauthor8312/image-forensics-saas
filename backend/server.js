@@ -3,6 +3,8 @@ const multer = require('multer');
 const cors = require('cors');
 const exifr = require('exifr');
 const sharp = require('sharp');
+const PDFDocument = require('pdfkit');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -12,140 +14,137 @@ app.use(express.json());
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-
-// ---------- SIMPLE CLASSIFICATION ----------
+/* ===== CLASSIFICATION ===== */
 function classifyImage(exif, elaScore) {
-  if (exif && exif.make !== "Unknown" && elaScore < 10){
-    return { type: "Likely Original", confidence: 0.9 };
-  }
-
-  if (exif && elaScore > 25) {
-    return { type: "Recompressed", confidence: 0.8 };
-  }
-
-  if (!exif && elaScore > 25) {
-    return { type: "Edited", confidence: 0.85 };
-  }
-
-  return { type: "Recompressed", confidence: 0.7 };
+  if (exif && elaScore < 10) return { type: "Likely Original", confidence: 0.9 };
+  if (exif && elaScore > 25) return { type: "Recompressed", confidence: 0.8 };
+  if (!exif && elaScore > 25) return { type: "Edited", confidence: 0.85 };
+  return { type: "Unknown", confidence: 0.6 };
 }
 
-
-// ---------- ELA (WORKING + ALWAYS RETURNS OVERLAY) ----------
+/* ===== ELA ===== */
 async function runELA(buffer) {
-  try {
-    const normalized = await sharp(buffer)
-      .resize({ width: 800, withoutEnlargement: true })
-      .jpeg()
-      .toBuffer();
 
-    const recompressed = await sharp(normalized)
-      .jpeg({ quality: 60 })
-      .toBuffer();
+  const normalized = await sharp(buffer)
+    .resize({ width: 800, withoutEnlargement: true })
+    .jpeg()
+    .toBuffer();
 
-    const orig = await sharp(normalized)
-      .raw()
-      .toBuffer({ resolveWithObject: true });
+  const recompressed = await sharp(normalized)
+    .jpeg({ quality: 60 })
+    .toBuffer();
 
-    const comp = await sharp(recompressed)
-      .raw()
-      .toBuffer({ resolveWithObject: true });
+  const orig = await sharp(normalized)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
 
-    const diff = Buffer.alloc(orig.data.length);
-    let total = 0;
+  const comp = await sharp(recompressed)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
 
-   for (let i = 0; i < orig.data.length; i++) {
-  const value = Math.abs(orig.data[i] - comp.data[i]) * 15;
+  let total = 0;
 
-  diff[i] = Math.min(255, value);
-  total += value; // 👈 THIS FIXES YOUR SCORING
-}
-
-    const elaImage = await sharp(diff, {
-      raw: {
-        width: orig.info.width,
-        height: orig.info.height,
-        channels: orig.info.channels
-      }
-    })
-      .jpeg({ quality: 60 }) // small + stable
-      .toBuffer();
-
-    return {
-      score: Number((total / orig.data.length).toFixed(2)),
-      overlay: `data:image/jpeg;base64,${elaImage.toString('base64')}`
-    };
-
-  } catch (err) {
-    console.log("ELA ERROR:", err.message);
-    return null;
+  for (let i = 0; i < orig.data.length; i++) {
+    total += Math.abs(orig.data[i] - comp.data[i]);
   }
+
+  const diff = Buffer.alloc(orig.data.length);
+
+  for (let i = 0; i < orig.data.length; i++) {
+    diff[i] = Math.min(255, Math.abs(orig.data[i] - comp.data[i]) * 10);
+  }
+
+  const elaImage = await sharp(diff, {
+    raw: {
+      width: orig.info.width,
+      height: orig.info.height,
+      channels: orig.info.channels
+    }
+  }).jpeg().toBuffer();
+
+  return {
+    score: total / orig.data.length,
+    buffer: elaImage
+  };
 }
 
-
-// ---------- ROUTES ----------
-app.get('/', (req, res) => {
-  res.send('Backend OK');
-});
-
+/* ===== ANALYZE ===== */
 app.post('/analyze', upload.single('image'), async (req, res) => {
+
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
-// ========= EXTRACT EXIF (WITH GPS) =========
-const rawExif = await exifr.parse(req.file.buffer, {
-  gps: true,
-  translateValues: true
-});
+    const buffer = req.file.buffer;
 
-// ========= NORMALIZE GPS =========
-const gps = {
-  lat: rawExif?.latitude ?? rawExif?.gpsLatitude ?? null,
-  lon: rawExif?.longitude ?? rawExif?.gpsLongitude ?? null
-};
+    const rawExif = await exifr.parse(buffer, { gps: true });
+    const ela = await runELA(buffer);
+    const classification = classifyImage(rawExif, ela.score);
 
-console.log("GPS:", gps); // debug
-
-// ========= RUN ELA AFTER =========
-const ela = await runELA(req.file.buffer);
-
-const exif = rawExif
-  ? {
-      make: rawExif.Make || "Unknown",
-      model: rawExif.Model || "Unknown",
-      date: rawExif.DateTimeOriginal || rawExif.CreateDate || "Unknown",
-
-      iso: rawExif.ISO || null,
-      lens: rawExif.LensModel || null,
-
-      exposureTime: rawExif.ExposureTime || null,
-      fNumber: rawExif.FNumber || null,
-      focalLength: rawExif.FocalLength || null,
-
-      
-    }
-  : null;
-    const classification = classifyImage(
-      exif,
-      ela ? ela.score : 0
-    );
-res.json({
-  ela,
-  exif,
-  gps,
-  classification,
-  rawMetadata: rawExif // 👈 REQUIRED
-});
+    res.json({
+      ela: {
+        score: ela.score,
+        overlay: `data:image/jpeg;base64,${ela.buffer.toString('base64')}`
+      },
+      exif: rawExif,
+      gps: {
+        lat: rawExif?.latitude || null,
+        lon: rawExif?.longitude || null
+      },
+      classification
+    });
 
   } catch (err) {
-    console.log("ERROR:", err.message);
-    res.status(500).json({ error: "Server error" });
+    console.error(err);
+    res.status(500).send("Analyze error");
   }
 });
 
+/* ===== PDF REPORT ===== */
+app.post('/report', upload.single('image'), async (req, res) => {
 
-// ---------- START ----------
-app.listen(PORT, () => {
-  console.log("Running on port " + PORT);
+  try {
+
+    const buffer = req.file.buffer;
+
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+    const rawExif = await exifr.parse(buffer, { gps: true });
+    const ela = await runELA(buffer);
+    const classification = classifyImage(rawExif, ela.score);
+
+    const doc = new PDFDocument({ margin: 40 });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=pixelproof-report.pdf');
+
+    doc.pipe(res);
+
+    /* TITLE */
+    doc.fontSize(20).text('PixelProof Forensic Report');
+    doc.moveDown();
+
+    /* HASH */
+    doc.fontSize(10).text('SHA-256 Hash:');
+    doc.text(hash);
+    doc.moveDown();
+
+    /* RESULT */
+    doc.fontSize(14).text(`Result: ${classification.type}`);
+    doc.text(`Confidence: ${Math.round(classification.confidence * 100)}%`);
+    doc.moveDown();
+
+    /* IMAGE */
+    doc.text('Original Image');
+    doc.image(buffer, { width: 250 });
+    doc.moveDown();
+
+    /* ELA */
+    doc.text('ELA Analysis');
+    doc.image(ela.buffer, { width: 250 });
+
+    doc.end();
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Report error");
+  }
 });
+
+app.listen(PORT, () => console.log("Server running on port " + PORT));
