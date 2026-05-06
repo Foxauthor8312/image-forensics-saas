@@ -16,26 +16,22 @@ html, body {
   padding: 16px;
 }
 
-/* CONTAINER */
 .container {
   max-width: 720px;
   margin: auto;
 }
 
-/* BACK */
 .back {
   color: #9ca3af;
   text-decoration: none;
   font-size: 14px;
 }
 
-/* INPUT */
 input {
   width: 100%;
   margin: 16px 0;
 }
 
-/* BUTTON */
 button {
   width: 100%;
   padding: 14px;
@@ -43,10 +39,8 @@ button {
   border: 1px solid #374151;
   color: white;
   border-radius: 8px;
-  font-size: 15px;
 }
 
-/* LOADER */
 .spinner {
   width: 40px;
   height: 40px;
@@ -58,23 +52,6 @@ button {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* HEADER RESULT */
-.result-header {
-  margin-top: 20px;
-  margin-bottom: 10px;
-}
-
-.result-type {
-  font-size: 22px;
-  font-weight: 600;
-}
-
-.result-sub {
-  color: #9ca3af;
-  font-size: 14px;
-}
-
-/* TABS */
 .tabs {
   display: flex;
   gap: 6px;
@@ -87,16 +64,13 @@ button {
   padding: 10px 14px;
   cursor: pointer;
   color: #9ca3af;
-  border-radius: 6px 6px 0 0;
 }
 
 .tab.active {
   color: white;
   background: #111827;
-  border-bottom: 2px solid white;
 }
 
-/* CONTENT */
 .tab-content {
   display: none;
   margin-top: 14px;
@@ -106,7 +80,6 @@ button {
   display: block;
 }
 
-/* CARD */
 .card {
   background: #0b0f19;
   border: 1px solid #1f2937;
@@ -115,22 +88,11 @@ button {
   margin-bottom: 14px;
 }
 
-/* SCORE BAR */
-.score-bar {
-  height: 6px;
-  background: #111;
-  border-radius: 4px;
-  margin-top: 8px;
-}
-
-/* META */
 .meta-row {
   padding: 6px 0;
   border-bottom: 1px solid #1f2937;
-  font-size: 14px;
 }
 
-/* SLIDER */
 .slider-container { position: relative; }
 .slider-container img { width: 100%; border-radius: 8px; }
 
@@ -141,27 +103,20 @@ button {
   width: 50%;
   overflow: hidden;
 }
-.overlay img { width: 100%; }
 
 .divider {
   position: absolute;
   left: 50%;
-  top: 0;
   width: 2px;
   height: 100%;
   background: white;
 }
 
-.slider { width: 100%; margin-top: 10px; }
-
-/* MAP */
 .map-container {
   width: 100%;
   height: 60vh;
   min-height: 320px;
   max-height: 500px;
-  border-radius: 8px;
-  overflow: hidden;
 }
 </style>
 </head>
@@ -189,13 +144,9 @@ function switchTab(name){
   document.getElementById(name).classList.add("active");
 }
 
-function buildReport(type, confidence, hasExif, hasGPS) {
-
+function buildReport(type, confidence){
   const score = Math.round(confidence * 100);
-
-  let risk = "Moderate";
-  if (score >= 80) risk = "Low";
-  else if (score <= 50) risk = "High";
+  let risk = score >= 80 ? "Low" : score <= 50 ? "High" : "Moderate";
 
   return {
     score,
@@ -203,25 +154,8 @@ function buildReport(type, confidence, hasExif, hasGPS) {
     summary: "Compression analysis completed.",
     findings: "Patterns evaluated across image structure.",
     visual: "Inspect bright regions in ELA overlay.",
-    conclusion: type,
-    meta: hasExif ? "Metadata present." : "Metadata missing.",
-    gps: hasGPS ? "GPS data present." : "No GPS data."
+    conclusion: type
   };
-}
-
-function downloadReport() {
-  const content = document.getElementById("overview").innerText;
-  const win = window.open('', '', 'width=800,height=600');
-
-  win.document.write(`
-    <html><body style="font-family:Arial;padding:20px;">
-    <h1>PixelProof Report</h1>
-    <pre>${content}</pre>
-    </body></html>
-  `);
-
-  win.document.close();
-  setTimeout(()=>win.print(),500);
 }
 
 async function analyze(){
@@ -250,17 +184,13 @@ async function analyze(){
 
   const type = data.classification?.type || "Unknown";
   const confidence = data.classification?.confidence || 0.5;
-
   const lat = data.gps?.lat;
   const lon = data.gps?.lon;
 
-  const report = buildReport(type, confidence, !!data.exif, !!(lat && lon));
+  const report = buildReport(type, confidence);
 
   resultEl.innerHTML = `
-    <div class="result-header">
-      <div class="result-type">${type}</div>
-      <div class="result-sub">Confidence: ${report.score}%</div>
-    </div>
+    <div style="font-size:22px;">${type}</div>
 
     <div class="tabs">
       <div class="tab active" id="tab-overview" onclick="switchTab('overview')">Overview</div>
@@ -268,38 +198,18 @@ async function analyze(){
       <div class="tab" id="tab-metadata" onclick="switchTab('metadata')">Metadata</div>
       <div class="tab" id="tab-map" onclick="switchTab('map')">Map</div>
       <div class="tab" id="tab-raw" onclick="switchTab('raw')">Full Metadata</div>
+      <div class="tab" id="tab-guide" onclick="switchTab('guide')">How to Read</div>
     </div>
 
     <div id="overview" class="tab-content active">
-
       <div class="card">
-        <div><strong>Integrity Score</strong></div>
-        <div>${report.score}/100 (${report.risk})</div>
-        <div class="score-bar">
-          <div style="width:${report.score}%;height:100%;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);"></div>
-        </div>
+        <strong>Integrity Score:</strong> ${report.score}/100 (${report.risk})
       </div>
 
-      <div class="card">
-        <strong>Summary</strong><br>${report.summary}
-      </div>
-
-      <div class="card">
-        <strong>Findings</strong><br>${report.findings}
-      </div>
-
-      <div class="card">
-        <strong>Visual Guidance</strong><br>${report.visual}
-      </div>
-
-      <div class="card">
-        <strong>Conclusion</strong><br>${report.conclusion}
-      </div>
-
-      <div class="card">
-        <button onclick="downloadReport()">Download Report</button>
-      </div>
-
+      <div class="card"><strong>Summary</strong><br>${report.summary}</div>
+      <div class="card"><strong>Findings</strong><br>${report.findings}</div>
+      <div class="card"><strong>Visual Guidance</strong><br>${report.visual}</div>
+      <div class="card"><strong>Conclusion</strong><br>${report.conclusion}</div>
     </div>
 
     <div id="ela" class="tab-content">
@@ -333,6 +243,31 @@ async function analyze(){
 
     <div id="raw" class="tab-content">
       <pre>${JSON.stringify(data.rawMetadata, null, 2)}</pre>
+    </div>
+
+    <!-- ✅ GUIDE TAB FIXED -->
+    <div id="guide" class="tab-content">
+
+      <div class="card">
+        <strong>Understanding the Analysis</strong><br><br>
+        PixelProof analyzes compression patterns and metadata to identify signs of manipulation.
+      </div>
+
+      <div class="card">
+        <strong>ELA (Error Level Analysis)</strong><br><br>
+        Uniform = normal<br>
+        Bright patches = possible edits
+      </div>
+
+      <div class="card">
+        <strong>Metadata</strong><br><br>
+        Metadata provides context but can be removed or altered.
+      </div>
+
+      <div class="card" style="font-size:13px;color:#9ca3af;">
+        Results are indicators, not proof.
+      </div>
+
     </div>
   `;
 
