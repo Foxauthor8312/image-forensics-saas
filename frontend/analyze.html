@@ -200,23 +200,23 @@ if (!gpsData?.lat) {
 <div class="card">
   <div class="section-title">What was found</div>
 
-  ${signals.anomalies > 65
-    ? 
-    The image shows **non-uniform compression patterns**, meaning different parts of the image were processed differently.
+${signals.anomalies > 65
+  ? `
+  The image shows non-uniform compression patterns, meaning different parts of the image were processed differently.
 
-    This is commonly seen when:
-    • A portion of the image has been edited or inserted  
-    • The image was selectively modified and re-saved  
-    • Multiple image sources were combined
-    
-    : 
-    The image shows **consistent compression across all areas**, meaning it was likely processed as a single, uniform file.
+  This is commonly seen when:
+  • A portion of the image has been edited or inserted  
+  • The image was selectively modified and re-saved  
+  • Multiple image sources were combined
+  `
+  : `
+  The image shows consistent compression across all areas, meaning it was likely processed as a single, uniform file.
 
-    This is typical of:
-    • Original photos from a camera or phone  
-    • Images that have only been resized or lightly compressed  
-    
-  }
+  This is typical of:
+  • Original photos from a camera or phone  
+  • Images that have only been resized or lightly compressed
+  `
+}
 </div>
 
 <div class="card">
