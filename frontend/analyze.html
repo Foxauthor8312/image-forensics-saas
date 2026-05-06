@@ -2,19 +2,41 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Analyze - PixelProof</title>
+<title>PixelProof Analysis</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <style>
-body { background:#000; color:#fff; font-family:Arial; padding:16px; }
-.container { max-width:720px; margin:auto; }
-.back { color:#9ca3af; text-decoration:none; display:inline-block; margin-bottom:10px; }
+body {
+  background:#0a0f1a;
+  color:#e5e7eb;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;
+  padding:16px;
+}
+
+.container { max-width:900px; margin:auto; }
+
+.header {
+  font-size:22px;
+  font-weight:600;
+  margin-bottom:10px;
+}
+
+.sub {
+  font-size:13px;
+  color:#9ca3af;
+  margin-bottom:20px;
+}
+
 button {
-  width:100%; padding:12px;
+  width:100%;
+  padding:12px;
   background:#1f2937;
   border:1px solid #374151;
-  color:white; border-radius:8px;
+  border-radius:8px;
+  color:white;
+  margin-top:10px;
 }
+
 .spinner {
   width:40px;height:40px;
   border:4px solid #1e293b;
@@ -24,22 +46,66 @@ button {
   margin:auto;
 }
 @keyframes spin { to { transform:rotate(360deg); } }
-.tabs { display:flex; gap:6px; border-bottom:1px solid #1f2937; overflow-x:auto; }
-.tab { padding:10px; color:#9ca3af; cursor:pointer; }
-.tab.active { color:#fff; background:#111827; }
-.tab-content { display:none; margin-top:14px; }
-.tab-content.active { display:block; }
-.card {
-  background:#0b0f19;
-  border:1px solid #1f2937;
-  border-radius:10px;
-  padding:14px;
-  margin-bottom:14px;
+
+.tabs {
+  display:flex;
+  gap:8px;
+  margin-top:20px;
+  border-bottom:1px solid #1f2937;
+  overflow-x:auto;
 }
+
+.tab {
+  padding:10px 14px;
+  cursor:pointer;
+  color:#9ca3af;
+}
+
+.tab.active {
+  color:white;
+  border-bottom:2px solid #3b82f6;
+}
+
+.tab-content { display:none; margin-top:16px; }
+.tab-content.active { display:block; }
+
+.card {
+  background:#0b1220;
+  border:1px solid #1f2937;
+  border-radius:12px;
+  padding:16px;
+  margin-bottom:16px;
+}
+
+.section-title {
+  font-size:14px;
+  font-weight:600;
+  margin-bottom:8px;
+}
+
+.score {
+  font-size:36px;
+  font-weight:700;
+}
+
+.low { color:#22c55e; }
+.mid { color:#f59e0b; }
+.high { color:#ef4444; }
+
+.small { font-size:12px; color:#9ca3af; }
+
 .slider-container { position:relative; }
-.slider-container img { width:100%; }
-.overlay { position:absolute; top:0; left:0; width:50%; overflow:hidden; }
-.map-container { width:100%; height:60vh; }
+.slider-container img { width:100%; border-radius:8px; }
+
+.overlay {
+  position:absolute;
+  top:0;
+  left:0;
+  width:50%;
+  overflow:hidden;
+}
+
+.map-container { width:100%; height:60vh; border-radius:10px; }
 </style>
 </head>
 
@@ -47,14 +113,15 @@ button {
 
 <div class="container">
 
-<a href="index.html" class="back">← Back</a>
+<div class="header">PixelProof Analysis</div>
+<div class="sub">Forensic indicators based on compression, metadata, and structural consistency</div>
 
 <input type="file" id="fileInput" />
 <button onclick="analyze()">Analyze Image</button>
 
 <div id="loader" style="display:none;text-align:center;margin:20px 0;">
   <div class="spinner"></div>
-  <div style="margin-top:10px;">Running forensic analysis...</div>
+  <div class="small">Analyzing image...</div>
 </div>
 
 <div id="result"></div>
@@ -64,44 +131,62 @@ button {
 <script>
 
 const API = "https://image-forensics-saas-1.onrender.com";
-let currentFile = null;
 
-async function safeFetch(url, options, retries = 2) {
-  try {
+/* ===== SAFE FETCH ===== */
+async function safeFetch(url, options, retries=2){
+  try{
     const res = await fetch(url, options);
-    if (!res.ok) throw new Error();
+    if(!res.ok) throw new Error();
     return res;
-  } catch (e) {
-    if (retries > 0) {
-      await new Promise(r => setTimeout(r, 1500));
-      return safeFetch(url, options, retries - 1);
+  }catch(e){
+    if(retries>0){
+      await new Promise(r=>setTimeout(r,1500));
+      return safeFetch(url,options,retries-1);
     }
     throw e;
   }
 }
 
+/* ===== SCORING ===== */
 function buildSignals(data){
   const ela = data.ela.score;
+
   return {
-    compression:{label:"Compression",value:Math.max(0,100-ela*4),weight:0.30},
-    anomalies:{label:"Anomalies",value:Math.min(ela*4,100),weight:0.30},
-    metadata:{label:"Metadata",value:data.exif?85:30,weight:0.20},
-    ai:{label:"AI",value:data.ai?.likelihood||0,weight:0.20}
+    compression:{label:"Compression",value:Math.max(0,100-ela*4),weight:0.3},
+    anomalies:{label:"Anomalies",value:Math.min(ela*4,100),weight:0.3},
+    metadata:{label:"Metadata",value:data.exif?85:30,weight:0.2},
+    ai:{label:"AI Likelihood",value:data.ai?.likelihood||0,weight:0.2}
   };
 }
 
-function calculateScore(signals){
-  let total=0;
-  for(const k in signals){ total+=signals[k].value*signals[k].weight; }
-  return Math.round(total);
+function calcScore(signals){
+  let t=0;
+  for(const k in signals){ t+=signals[k].value*signals[k].weight; }
+  return Math.round(t);
 }
 
+function interpret(score){
+
+  const risk = score>=80?"Low":score<=50?"High":"Moderate";
+
+  const summary =
+    score>=80?"No significant indicators of manipulation detected."
+    :score>=55?"Some inconsistencies detected."
+    :"Indicators suggest possible manipulation.";
+
+  const next =
+    score>=80?"Image appears consistent. Verify source if needed."
+    :score>=55?"Check source and compare versions."
+    :"Do not rely on this image without verification.";
+
+  return {risk,summary,next};
+}
+
+/* ===== ANALYZE ===== */
 async function analyze(){
 
   const file=document.getElementById("fileInput").files[0];
   if(!file) return alert("Select image");
-
-  currentFile=file;
 
   document.getElementById("loader").style.display="block";
   document.getElementById("result").innerHTML="";
@@ -123,7 +208,10 @@ async function analyze(){
   document.getElementById("loader").style.display="none";
 
   const signals = buildSignals(data);
-  const score = calculateScore(signals);
+  const score = calcScore(signals);
+  const interp = interpret(score);
+
+  const riskClass = interp.risk==="Low"?"low":interp.risk==="Moderate"?"mid":"high";
 
   document.getElementById("result").innerHTML=`
 
@@ -133,39 +221,62 @@ async function analyze(){
       <div class="tab" id="tab-metadata" onclick="switchTab('metadata')">Metadata</div>
       <div class="tab" id="tab-map" onclick="switchTab('map')">Map</div>
       <div class="tab" id="tab-raw" onclick="switchTab('raw')">Full Metadata</div>
+      <div class="tab" id="tab-ai" onclick="switchTab('ai')">AI</div>
     </div>
 
     <div id="overview" class="tab-content active">
+
       <div class="card">
-        <strong>Score:</strong> ${score}/100
+        <div class="score ${riskClass}">${score}/100</div>
+        Risk: ${interp.risk}
       </div>
+
+      <div class="card">
+        <div class="section-title">Executive Summary</div>
+        ${interp.summary}
+      </div>
+
+      <div class="card">
+        <div class="section-title">AI Assessment</div>
+        AI Likelihood: ${data.ai.likelihood}%<br>
+        <div class="small">Indicates probability of synthetic origin.</div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Evidence Breakdown</div>
+        ${Object.values(signals).map(s=>`
+          ${s.label} (${Math.round(s.weight*100)}%)
+          <div style="height:6px;background:#1e293b;margin:4px 0;">
+            <div style="width:${s.value}%;height:100%;
+              background:${s.value>70?'#22c55e':s.value>40?'#f59e0b':'#ef4444'};"></div>
+          </div>
+        `).join("")}
+      </div>
+
+      <div class="card">
+        <div class="section-title">Recommended Next Steps</div>
+        ${interp.next}
+      </div>
+
+    </div>
+
+    <div id="ela" class="tab-content">
+      <div class="slider-container">
+        <img src="${URL.createObjectURL(file)}">
+        <div class="overlay" id="overlay">
+          <img src="${data.ela.overlay}">
+        </div>
+      </div>
+      <input type="range" id="slider" value="50">
     </div>
 
     <div id="metadata" class="tab-content">
-
       <div class="card">
-        <strong>Camera Info</strong><br><br>
-        Make: ${data.exif?.Make || "-"}<br>
-        Model: ${data.exif?.Model || "-"}<br>
-        Date: ${data.exif?.DateTimeOriginal || "-"}
+        Camera: ${data.exif?.Make||"-"}<br>
+        Date: ${data.exif?.DateTimeOriginal||"-"}<br>
+        Lat: ${data.gps?.lat ?? "N/A"}<br>
+        Lon: ${data.gps?.lon ?? "N/A"}
       </div>
-
-      <div class="card">
-        <strong>GPS Coordinates</strong><br><br>
-
-        Latitude: ${
-          data.gps?.lat !== null && data.gps?.lat !== undefined
-          ? data.gps.lat.toFixed(6)
-          : "Not available"
-        }<br>
-
-        Longitude: ${
-          data.gps?.lon !== null && data.gps?.lon !== undefined
-          ? data.gps.lon.toFixed(6)
-          : "Not available"
-        }
-      </div>
-
     </div>
 
     <div id="map" class="tab-content">
@@ -181,14 +292,11 @@ async function analyze(){
       <pre>${JSON.stringify(data.exif,null,2)}</pre>
     </div>
 
-    <div id="ela" class="tab-content">
-      <div class="slider-container">
-        <img src="${URL.createObjectURL(file)}">
-        <div class="overlay" id="overlay">
-          <img src="${data.ela.overlay}">
-        </div>
+    <div id="ai" class="tab-content">
+      <div class="card">
+        AI Likelihood: ${data.ai.likelihood}%<br>
+        This is a probabilistic indicator, not proof.
       </div>
-      <input type="range" id="slider" value="50">
     </div>
   `;
 
