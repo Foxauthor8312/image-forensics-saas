@@ -168,6 +168,59 @@ button {
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
+function buildForensicReport(type, conf, hasExif, hasGPS) {
+
+  const integrity = Math.round(conf);
+  let risk = "Moderate";
+
+  if (integrity >= 80) risk = "Low";
+  else if (integrity <= 50) risk = "High";
+
+  const explanations = {
+    "Likely Original": {
+      summary: "No strong indicators of manipulation were detected.",
+      detail: "Compression patterns are consistent across the image, and no localized anomalies were identified in the ELA overlay.",
+      whatToLook: "Uniform brightness across the ELA map with no isolated hotspots.",
+      conclusion: "The image is likely authentic."
+    },
+
+    "Recompressed": {
+      summary: "The image shows signs of recompression.",
+      detail: "Compression differences are distributed broadly, which typically occurs when an image is resaved or processed.",
+      whatToLook: "Even compression variation across the entire image.",
+      conclusion: "Recompression is present, but does not confirm editing."
+    },
+
+    "Edited": {
+      summary: "Compression inconsistencies suggest localized changes.",
+      detail: "The ELA overlay reveals uneven compression patterns, often associated with edited regions.",
+      whatToLook: "Brighter or patchy areas in specific regions of the image.",
+      conclusion: "This image may have been altered."
+    },
+
+    "Unknown": {
+      summary: "No strong or consistent signal was detected.",
+      detail: "The compression pattern does not clearly match known indicators.",
+      whatToLook: "Weak or inconsistent ELA signals.",
+      conclusion: "Result is inconclusive."
+    }
+  };
+
+  const base = explanations[type] || explanations["Unknown"];
+
+  return {
+    integrity,
+    risk,
+    ...base,
+    metaNote: hasExif
+      ? "Metadata is present and supports structural analysis."
+      : "Metadata is missing, which may indicate removal or privacy filtering.",
+    gpsNote: hasGPS
+      ? "Location data is embedded in the image."
+      : "No GPS data found."
+  };
+}
+  
 function switchTab(name) {
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
@@ -222,6 +275,13 @@ async function analyze() {
     const lat = data.gps?.lat;
     const lon = data.gps?.lon;
 
+    const report = buildForensicReport(
+  type,
+  (data.classification?.confidence || 0.5) * 100,
+  !!data.exif,
+  !!(lat && lon)
+);
+    
     const signals = [];
 
     if (data.exif) signals.push('<div class="signal good">✔ Camera data intact</div>');
@@ -244,9 +304,54 @@ async function analyze() {
       </div>
 
       <div id="overview" class="tab-content active">
-        <p>${getCompressionExplanation(type)}</p>
-        ${signals.join("")}
-      </div>
+
+  <div style="margin-bottom:14px;">
+    <div style="font-size:18px;font-weight:600;">
+      Integrity Score: ${report.integrity} / 100
+    </div>
+    <div style="color:#9ca3af;">
+      Risk Level: ${report.risk}
+    </div>
+  </div>
+
+  <div style="margin-bottom:14px;">
+    <strong>Summary</strong>
+    <div style="margin-top:6px;color:#cbd5f5;">
+      ${report.summary}
+    </div>
+  </div>
+
+  <div style="margin-bottom:14px;">
+    <strong>Technical Findings</strong>
+    <div style="margin-top:6px;color:#cbd5f5;">
+      ${report.detail}
+    </div>
+  </div>
+
+  <div style="margin-bottom:14px;">
+    <strong>What to Look For</strong>
+    <div style="margin-top:6px;color:#cbd5f5;">
+      ${report.whatToLook}
+    </div>
+  </div>
+
+  <div style="margin-bottom:14px;">
+    <strong>Conclusion</strong>
+    <div style="margin-top:6px;color:#cbd5f5;">
+      ${report.conclusion}
+    </div>
+  </div>
+
+  <div style="margin-top:14px;">
+    ${signals.join("")}
+  </div>
+
+  <div style="margin-top:12px;color:#9ca3af;font-size:13px;">
+    ${report.metaNote}<br>
+    ${report.gpsNote}
+  </div>
+
+</div>
 
       <div id="ela" class="tab-content">
         <div class="slider-container">
