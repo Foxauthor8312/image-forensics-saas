@@ -40,6 +40,28 @@ button {
   border-radius: 8px;
 }
 
+/* LOADER */
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #1e293b;
+  border-top: 4px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: auto;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loader-text {
+  margin-top: 10px;
+  color: #9ca3af;
+  font-size: 14px;
+  text-align: center;
+}
+
 /* TABS */
 .tabs {
   display: flex;
@@ -54,7 +76,6 @@ button {
   cursor: pointer;
   color: #9ca3af;
   white-space: nowrap;
-  font-size: 14px;
 }
 
 .tab.active {
@@ -69,12 +90,6 @@ button {
 
 .tab-content.active {
   display: block;
-}
-
-/* TEXT */
-p {
-  font-size: 15px;
-  line-height: 1.6;
 }
 
 /* META */
@@ -166,7 +181,7 @@ function getCompressionExplanation(type) {
 
   const map = {
     "Likely Original": "Compression appears uniform across the image.",
-    "Recompressed": "Compression differences are spread across the image, typical of resaving.",
+    "Recompressed": "Compression differences are spread across the image.",
     "Edited": "Localized bright areas suggest possible editing.",
     "Unknown": "No clear compression pattern detected."
   };
@@ -175,17 +190,25 @@ function getCompressionExplanation(type) {
 }
 
 async function analyze() {
+
   const file = document.getElementById("fileInput").files[0];
   const resultEl = document.getElementById("result");
 
   if (!file) return alert("Select an image");
 
-  resultEl.innerHTML = "Analyzing...";
+  // ✅ LOADER START
+  resultEl.innerHTML = `
+    <div style="text-align:center;margin-top:40px;">
+      <div class="spinner"></div>
+      <div class="loader-text">Analyzing image...</div>
+    </div>
+  `;
 
   const form = new FormData();
   form.append("image", file);
 
   try {
+
     const res = await fetch(API + "/analyze", {
       method: "POST",
       body: form
@@ -248,11 +271,7 @@ async function analyze() {
         ${
           (lat && lon)
           ? `<div class="map-container">
-               <iframe
-                 width="100%"
-                 height="100%"
-                 src="https://www.google.com/maps?q=${lat},${lon}&z=18&output=embed&t=k">
-               </iframe>
+               <iframe src="https://www.google.com/maps?q=${lat},${lon}&z=18&output=embed&t=k"></iframe>
              </div>`
           : `<div style="color:#9ca3af;">No GPS data available</div>`
         }
