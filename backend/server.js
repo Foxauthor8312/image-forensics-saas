@@ -130,12 +130,12 @@ const exif = rawExif
       exif,
       ela ? ela.score : 0
     );
-
-  res.json({
+res.json({
   ela,
-  exif: rawExif,
-  gps, // 👈 ADD THIS LINE
-  classification
+  exif,
+  gps,
+  classification,
+  rawMetadata: rawExif // 👈 REQUIRED
 });
 
   } catch (err) {
