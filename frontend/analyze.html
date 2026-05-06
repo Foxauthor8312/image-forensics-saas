@@ -183,7 +183,7 @@ console.log("API RESPONSE:", data);
 console.log("ALL KEYS:", Object.keys(data));
   let gpsData = data.gps;
 
-  if (!gpsData?.lat) {
+  if (!gpsData?.lat || gpsData.lat === 0) {
     const deviceGPS = await getDeviceLocation();
     if (deviceGPS) {
       gpsData = deviceGPS;
@@ -363,11 +363,37 @@ ${
   </div>
 </div>
 <div id="map" class="tab-content">
-${
-  gpsData?.lat
-  ? `<iframe class="map-frame" src="https://maps.google.com?q=${gpsData.lat},${gpsData.lon}&output=embed"></iframe>`
-  : `<div class="card">No GPS Data Available</div>`
-}
+  ${
+    gpsData?.lat
+      ? `
+        <div class="small">
+          Location source: ${
+            gpsData.source === "device"
+              ? "Device location (approximate)"
+              : "Image metadata"
+          }
+        </div>
+
+        <iframe 
+          class="map-frame"
+          src="https://maps.google.com?q=${gpsData.lat},${gpsData.lon}&output=embed">
+        </iframe>
+      `
+      : `
+        <div class="card">
+          <div class="section-title">No GPS Data Available</div>
+
+          This image does not contain location data.<br><br>
+
+          This is common when:
+          • Uploaded from a mobile browser<br>
+          • Shared via text, email, or social media<br>
+          • Privacy settings removed metadata<br><br>
+
+          Tip: Upload the original image file directly from your device to retain GPS data.
+        </div>
+      `
+  }
 </div>
 
 <div id="raw" class="tab-content">
