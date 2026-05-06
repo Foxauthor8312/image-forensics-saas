@@ -13,7 +13,7 @@ body {
   padding:16px;
 }
 
-.container { max-width:700px; margin:auto; }
+.container { max-width:720px; margin:auto; }
 
 button {
   width:100%;
@@ -24,6 +24,30 @@ button {
   border-radius:8px;
 }
 
+/* tabs */
+.tabs {
+  display:flex;
+  gap:6px;
+  margin-top:16px;
+  border-bottom:1px solid #1f2937;
+  overflow-x:auto;
+}
+
+.tab {
+  padding:10px;
+  color:#9ca3af;
+  cursor:pointer;
+}
+
+.tab.active {
+  color:white;
+  background:#111827;
+}
+
+.tab-content { display:none; margin-top:14px; }
+.tab-content.active { display:block; }
+
+/* cards */
 .card {
   background:#0b0f19;
   border:1px solid #1f2937;
@@ -32,6 +56,7 @@ button {
   margin-bottom:14px;
 }
 
+/* slider */
 .slider-container { position:relative; }
 .slider-container img { width:100%; }
 
@@ -51,6 +76,7 @@ button {
   background:linear-gradient(to right,transparent,rgba(255,255,255,0.6));
 }
 
+/* preview watermark */
 .preview {
   position:relative;
   padding:20px;
@@ -65,6 +91,13 @@ button {
   transform:translate(-50%,-50%) rotate(-20deg);
   font-size:36px;
   color:rgba(255,255,255,0.08);
+}
+
+/* map */
+.map-container {
+  width:100%;
+  height:60vh;
+  min-height:320px;
 }
 </style>
 </head>
@@ -85,6 +118,15 @@ button {
 const API = "https://image-forensics-saas-1.onrender.com";
 
 let currentFile = null;
+
+/* ===== TABS ===== */
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
+
+  document.getElementById("tab-"+name).classList.add("active");
+  document.getElementById(name).classList.add("active");
+}
 
 /* ===== DOWNLOAD PDF ===== */
 async function downloadReport(){
@@ -114,8 +156,7 @@ async function downloadReport(){
 
 /* ===== PREVIEW ===== */
 function showPreview(report){
-
-  document.getElementById("result").innerHTML += `
+  document.getElementById("overview").innerHTML += `
     <div class="card preview">
       <div class="watermark">FORENSIC PREVIEW</div>
 
@@ -170,30 +211,71 @@ async function analyze(){
   };
 
   document.getElementById("result").innerHTML = `
-    <div class="card">
-      <strong>${type}</strong><br>
-      Score: ${score}/100 (${risk})
+    <div class="tabs">
+      <div class="tab active" id="tab-overview" onclick="switchTab('overview')">Overview</div>
+      <div class="tab" id="tab-ela" onclick="switchTab('ela')">ELA</div>
+      <div class="tab" id="tab-metadata" onclick="switchTab('metadata')">Metadata</div>
+      <div class="tab" id="tab-map" onclick="switchTab('map')">Map</div>
+      <div class="tab" id="tab-raw" onclick="switchTab('raw')">Full Metadata</div>
+      <div class="tab" id="tab-guide" onclick="switchTab('guide')">How to Read</div>
     </div>
 
-    <div class="card">
-      ${report.summary}<br><br>
-      ${report.meaning}
-    </div>
+    <div id="overview" class="tab-content active">
+      <div class="card">
+        <strong>${type}</strong><br>
+        Score: ${score}/100 (${risk})
+      </div>
 
-    <div class="card">
-      <button onclick='showPreview(${JSON.stringify(report)})'>
-        Download Forensic Report
-      </button>
-    </div>
+      <div class="card">
+        ${report.summary}<br><br>
+        ${report.meaning}
+      </div>
 
-    <div class="slider-container">
-      <img src="${URL.createObjectURL(file)}">
-      <div class="overlay" id="overlay">
-        <img src="${data.ela?.overlay}">
+      <div class="card">
+        <button onclick='showPreview(${JSON.stringify(report)})'>
+          Download Forensic Report
+        </button>
       </div>
     </div>
 
-    <input type="range" id="slider" min="0" max="100" value="50">
+    <div id="ela" class="tab-content">
+      <div class="slider-container">
+        <img src="${URL.createObjectURL(file)}">
+        <div class="overlay" id="overlay">
+          <img src="${data.ela?.overlay}">
+        </div>
+      </div>
+      <input type="range" id="slider" min="0" max="100" value="50">
+    </div>
+
+    <div id="metadata" class="tab-content">
+      <div class="card">
+        Camera: ${data.exif?.Make || "-"}<br>
+        Date: ${data.exif?.DateTimeOriginal || "-"}
+      </div>
+    </div>
+
+    <div id="map" class="tab-content">
+      ${
+        data.gps?.lat && data.gps?.lon
+        ? `<div class="map-container">
+             <iframe width="100%" height="100%"
+             src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&z=18&output=embed&t=k"></iframe>
+           </div>`
+        : "No GPS data"
+      }
+    </div>
+
+    <div id="raw" class="tab-content">
+      <pre>${JSON.stringify(data.exif, null, 2)}</pre>
+    </div>
+
+    <div id="guide" class="tab-content">
+      <div class="card">
+        ELA highlights compression differences.<br>
+        Bright patches = possible edits.
+      </div>
+    </div>
   `;
 
   const slider = document.getElementById("slider");
