@@ -183,7 +183,7 @@ This supports the finding that the image behaves like a typical, unedited photo.
 </div>
 
 <div class="card">
-<div class="section-title">How strong is this finding?</div>
+-title">How strong is this finding?</div>
 ${
  score >= 80
 ? `
@@ -208,7 +208,7 @@ This pattern is commonly associated with edited or manipulated images.
 </div>
 
 <div class="card">
-<div class="section-title">What this means for you</div>
+-title">What this means for you</div>
 ${
  score >= 70
 ? `
@@ -232,12 +232,12 @@ Always consider:<br>
 </div>
 
 </div>
+
 <div id="ela" class="tab-content">
   <div class="card">
-    <div class="section-title">Error Level Analysis</div>
+    -title">Error Level Analysis</div>
 
-    ${
-      data.ela?.overlay
+    ${data.ela?.overlay
       ? `<img src="${data.ela.overlay}" style="width:100%; border-radius:8px;">`
       : `No ELA data available`
     }
@@ -248,42 +248,30 @@ Always consider:<br>
       ELA Score: ${data.ela?.score?.toFixed(2) ?? "N/A"}
     </div>
   </div>
+
+  <!-- 👇 PASTE HERE -->
+  <div class="card">
+   Error Level Analysis highlights differences in compression across the image.<br><br>
+
+${
+  signals.anomalies > 65
+  ? `
+  Bright or inconsistent areas may indicate edited regions or compositing.
+  `
+  : `
+  Compression appears consistent, which is typical of an unedited image.
+  `
+}
+  
 </div>
+
+    ${
+    </div>
+
 <div id="metadata" class="tab-content">
   <div class="card">
     <div class="section-title">Metadata</div>
-<div class="card">
-  <div class="section-title">What you are looking at</div>
 
-  Error Level Analysis (ELA) highlights differences in how parts of the image were compressed.<br><br>
-
-  Bright areas in the image represent regions where compression differs from surrounding areas.
-
-  ${
-    signals.anomalies > 65
-    ? `
-    <br><br>
-    In this image, there are noticeable variations in compression.
-
-    This can indicate:
-    • Edited or altered regions  
-    • Objects added or removed  
-    • Sections saved differently from the original image  
-
-    These inconsistencies support the possibility that the image has been modified.
-    `
-    : `
-    <br><br>
-    The compression appears consistent across the image.
-
-    This suggests:
-    • The image was processed uniformly  
-    • No strong signs of localized editing are visible  
-
-    This behavior is typical of an original, unedited image.
-    `
-  }
-</div>
     ${
       data.exif
       ? `
