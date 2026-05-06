@@ -219,7 +219,10 @@ async function analyze(){
       Model: ${data.exif?.Model || "-"}<br>
       Date: ${data.exif?.DateTimeOriginal || "-"}<br>
       Lat: ${data.gps?.lat ?? "N/A"}<br>
-      Lon: ${data.gps?.lon ?? "N/A"}
+      Lon: ${data.gps?.lon ?? "N/A"}<br><br>
+
+<strong>Debug:</strong><br>
+https://maps.google.com?q=${data.gps?.lat},${data.gps?.lon}
     </div>
   </div>
 
