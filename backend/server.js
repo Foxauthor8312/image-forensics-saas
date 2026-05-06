@@ -110,6 +110,37 @@ app.post('/report', upload.single('image'), async (req, res) => {
   const rawExif = await exifr.parse(buffer, { gps: true });
   const ela = await runELA(buffer);
   const classification = classifyImage(rawExif, ela.score);
+  const aiScore = detectAI(ela.score, rawExif);
+
+  /* ===== SIGNALS ===== */
+  const signals = {
+    compression: Math.max(0,100-ela.score*4),
+    anomalies: Math.min(ela.score*4,100),
+    metadata: rawExif?85:30,
+    ai: aiScore
+  };
+
+  const score = Math.round(
+    signals.compression*0.3 +
+    signals.anomalies*0.3 +
+    signals.metadata*0.2 +
+    signals.ai*0.2
+  );
+
+  /* ===== NARRATIVE ===== */
+  const narrative = {
+    what: signals.anomalies > 65
+      ? "Different parts of the image appear to have been saved differently."
+      : "The image appears to have been processed consistently as a whole.",
+
+    why: signals.anomalies > 65
+      ? "This typically occurs when part of an image is edited separately and then recompressed."
+      : "This is consistent with normal image processing such as resizing or compression.",
+
+    meaning: score >= 70
+      ? "There is a meaningful risk that this image has been altered. Verification is recommended."
+      : "No strong indicators of manipulation were detected, but results should be interpreted in context."
+  };
 
   const doc = new PDFDocument({ margin: 40 });
 
@@ -118,23 +149,66 @@ app.post('/report', upload.single('image'), async (req, res) => {
 
   doc.pipe(res);
 
+  /* HEADER */
   doc.fontSize(20).text('PixelProof Forensic Report');
   doc.moveDown();
 
-  doc.fontSize(10).text('SHA-256 Hash:');
-  doc.text(hash);
+  doc.fontSize(10).text(`SHA-256 Hash: ${hash}`);
   doc.moveDown();
 
-  doc.fontSize(14).text(`Result: ${classification.type}`);
+  /* RESULTS */
+  doc.fontSize(14).text(`Score: ${score}/100`);
+  doc.text(`Classification: ${classification.type}`);
   doc.text(`Confidence: ${Math.round(classification.confidence * 100)}%`);
+  doc.text(`AI Likelihood: ${aiScore}%`);
   doc.moveDown();
 
-  doc.text('Original Image');
+  /* EXPLANATION */
+  doc.fontSize(12).text("What was found:");
+  doc.text(narrative.what);
+  doc.moveDown();
+
+  doc.text("Why this matters:");
+  doc.text(narrative.why);
+  doc.moveDown();
+
+  doc.text("What this means:");
+  doc.text(narrative.meaning);
+  doc.moveDown();
+
+  /* SCORE BREAKDOWN */
+  doc.text("How the score was calculated:");
+  doc.text("Compression consistency (30%)");
+  doc.text("Localized anomalies (30%)");
+  doc.text("Metadata presence (20%)");
+  doc.text("AI likelihood (20%)");
+  doc.moveDown();
+
+  /* METADATA */
+  doc.text("Metadata Summary:");
+  doc.text(`Camera: ${rawExif?.Make || "-"}`);
+  doc.text(`Model: ${rawExif?.Model || "-"}`);
+  doc.text(`Date: ${rawExif?.DateTimeOriginal || "-"}`);
+  doc.text(`Resolution: ${rawExif?.ImageWidth || "-"} x ${rawExif?.ImageHeight || "-"}`);
+  doc.text(`Location: ${rawExif?.latitude || "N/A"}, ${rawExif?.longitude || "N/A"}`);
+  doc.moveDown();
+
+  /* IMAGES */
+  doc.text("Original Image:");
   doc.image(buffer, { width: 250 });
   doc.moveDown();
 
-  doc.text('ELA Analysis');
+  doc.text("ELA Analysis:");
   doc.image(ela.buffer, { width: 250 });
+  doc.moveDown();
+
+  /* NEXT STEPS */
+  doc.text("Recommended Next Steps:");
+  doc.text("- Verify the original source of the image");
+  doc.text("- Compare with other versions online");
+  doc.text("- Check trusted news or official sources");
+  doc.text("- Inspect suspicious areas for inconsistencies");
+  doc.moveDown();
 
   doc.end();
 });
