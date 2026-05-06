@@ -344,20 +344,22 @@ ${
   <div class="card">
     <div class="section-title">Metadata</div>
 
-${
-  (data.exif || data.metadata)
-  ? (() => {
-      const m = data.exif || data.metadata;
-      return `
-      Make: ${m.Make || m.make || "-"}<br>
-      Model: ${m.Model || m.model || "-"}<br>
-      Date: ${m.ModifyDate || m.DateTimeOriginal || m.CreateDate || "-"}<br>
-      Width: ${m.ImageWidth || m.width || "-"}<br>
-      Height: ${m.ImageHeight || m.height || "-"}<br>
-      `;
-    })()
-  : `No metadata found`
-}
+    ${
+      data.exif
+      ? (() => {
+          const m = data.exif;
+
+          return `
+          Make: ${m.Make || m.make || "-"}<br>
+          Model: ${m.Model || m.model || "-"}<br>
+          Date: ${m.DateTimeOriginal || m.ModifyDate || m.CreateDate || "-"}<br>
+          Width: ${m.ExifImageWidth || m.ImageWidth || m.width || "-"}<br>
+          Height: ${m.ExifImageHeight || m.ImageHeight || m.height || "-"}<br>
+          `;
+        })()
+      : `No metadata found`
+    }
+
   </div>
 </div>
 <div id="map" class="tab-content">
