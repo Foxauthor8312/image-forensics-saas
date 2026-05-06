@@ -6,58 +6,48 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <style>
+* { box-sizing: border-box; }
+
 html, body {
   background: #000000;
   color: #ffffff;
   font-family: Arial, sans-serif;
   margin: 0;
-  padding: 0;
+  padding: 16px;
   text-align: center;
 }
 
-/* HERO */
 .hero {
   max-width: 700px;
-  margin: 120px auto;
-  padding: 20px;
+  margin: 80px auto;
 }
 
-/* LOGO */
 .logo {
-  width: 300px;
+  width: 280px;
   max-width: 90%;
   margin-bottom: 30px;
 }
 
-/* TITLE */
 h1 {
-  font-size: 2.2rem;
-  margin-bottom: 16px;
-  font-weight: 600;
+  font-size: 2rem;
+  margin-bottom: 14px;
 }
 
-/* TEXT */
 p {
-  color: #d1d5db;
+  font-size: 15px;
   line-height: 1.6;
-  margin-bottom: 12px;
+  color: #d1d5db;
 }
 
-/* CTA BUTTON */
 .cta {
   display: inline-block;
-  margin-top: 30px;
-  padding: 12px 26px;
+  margin-top: 28px;
+  padding: 14px 28px;
   background: #1f2937;
   color: white;
   border-radius: 8px;
   text-decoration: none;
-  font-size: 1rem;
-  transition: 0.2s ease;
-}
-
-.cta:hover {
-  background: #374151;
+  font-size: 16px;
 }
 </style>
 </head>
@@ -66,8 +56,7 @@ p {
 
 <div class="hero">
 
-  <!-- LOGO -->
-  <img src="logo.png" class="logo" alt="PixelProof logo" />
+  <img src="logo.png" class="logo" alt="PixelProof" />
 
   <h1>Know if an image is real.</h1>
 
@@ -77,13 +66,10 @@ p {
   </p>
 
   <p>
-    Upload an image and get a clear forensic breakdown of what was found.
+    Upload an image and get a clear forensic breakdown.
   </p>
 
-  <!-- BUTTON -->
-  <a href="analyze.html" class="cta">
-    Analyze Image
-  </a>
+  <a href="analyze.html" class="cta">Analyze Image</a>
 
 </div>
 
