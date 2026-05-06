@@ -75,12 +75,7 @@ function resetAnalysis(){
 async function downloadPDF(){
   const form = new FormData();
   form.append("image", currentFile);
-  document.getElementById("result").innerHTML = `
-  <div class="card" style="text-align:center">
-    <div style="width:40px;height:40px;border:4px solid #374151;border-top:4px solid #3b82f6;border-radius:50%;margin:auto;animation:spin 1s linear infinite"></div>
-    <div class="small" style="margin-top:10px">Analyzing image...</div>
-  </div>
-`;
+ 
   const res = await fetch(API + "/report", { method:"POST", body:form });
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -139,7 +134,13 @@ async function analyze(){
 
   const form=new FormData();
   form.append("image",file);
-
+  
+  document.getElementById("result").innerHTML = `
+  <div class="card" style="text-align:center">
+    <div style="width:40px;height:40px;border:4px solid #374151;border-top:4px solid #3b82f6;border-radius:50%;margin:auto;animation:spin 1s linear infinite"></div>
+    <div class="small" style="margin-top:10px">Analyzing image...</div>
+  </div>
+`;
   const res = await fetch(API+"/analyze",{method:"POST",body:form});
   const data = await res.json();
 console.log("API RESPONSE:", data);
