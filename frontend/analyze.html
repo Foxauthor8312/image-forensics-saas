@@ -43,7 +43,6 @@ button {
   background:#111827;
 }
 
-/* content */
 .tab-content { display:none; margin-top:14px; }
 .tab-content.active { display:block; }
 
@@ -159,7 +158,7 @@ async function downloadReport(){
   }
 }
 
-/* ===== REPORT BUILDER ===== */
+/* ===== REPORT ===== */
 function buildReport(type, score){
 
   const risk = score >= 80 ? "Low" : score <= 50 ? "High" : "Moderate";
@@ -197,6 +196,37 @@ function buildReport(type, score){
   };
 }
 
+/* ===== CONFIDENCE BREAKDOWN ===== */
+function buildConfidenceBreakdown(data){
+
+  const elaScore = data.ela?.score || 0;
+  const hasExif = !!data.exif;
+  const hasGPS = !!(data.gps?.lat && data.gps?.lon);
+
+  return [
+    {
+      label:"Compression Consistency",
+      value:Math.round(Math.max(0, 100 - elaScore * 4)),
+      note:"Measures uniformity of image compression"
+    },
+    {
+      label:"Localized Anomalies",
+      value:Math.round(Math.min(elaScore * 4, 100)),
+      note:"Detects unusual compression in specific areas"
+    },
+    {
+      label:"Metadata Presence",
+      value:hasExif ? 85 : 30,
+      note:hasExif ? "Camera metadata detected" : "Metadata missing"
+    },
+    {
+      label:"GPS Data",
+      value:hasGPS ? 80 : 40,
+      note:hasGPS ? "Location data present" : "No GPS data"
+    }
+  ];
+}
+
 /* ===== PREVIEW ===== */
 function showPreview(report){
 
@@ -206,7 +236,7 @@ function showPreview(report){
 
       <h3>Forensic Report Preview</h3>
 
-      <strong>Score:</strong> ${report.score}/100 (${report.risk})<br><br>
+      Score: ${report.score}/100 (${report.risk})<br><br>
 
       ${report.summary}<br><br>
 
@@ -241,14 +271,14 @@ async function analyze(){
   const confidence = data.classification?.confidence || 0.5;
 
   const score = Math.round(confidence * 100);
+
   const report = buildReport(type, score);
   report.score = score;
 
-  const riskClass = report.risk === "Low"
-    ? "low"
-    : report.risk === "Moderate"
-    ? "mid"
-    : "high";
+  const breakdown = buildConfidenceBreakdown(data);
+
+  const riskClass = report.risk === "Low" ? "low" :
+                    report.risk === "Moderate" ? "mid" : "high";
 
   document.getElementById("result").innerHTML = `
     <div class="tabs">
@@ -264,23 +294,34 @@ async function analyze(){
 
       <div class="card">
         <strong>${type}</strong><br>
-        Score: ${score}/100 
-        <span class="${riskClass}">(${report.risk} Risk)</span>
+        Score: ${score}/100 <span class="${riskClass}">(${report.risk} Risk)</span>
       </div>
 
-      <div class="card">
-        <strong>Summary</strong><br><br>
-        ${report.summary}
-      </div>
+      <div class="card"><strong>Summary</strong><br><br>${report.summary}</div>
+      <div class="card"><strong>Technical Findings</strong><br><br>${report.details}</div>
+      <div class="card"><strong>What this means for you</strong><br><br>${report.meaning}</div>
 
       <div class="card">
-        <strong>Technical Findings</strong><br><br>
-        ${report.details}
-      </div>
+        <strong>Confidence Reasoning</strong><br><br>
 
-      <div class="card">
-        <strong>What this means for you</strong><br><br>
-        ${report.meaning}
+        ${breakdown.map(item => `
+          <div style="margin-bottom:10px;">
+            <div style="font-size:14px;">${item.label}</div>
+
+            <div style="height:6px;background:#1e293b;border-radius:4px;margin:4px 0;">
+              <div style="width:${item.value}%;height:100%;
+                background:${
+                  item.value > 70 ? '#22c55e' :
+                  item.value > 40 ? '#f59e0b' : '#ef4444'
+                };">
+              </div>
+            </div>
+
+            <div style="font-size:12px;color:#9ca3af;">
+              ${item.note}
+            </div>
+          </div>
+        `).join("")}
       </div>
 
       <div class="card">
@@ -292,17 +333,12 @@ async function analyze(){
     </div>
 
     <div id="ela" class="tab-content">
-      <div style="font-size:13px;color:#9ca3af;margin-bottom:8px;">
-        ELA highlights compression differences across the image.
-      </div>
-
       <div class="slider-container">
         <img src="${URL.createObjectURL(file)}">
         <div class="overlay" id="overlay">
           <img src="${data.ela?.overlay}">
         </div>
       </div>
-
       <input type="range" id="slider" min="0" max="100" value="50">
     </div>
 
@@ -330,8 +366,8 @@ async function analyze(){
 
     <div id="guide" class="tab-content">
       <div class="card">
-        Uniform ELA = normal image<br>
         Bright patches = possible edits<br>
+        Uniform image = likely original<br>
         Even brightness = recompression
       </div>
     </div>
