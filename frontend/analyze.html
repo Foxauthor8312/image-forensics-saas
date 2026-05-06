@@ -141,7 +141,7 @@ async function analyze(){
     <div class="small" style="margin-top:10px">Analyzing image...</div>
   </div>
 `;
-  let data;
+let data;
 
 try {
   const res = await fetch(API+"/analyze",{method:"POST",body:form});
@@ -161,12 +161,13 @@ try {
 
       This is usually a temporary connection issue.<br><br>
 
-      Please try again.
+      <button onclick="analyze()">Try Again</button>
     </div>
   `;
 
-  return; // 🚨 stops execution so spinner doesn’t hang
+  return;
 }
+
 console.log("API RESPONSE:", data);
   let gpsData = data.gps;
 
