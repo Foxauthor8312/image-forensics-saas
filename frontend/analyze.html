@@ -184,15 +184,23 @@ try {
 console.log("API RESPONSE:", data);
 
 console.log("ALL KEYS:", Object.keys(data));
-  let gpsData = data.gps;
+  
+ let gpsData = data.gps;
 
-  if (!gpsData?.lat || gpsData.lat === 0) {
+// If no GPS in image → try device location (mobile-safe)
+if (!gpsData?.lat || gpsData.lat === 0) {
+  const useDevice = confirm(
+    "This image has no location data (common on mobile).\n\nUse your device location instead?"
+  );
+
+  if (useDevice) {
     const deviceGPS = await getDeviceLocation();
     if (deviceGPS) {
       gpsData = deviceGPS;
       gpsData.source = "device";
     }
   }
+}
   
   const signals = buildSignals(data);
   const score = calcScore(signals);
@@ -370,12 +378,12 @@ ${
     gpsData?.lat
       ? `
         <div class="small">
-          Location source: ${
-            gpsData.source === "device"
-              ? "Device location (approximate)"
-              : "Image metadata"
-          }
-        </div>
+  Location source: ${
+    gpsData.source === "device"
+      ? "Device location (approximate)"
+      : "Image metadata"
+  }
+</div>
 
         <iframe 
           class="map-frame"
