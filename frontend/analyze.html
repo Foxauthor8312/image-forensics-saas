@@ -74,6 +74,28 @@ button {
 const API = "https://image-forensics-saas-1.onrender.com";
 let currentFile=null;
 
+/* ===== SAFE FETCH (RETRY + TIMEOUT) ===== */
+async function safeFetch(url, options, retries = 2, timeout = 15000) {
+  try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+
+    if (!res.ok) throw new Error("Bad response");
+    return res;
+
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise(r => setTimeout(r, 1500));
+      return safeFetch(url, options, retries - 1, timeout);
+    }
+    throw err;
+  }
+}
+
+/* tabs */
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
@@ -81,45 +103,39 @@ function switchTab(name){
   document.getElementById(name).classList.add("active");
 }
 
-/* ===== REPORT ===== */
+/* report */
 function buildReport(type, score){
-
   const risk = score>=80?"Low":score<=50?"High":"Moderate";
 
-  const reports={
-
+  const map={
     "Edited":{
       summary:"Parts of this image may have been altered.",
-      explanation:"Certain areas compress differently than surrounding regions. This often happens when content is added, removed, or modified.",
-      meaning:"You should treat this image as potentially manipulated and verify it using trusted sources."
+      explanation:"Certain regions compress differently than surrounding areas.",
+      meaning:"Verify before trusting."
     },
-
     "Recompressed":{
-      summary:"This image has been saved or processed multiple times.",
-      explanation:"Recompression changes how an image is stored. This can happen naturally when images are uploaded or shared.",
-      meaning:"Recompression alone is not proof of editing, but it can hide previous changes."
+      summary:"Image has been saved multiple times.",
+      explanation:"Compression changed but may not indicate edits.",
+      meaning:"Could hide earlier changes."
     },
-
     "Likely Original":{
-      summary:"No clear signs of editing were found.",
-      explanation:"Compression patterns are consistent across the image, which typically indicates the image has not been modified.",
-      meaning:"This image appears authentic and can generally be trusted."
+      summary:"No signs of editing detected.",
+      explanation:"Compression is consistent.",
+      meaning:"Image appears authentic."
     },
-
     "Unknown":{
-      summary:"The result is inconclusive.",
-      explanation:"The system could not find strong enough patterns to make a determination.",
-      meaning:"Try analyzing a higher-quality version of the image."
+      summary:"Result unclear.",
+      explanation:"Not enough strong signals.",
+      meaning:"Use higher quality image."
     }
   };
 
-  return {risk,...(reports[type]||reports["Unknown"])};
+  return {risk,...(map[type]||map["Unknown"])};
 }
 
-/* ===== CONFIDENCE ===== */
+/* confidence */
 function buildConfidence(data){
   const ela=data.ela.score;
-
   return [
     {label:"Compression Consistency", value:Math.max(0,100-ela*4)},
     {label:"Localized Anomalies", value:Math.min(ela*4,100)},
@@ -128,20 +144,26 @@ function buildConfidence(data){
   ];
 }
 
-/* ===== DOWNLOAD ===== */
+/* download */
 async function downloadReport(){
-  const form=new FormData();
-  form.append("image",currentFile);
-  const res=await fetch(API+"/report",{method:"POST",body:form});
-  const blob=await res.blob();
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;
-  a.download="report.pdf";
-  a.click();
+  try {
+    const form=new FormData();
+    form.append("image",currentFile);
+
+    const res = await safeFetch(API+"/report",{method:"POST",body:form});
+    const blob=await res.blob();
+
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download="report.pdf";
+    a.click();
+  } catch {
+    alert("Server unavailable. Try again.");
+  }
 }
 
-/* ===== ANALYZE ===== */
+/* analyze */
 async function analyze(){
 
   const file=document.getElementById("fileInput").files[0];
@@ -155,8 +177,16 @@ async function analyze(){
   const form=new FormData();
   form.append("image",file);
 
-  const res=await fetch(API+"/analyze",{method:"POST",body:form});
-  const data=await res.json();
+  let data;
+
+  try {
+    const res = await safeFetch(API+"/analyze",{method:"POST",body:form});
+    data = await res.json();
+  } catch (err) {
+    document.getElementById("loader").style.display="none";
+    alert("Server is waking up or connection failed. Try again.");
+    return;
+  }
 
   document.getElementById("loader").style.display="none";
 
@@ -174,31 +204,15 @@ async function analyze(){
       <div class="tab" id="tab-metadata" onclick="switchTab('metadata')">Metadata</div>
       <div class="tab" id="tab-map" onclick="switchTab('map')">Map</div>
       <div class="tab" id="tab-raw" onclick="switchTab('raw')">Full Metadata</div>
-      <div class="tab" id="tab-guide" onclick="switchTab('guide')">How to Read</div>
+      <div class="tab" id="tab-guide" onclick="switchTab('guide')">Guide</div>
       <div class="tab" id="tab-ai" onclick="switchTab('ai')">AI</div>
     </div>
 
     <div id="overview" class="tab-content active">
-
-      <div class="card">
-        <strong>${type}</strong><br>
-        Score: ${score}/100 (${report.risk})
-      </div>
-
-      <div class="card">
-        <strong>Summary</strong><br><br>
-        ${report.summary}
-      </div>
-
-      <div class="card">
-        <strong>Why this result was given</strong><br><br>
-        ${report.explanation}
-      </div>
-
-      <div class="card">
-        <strong>What this means for you</strong><br><br>
-        ${report.meaning}
-      </div>
+      <div class="card"><strong>${type}</strong><br>Score: ${score}/100 (${report.risk})</div>
+      <div class="card"><strong>Summary</strong><br>${report.summary}</div>
+      <div class="card"><strong>Why</strong><br>${report.explanation}</div>
+      <div class="card"><strong>What this means</strong><br>${report.meaning}</div>
 
       <div class="card">
         <strong>Confidence Reasoning</strong><br><br>
@@ -213,23 +227,15 @@ async function analyze(){
       </div>
 
       <button onclick="downloadReport()">Download Report</button>
-
     </div>
 
     <div id="ela" class="tab-content">
-      <div class="card">
-        <strong>What is ELA?</strong><br><br>
-        Error Level Analysis highlights differences in compression.<br><br>
-        Bright areas may indicate edits.
-      </div>
-
       <div class="slider-container">
         <img src="${URL.createObjectURL(file)}">
         <div class="overlay" id="overlay">
           <img src="${data.ela.overlay}">
         </div>
       </div>
-
       <input type="range" id="slider" value="50">
     </div>
 
@@ -255,21 +261,16 @@ async function analyze(){
 
     <div id="guide" class="tab-content">
       <div class="card">
-        <strong>How to interpret results</strong><br><br>
-
-        <b>ELA:</b> Highlights compression differences<br>
-        <b>Recompression:</b> Image saved multiple times<br>
-        <b>Metadata:</b> Camera info & timestamps<br>
-        <b>AI:</b> Indicates likelihood of synthetic origin<br><br>
-
-        Always combine all signals before making conclusions.
+        Bright patches = edits<br>
+        Uniform = original<br>
+        Even brightness = recompression
       </div>
     </div>
 
     <div id="ai" class="tab-content">
       <div class="card">
-        AI Likelihood: ${data.ai.likelihood}%<br><br>
-        This is a probability estimate, not proof.
+        AI Likelihood: ${data.ai.likelihood}%<br>
+        This is an estimate, not proof.
       </div>
     </div>
   `;
