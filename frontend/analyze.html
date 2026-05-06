@@ -230,11 +230,25 @@ async function analyze(){
 
   <div id="ai" class="tab-content">
     <div class="card">
-      <strong>AI Detection</strong><br><br>
-      AI Likelihood: ${data.ai.likelihood}%<br><br>
-      This estimates whether the image shows patterns typical of AI-generated images.
-      It is not definitive, but higher values indicate stronger similarity.
-    </div>
+  <div class="section-title">Synthetic / AI Pattern Indicator</div>
+
+  <strong>${data.ai.likelihood}%</strong><br><br>
+
+  This score does not directly detect AI. Instead, it looks for image patterns that are commonly found in AI-generated or heavily processed images.<br><br>
+
+  These patterns include:<br>
+  • Missing or stripped metadata<br>
+  • Extremely uniform compression<br>
+  • Low variation across the image<br><br>
+
+  <strong>How to interpret this:</strong><br>
+  • 0–15% → Typical of real camera images<br>
+  • 15–30% → Could be recompressed, edited, or a screenshot<br>
+  • 30–50% → Unusual patterns, may require verification<br>
+  • 50%+ → Strong synthetic or heavily processed characteristics<br><br>
+
+  This is an indicator, not proof. Always verify using multiple signals.
+</div>
   </div>
   `;
 
