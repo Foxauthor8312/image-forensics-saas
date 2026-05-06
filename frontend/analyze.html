@@ -9,7 +9,7 @@
 body {
   background:#000;
   color:#fff;
-  font-family:Arial;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;
   padding:16px;
 }
 
@@ -28,9 +28,9 @@ button {
 .tabs {
   display:flex;
   gap:6px;
-  margin-top:16px;
   border-bottom:1px solid #1f2937;
   overflow-x:auto;
+  margin-top:16px;
 }
 
 .tab {
@@ -38,12 +38,12 @@ button {
   color:#9ca3af;
   cursor:pointer;
 }
-
 .tab.active {
   color:white;
   background:#111827;
 }
 
+/* content */
 .tab-content { display:none; margin-top:14px; }
 .tab-content.active { display:block; }
 
@@ -56,9 +56,14 @@ button {
   margin-bottom:14px;
 }
 
+/* score colors */
+.low { color:#22c55e; }
+.mid { color:#f59e0b; }
+.high { color:#ef4444; }
+
 /* slider */
 .slider-container { position:relative; }
-.slider-container img { width:100%; }
+.slider-container img { width:100%; border-radius:8px; }
 
 .overlay {
   position:absolute;
@@ -76,12 +81,12 @@ button {
   background:linear-gradient(to right,transparent,rgba(255,255,255,0.6));
 }
 
-/* preview watermark */
+/* preview */
 .preview {
   position:relative;
+  background:#05070d;
   padding:20px;
   border:1px solid #374151;
-  background:#05070d;
 }
 
 .watermark {
@@ -89,7 +94,7 @@ button {
   top:50%;
   left:50%;
   transform:translate(-50%,-50%) rotate(-20deg);
-  font-size:36px;
+  font-size:34px;
   color:rgba(255,255,255,0.08);
 }
 
@@ -119,7 +124,7 @@ const API = "https://image-forensics-saas-1.onrender.com";
 
 let currentFile = null;
 
-/* ===== TABS ===== */
+/* ===== TAB SWITCH ===== */
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
@@ -154,17 +159,58 @@ async function downloadReport(){
   }
 }
 
+/* ===== REPORT BUILDER ===== */
+function buildReport(type, score){
+
+  const risk = score >= 80 ? "Low" : score <= 50 ? "High" : "Moderate";
+
+  const reports = {
+
+    "Likely Original": {
+      summary: "No clear signs of editing were found.",
+      details: "Compression patterns are consistent across the image.",
+      meaning: "This image appears authentic and can generally be trusted."
+    },
+
+    "Recompressed": {
+      summary: "This image has been saved or processed multiple times.",
+      details: "Recompression changes how an image is stored but does not necessarily mean it was edited.",
+      meaning: "The image may be legitimate, but earlier edits could be hidden."
+    },
+
+    "Edited": {
+      summary: "Parts of this image may have been altered.",
+      details: "Some regions show different compression patterns than surrounding areas.",
+      meaning: "Do not rely on this image without verifying the source."
+    },
+
+    "Unknown": {
+      summary: "The result is inconclusive.",
+      details: "The image lacks clear compression patterns.",
+      meaning: "Try analyzing a higher-quality version."
+    }
+  };
+
+  return {
+    risk,
+    ...(reports[type] || reports["Unknown"])
+  };
+}
+
 /* ===== PREVIEW ===== */
 function showPreview(report){
+
   document.getElementById("overview").innerHTML += `
     <div class="card preview">
       <div class="watermark">FORENSIC PREVIEW</div>
 
       <h3>Forensic Report Preview</h3>
 
-      Score: ${report.score}/100 (${report.risk})<br><br>
+      <strong>Score:</strong> ${report.score}/100 (${report.risk})<br><br>
 
       ${report.summary}<br><br>
+
+      ${report.details}<br><br>
 
       ${report.meaning}<br><br>
 
@@ -195,20 +241,14 @@ async function analyze(){
   const confidence = data.classification?.confidence || 0.5;
 
   const score = Math.round(confidence * 100);
-  const risk = score >= 80 ? "Low" : score <= 50 ? "High" : "Moderate";
+  const report = buildReport(type, score);
+  report.score = score;
 
-  const report = {
-    score,
-    risk,
-    summary: type === "Edited"
-      ? "Parts of this image may have been changed."
-      : type === "Recompressed"
-      ? "Image has been saved multiple times."
-      : "No signs of editing detected.",
-    meaning: type === "Edited"
-      ? "Verify this image before trusting it."
-      : "This image appears reliable."
-  };
+  const riskClass = report.risk === "Low"
+    ? "low"
+    : report.risk === "Moderate"
+    ? "mid"
+    : "high";
 
   document.getElementById("result").innerHTML = `
     <div class="tabs">
@@ -221,13 +261,25 @@ async function analyze(){
     </div>
 
     <div id="overview" class="tab-content active">
+
       <div class="card">
         <strong>${type}</strong><br>
-        Score: ${score}/100 (${risk})
+        Score: ${score}/100 
+        <span class="${riskClass}">(${report.risk} Risk)</span>
       </div>
 
       <div class="card">
-        ${report.summary}<br><br>
+        <strong>Summary</strong><br><br>
+        ${report.summary}
+      </div>
+
+      <div class="card">
+        <strong>Technical Findings</strong><br><br>
+        ${report.details}
+      </div>
+
+      <div class="card">
+        <strong>What this means for you</strong><br><br>
         ${report.meaning}
       </div>
 
@@ -236,15 +288,21 @@ async function analyze(){
           Download Forensic Report
         </button>
       </div>
+
     </div>
 
     <div id="ela" class="tab-content">
+      <div style="font-size:13px;color:#9ca3af;margin-bottom:8px;">
+        ELA highlights compression differences across the image.
+      </div>
+
       <div class="slider-container">
         <img src="${URL.createObjectURL(file)}">
         <div class="overlay" id="overlay">
           <img src="${data.ela?.overlay}">
         </div>
       </div>
+
       <input type="range" id="slider" min="0" max="100" value="50">
     </div>
 
@@ -272,8 +330,9 @@ async function analyze(){
 
     <div id="guide" class="tab-content">
       <div class="card">
-        ELA highlights compression differences.<br>
-        Bright patches = possible edits.
+        Uniform ELA = normal image<br>
+        Bright patches = possible edits<br>
+        Even brightness = recompression
       </div>
     </div>
   `;
