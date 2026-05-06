@@ -183,7 +183,7 @@ This supports the finding that the image behaves like a typical, unedited photo.
 </div>
 
 <div class="card">
--title">How strong is this finding?</div>
+<div class="section-title">How strong is this finding?</div>
 ${
  score >= 80
 ? `
@@ -208,7 +208,7 @@ This pattern is commonly associated with edited or manipulated images.
 </div>
 
 <div class="card">
--title">What this means for you</div>
+<div class="section-title">What this means for you</div>
 ${
  score >= 70
 ? `
@@ -235,7 +235,7 @@ Always consider:<br>
 
 <div id="ela" class="tab-content">
   <div class="card">
-    -title">Error Level Analysis</div>
+   <div class="section-title">Error Level Analysis</div>
 
     ${data.ela?.overlay
       ? `<img src="${data.ela.overlay}" style="width:100%; border-radius:8px;">`
@@ -251,7 +251,7 @@ Always consider:<br>
 
   <!-- 👇 PASTE HERE -->
   <div class="card">
-   Error Level Analysis highlights differences in compression across the image.<br><br>
+Error Level Analysis highlights differences in compression across the image.<br><br>
 
 ${
   signals.anomalies > 65
@@ -263,10 +263,7 @@ ${
   `
 }
   
-</div>
-
-    ${
-    </div>
+   </div>
 
 <div id="metadata" class="tab-content">
   <div class="card">
