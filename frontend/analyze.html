@@ -11,30 +11,39 @@
 html, body {
   background: #000;
   color: #fff;
-  font-family: Arial;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   margin: 0;
   padding: 16px;
 }
 
+/* CONTAINER */
 .container {
-  max-width: 700px;
+  max-width: 720px;
   margin: auto;
 }
 
+/* BACK */
 .back {
   color: #9ca3af;
   text-decoration: none;
+  font-size: 14px;
 }
 
-input { width: 100%; margin: 15px 0; }
+/* INPUT */
+input {
+  width: 100%;
+  margin: 16px 0;
+}
 
+/* BUTTON */
 button {
   width: 100%;
   padding: 14px;
   background: #1f2937;
-  border: none;
+  border: 1px solid #374151;
   color: white;
   border-radius: 8px;
+  font-size: 15px;
 }
 
 /* LOADER */
@@ -49,45 +58,81 @@ button {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* HEADER RESULT */
+.result-header {
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+.result-type {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.result-sub {
+  color: #9ca3af;
+  font-size: 14px;
+}
+
 /* TABS */
 .tabs {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  margin-top: 16px;
+  border-bottom: 1px solid #1f2937;
   overflow-x: auto;
-  border-bottom: 1px solid #333;
 }
 
 .tab {
-  padding: 10px;
+  padding: 10px 14px;
   cursor: pointer;
   color: #9ca3af;
-  white-space: nowrap;
+  border-radius: 6px 6px 0 0;
 }
 
 .tab.active {
   color: white;
+  background: #111827;
   border-bottom: 2px solid white;
 }
 
+/* CONTENT */
 .tab-content {
   display: none;
-  margin-top: 15px;
+  margin-top: 14px;
 }
 
 .tab-content.active {
   display: block;
 }
 
+/* CARD */
+.card {
+  background: #0b0f19;
+  border: 1px solid #1f2937;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+/* SCORE BAR */
+.score-bar {
+  height: 6px;
+  background: #111;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+
 /* META */
 .meta-row {
   padding: 6px 0;
-  border-bottom: 1px solid #222;
+  border-bottom: 1px solid #1f2937;
+  font-size: 14px;
 }
 
 /* SLIDER */
 .slider-container { position: relative; }
-
-.slider-container img { width: 100%; }
+.slider-container img { width: 100%; border-radius: 8px; }
 
 .overlay {
   position: absolute;
@@ -96,7 +141,6 @@ button {
   width: 50%;
   overflow: hidden;
 }
-
 .overlay img { width: 100%; }
 
 .divider {
@@ -108,7 +152,7 @@ button {
   background: white;
 }
 
-.slider { width: 100%; }
+.slider { width: 100%; margin-top: 10px; }
 
 /* MAP */
 .map-container {
@@ -116,6 +160,8 @@ button {
   height: 60vh;
   min-height: 320px;
   max-height: 500px;
+  border-radius: 8px;
+  overflow: hidden;
 }
 </style>
 </head>
@@ -136,7 +182,6 @@ button {
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
-/* ===== TAB SWITCH ===== */
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
@@ -144,7 +189,6 @@ function switchTab(name){
   document.getElementById(name).classList.add("active");
 }
 
-/* ===== REPORT BUILDER ===== */
 function buildReport(type, confidence, hasExif, hasGPS) {
 
   const score = Math.round(confidence * 100);
@@ -153,79 +197,33 @@ function buildReport(type, confidence, hasExif, hasGPS) {
   if (score >= 80) risk = "Low";
   else if (score <= 50) risk = "High";
 
-  const base = {
-    "Likely Original": {
-      summary: "No strong indicators of manipulation were detected.",
-      findings: "Compression is consistent across the image.",
-      visual: "ELA appears evenly distributed.",
-      conclusion: "The image is likely authentic."
-    },
-    "Recompressed": {
-      summary: "The image shows signs of recompression.",
-      findings: "Compression differences are spread across the image.",
-      visual: "ELA appears uniformly elevated.",
-      conclusion: "Recompression detected, not necessarily editing."
-    },
-    "Edited": {
-      summary: "Compression inconsistencies suggest localized changes.",
-      findings: "ELA shows uneven compression patterns.",
-      visual: "Look for bright localized regions.",
-      conclusion: "Image may have been altered."
-    },
-    "Unknown": {
-      summary: "No clear signal detected.",
-      findings: "Compression patterns are inconclusive.",
-      visual: "ELA has no clear pattern.",
-      conclusion: "Result inconclusive."
-    }
-  };
-
-  const selected = base[type] || base["Unknown"];
-
   return {
     score,
     risk,
-    ...selected,
-    meta: hasExif
-      ? "Metadata present."
-      : "Metadata missing — may indicate removal.",
-    gps: hasGPS
-      ? "GPS data present."
-      : "No GPS data."
+    summary: "Compression analysis completed.",
+    findings: "Patterns evaluated across image structure.",
+    visual: "Inspect bright regions in ELA overlay.",
+    conclusion: type,
+    meta: hasExif ? "Metadata present." : "Metadata missing.",
+    gps: hasGPS ? "GPS data present." : "No GPS data."
   };
 }
 
-/* ===== PDF DOWNLOAD ===== */
 function downloadReport() {
-
   const content = document.getElementById("overview").innerText;
-
   const win = window.open('', '', 'width=800,height=600');
 
   win.document.write(`
-    <html>
-    <head>
-      <title>PixelProof Report</title>
-      <style>
-        body { font-family: Arial; padding: 20px; }
-        pre { white-space: pre-wrap; }
-      </style>
-    </head>
-    <body>
-      <h1>PixelProof Analysis Report</h1>
-      <pre>${content}</pre>
-    </body>
-    </html>
+    <html><body style="font-family:Arial;padding:20px;">
+    <h1>PixelProof Report</h1>
+    <pre>${content}</pre>
+    </body></html>
   `);
 
   win.document.close();
-
-  setTimeout(() => {
-    win.print();
-  }, 500);
+  setTimeout(()=>win.print(),500);
 }
 
-/* ===== ANALYZE ===== */
 async function analyze(){
 
   const file = document.getElementById("fileInput").files[0];
@@ -259,7 +257,10 @@ async function analyze(){
   const report = buildReport(type, confidence, !!data.exif, !!(lat && lon));
 
   resultEl.innerHTML = `
-    <div style="font-size:22px;">${type}</div>
+    <div class="result-header">
+      <div class="result-type">${type}</div>
+      <div class="result-sub">Confidence: ${report.score}%</div>
+    </div>
 
     <div class="tabs">
       <div class="tab active" id="tab-overview" onclick="switchTab('overview')">Overview</div>
@@ -269,47 +270,38 @@ async function analyze(){
       <div class="tab" id="tab-raw" onclick="switchTab('raw')">Full Metadata</div>
     </div>
 
-    <!-- OVERVIEW -->
     <div id="overview" class="tab-content active">
 
-      <div style="margin-bottom:16px;">
-        <div style="font-size:20px;font-weight:600;">
-          Integrity Score: ${report.score}/100
-        </div>
-
-        <div style="color:${
-          report.risk==="Low" ? "#22c55e" :
-          report.risk==="Moderate" ? "#f59e0b" : "#ef4444"
-        }; font-weight:600;">
-          Risk Level: ${report.risk}
-        </div>
-
-        <div style="height:6px;background:#111;margin-top:8px;border-radius:4px;">
-          <div style="
-            width:${report.score}%;
-            height:100%;
-            background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);
-          "></div>
+      <div class="card">
+        <div><strong>Integrity Score</strong></div>
+        <div>${report.score}/100 (${report.risk})</div>
+        <div class="score-bar">
+          <div style="width:${report.score}%;height:100%;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);"></div>
         </div>
       </div>
 
-      <div><strong>Summary</strong><br>${report.summary}</div><br>
-      <div><strong>Technical Findings</strong><br>${report.findings}</div><br>
-      <div><strong>What to Look For</strong><br>${report.visual}</div><br>
-      <div><strong>Conclusion</strong><br>${report.conclusion}</div>
-
-      <div style="margin-top:12px;font-size:12px;color:#9ca3af;">
-        ${report.meta}<br>${report.gps}<br><br>
-        Metadata may be altered or removed and is not definitive proof.
+      <div class="card">
+        <strong>Summary</strong><br>${report.summary}
       </div>
 
-      <div style="margin-top:20px;">
-        <button onclick="downloadReport()">Download Report (PDF)</button>
+      <div class="card">
+        <strong>Findings</strong><br>${report.findings}
+      </div>
+
+      <div class="card">
+        <strong>Visual Guidance</strong><br>${report.visual}
+      </div>
+
+      <div class="card">
+        <strong>Conclusion</strong><br>${report.conclusion}
+      </div>
+
+      <div class="card">
+        <button onclick="downloadReport()">Download Report</button>
       </div>
 
     </div>
 
-    <!-- ELA -->
     <div id="ela" class="tab-content">
       <div class="slider-container">
         <img src="${URL.createObjectURL(file)}">
@@ -321,31 +313,26 @@ async function analyze(){
       <input type="range" id="slider" min="0" max="100" value="50">
     </div>
 
-    <!-- METADATA -->
     <div id="metadata" class="tab-content">
-      <div class="meta-row">Camera: ${data.exif?.Make ?? "-"}</div>
-      <div class="meta-row">Date: ${data.exif?.DateTimeOriginal ?? "-"}</div>
-      <div class="meta-row">Lat: ${lat ?? "-"}</div>
-      <div class="meta-row">Lon: ${lon ?? "-"}</div>
+      <div class="card">
+        <div class="meta-row">Camera: ${data.exif?.Make ?? "-"}</div>
+        <div class="meta-row">Date: ${data.exif?.DateTimeOriginal ?? "-"}</div>
+        <div class="meta-row">Lat: ${lat ?? "-"}</div>
+        <div class="meta-row">Lon: ${lon ?? "-"}</div>
+      </div>
     </div>
 
-    <!-- MAP -->
     <div id="map" class="tab-content">
-      ${
-        lat && lon
+      ${lat && lon
         ? `<div class="map-container">
              <iframe width="100%" height="100%"
              src="https://www.google.com/maps?q=${lat},${lon}&z=18&output=embed&t=k"></iframe>
            </div>`
-        : "No GPS data"
-      }
+        : "No GPS data"}
     </div>
 
-    <!-- RAW -->
     <div id="raw" class="tab-content">
-      <pre style="font-size:12px;color:#9ca3af;">
-${JSON.stringify(data.rawMetadata, null, 2)}
-      </pre>
+      <pre>${JSON.stringify(data.rawMetadata, null, 2)}</pre>
     </div>
   `;
 
