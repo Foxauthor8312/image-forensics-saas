@@ -118,7 +118,7 @@ async function analyze(){
 
   const res = await fetch(API+"/analyze",{method:"POST",body:form});
   const data = await res.json();
-
+console.log("API RESPONSE:", data);
   let gpsData = data.gps;
 
   if (!gpsData?.lat) {
@@ -232,7 +232,41 @@ Always consider:<br>
 </div>
 
 </div>
+<div id="ela" class="tab-content">
+  <div class="card">
+    <div class="section-title">Error Level Analysis</div>
 
+    ${
+      data.ela?.overlay
+      ? `<img src="${data.ela.overlay}" style="width:100%; border-radius:8px;">`
+      : `No ELA data available`
+    }
+
+    <br><br>
+
+    <div class="small">
+      ELA Score: ${data.ela?.score?.toFixed(2) ?? "N/A"}
+    </div>
+  </div>
+</div>
+<div id="metadata" class="tab-content">
+  <div class="card">
+    <div class="section-title">Metadata</div>
+
+    ${
+      data.exif
+      ? `
+      Make: ${data.exif.Make || "-"}<br>
+      Model: ${data.exif.Model || "-"}<br>
+      Date: ${data.exif.ModifyDate || "-"}<br>
+      Width: ${data.exif.ImageWidth || "-"}<br>
+      Height: ${data.exif.ImageHeight || "-"}<br>
+      `
+      : `No metadata found`
+    }
+
+  </div>
+</div>
 <div id="map" class="tab-content">
 ${
   gpsData?.lat
