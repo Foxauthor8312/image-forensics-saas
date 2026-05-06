@@ -6,41 +6,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <style>
-body {
-  background:#0a0f1a;
-  color:#e5e7eb;
-  font-family:-apple-system,Segoe UI;
-  padding:16px;
-}
+body { background:#0a0f1a; color:#e5e7eb; font-family:-apple-system,Segoe UI; padding:16px; }
 .container { max-width:900px; margin:auto; }
 
 .header { font-size:22px; font-weight:600; margin-bottom:6px; }
 .sub { font-size:13px; color:#9ca3af; margin-bottom:20px; }
 
-.back { color:#9ca3af; text-decoration:none; display:inline-block; margin-bottom:12px; }
-
 button {
   width:100%; padding:12px;
   background:#1f2937; border:1px solid #374151;
   border-radius:8px; color:white;
+  margin-top:10px;
 }
 
-.spinner {
-  width:40px;height:40px;
-  border:4px solid #1e293b;
-  border-top:4px solid #3b82f6;
-  border-radius:50%;
-  animation:spin 1s linear infinite;
-  margin:auto;
-}
-@keyframes spin { to { transform:rotate(360deg); } }
-
-.tabs { display:flex; gap:8px; border-bottom:1px solid #1f2937; overflow-x:auto; }
-.tab { padding:10px 14px; cursor:pointer; color:#9ca3af; }
-.tab.active { color:white; border-bottom:2px solid #3b82f6; }
-
-.tab-content { display:none; margin-top:16px; }
-.tab-content.active { display:block; }
+.secondary { background:#111827; }
 
 .card {
   background:#0b1220;
@@ -50,38 +29,34 @@ button {
   margin-bottom:16px;
 }
 
-.section-title { font-size:14px; font-weight:600; margin-bottom:8px; }
-
+.section-title { font-weight:600; margin-bottom:8px; }
 .score { font-size:36px; font-weight:700; }
+
 .low { color:#22c55e; }
 .mid { color:#f59e0b; }
 .high { color:#ef4444; }
 
-.small { font-size:12px; color:#9ca3af; }
+.tabs { display:flex; gap:8px; border-bottom:1px solid #1f2937; }
+.tab { padding:10px; cursor:pointer; color:#9ca3af; }
+.tab.active { color:white; border-bottom:2px solid #3b82f6; }
+
+.tab-content { display:none; margin-top:16px; }
+.tab-content.active { display:block; }
 
 .slider-container { position:relative; }
-.slider-container img { width:100%; border-radius:8px; }
-
-.overlay {
-  position:absolute;
-  top:0;
-  left:0;
-  width:50%;
-  overflow:hidden;
-}
-
-.map-container { width:100%; height:60vh; border-radius:10px; }
+.slider-container img { width:100%; }
+.overlay { position:absolute; top:0; left:0; width:50%; overflow:hidden; }
 
 .verify-buttons a {
   display:block;
-  text-align:center;
-  padding:10px;
   margin-top:8px;
-  border-radius:8px;
+  padding:10px;
   background:#111827;
   border:1px solid #374151;
-  color:#e5e7eb;
+  border-radius:8px;
+  text-align:center;
   text-decoration:none;
+  color:#e5e7eb;
 }
 </style>
 </head>
@@ -90,18 +65,11 @@ button {
 
 <div class="container">
 
-<a href="index.html" class="back">← Back</a>
-
 <div class="header">PixelProof Analysis</div>
-<div class="sub">Understand what was found, why it matters, and what to do next</div>
+<div class="sub">Clear explanation of what was found and what it means</div>
 
 <input type="file" id="fileInput" />
 <button onclick="analyze()">Analyze Image</button>
-
-<div id="loader" style="display:none;text-align:center;margin:20px 0;">
-  <div class="spinner"></div>
-  <div class="small">Analyzing image...</div>
-</div>
 
 <div id="result"></div>
 
@@ -110,23 +78,47 @@ button {
 <script>
 
 const API = "https://image-forensics-saas-1.onrender.com";
+let currentFile = null;
 
-/* SAFE FETCH */
-async function safeFetch(url, options, retries=2){
-  try{
-    const res = await fetch(url, options);
-    if(!res.ok) throw new Error();
-    return res;
-  }catch(e){
-    if(retries>0){
-      await new Promise(r=>setTimeout(r,1500));
-      return safeFetch(url,options,retries-1);
-    }
-    throw e;
-  }
+/* ===== NARRATIVE ENGINE ===== */
+function buildNarrative(s, score){
+
+  const edited = s.anomalies > 65;
+  const strong = score >= 70;
+
+  return {
+
+    who:
+    edited
+    ? "This analysis system detected patterns commonly associated with edited images."
+    : "This analysis system detected patterns consistent with normal image processing.",
+
+    what:
+    edited
+    ? "Different areas of the image behave differently when analyzed, indicating uneven processing."
+    : "The image behaves consistently across all areas when analyzed.",
+
+    why:
+    edited
+    ? "When part of an image is edited, that section is often saved differently from the rest of the image."
+    : "Images that have not been selectively edited tend to be saved in a uniform way.",
+
+    how:
+    "The system compares how the image is compressed internally. Edited areas often compress differently, which can be detected mathematically.",
+
+    where:
+    edited
+    ? "The differences appear in localized areas, not across the entire image."
+    : "No specific areas stand out as inconsistent.",
+
+    meaning:
+    strong
+    ? "There is a meaningful likelihood this image has been altered. Verification is recommended before relying on it."
+    : "There is no strong evidence of manipulation, but results should still be considered alongside other information."
+  };
 }
 
-/* SIGNALS */
+/* ===== SCORE ===== */
 function buildSignals(data){
   const ela = data.ela.score;
   return {
@@ -137,7 +129,6 @@ function buildSignals(data){
   };
 }
 
-/* SCORE */
 function calcScore(s){
   return Math.round(
     s.compression*0.3 +
@@ -147,96 +138,35 @@ function calcScore(s){
   );
 }
 
-/* SCORE EXPLANATION */
-function explainScore(score){
-
-  if(score >= 80){
-    return {
-      label:"High consistency",
-      meaning:"The image behaves like a typical unedited image. There are no strong indicators of manipulation."
-    };
-  }
-
-  if(score >= 55){
-    return {
-      label:"Mixed signals",
-      meaning:"Some parts of the image behave differently than others. This may be caused by editing or normal recompression."
-    };
-  }
-
-  return {
-    label:"Low consistency",
-    meaning:"Multiple indicators suggest the image may have been altered or processed in a non-uniform way."
-  };
-}
-
-/* NARRATIVE */
-function buildNarrative(s, score){
-  return {
-    what: s.anomalies > 65
-      ? "Different parts of the image appear to have been saved differently."
-      : "The image appears to have been processed consistently as a whole.",
-
-    why: s.anomalies > 65
-      ? "This typically happens when a portion of an image is edited separately and then saved again."
-      : "This pattern is typical of images that have only been resized or compressed normally.",
-
-    meaning: score >= 70
-      ? "There is a meaningful chance this image has been altered. You should verify it before relying on it."
-      : "There are no strong indicators of manipulation, but results should always be considered alongside context."
-  };
-}
-
-/* VERIFY */
-function buildVerifyLinks(gps){
-  return {
-    reverse:"https://images.google.com/",
-    news:"https://news.google.com/",
-    maps: gps?.lat ? `https://maps.google.com?q=${gps.lat},${gps.lon}` : null
-  };
-}
-
-/* ANALYZE */
+/* ===== ANALYZE ===== */
 async function analyze(){
 
   const file=document.getElementById("fileInput").files[0];
   if(!file) return alert("Select image");
 
-  document.getElementById("loader").style.display="block";
-  document.getElementById("result").innerHTML="";
+  currentFile = file;
 
   const form=new FormData();
   form.append("image",file);
 
-  let data;
-
-  try{
-    const res = await safeFetch(API+"/analyze",{method:"POST",body:form});
-    data = await res.json();
-  }catch{
-    document.getElementById("loader").style.display="none";
-    alert("Server unavailable. Try again.");
-    return;
-  }
-
-  document.getElementById("loader").style.display="none";
+  const res = await fetch(API+"/analyze",{method:"POST",body:form});
+  const data = await res.json();
 
   const signals = buildSignals(data);
   const score = calcScore(signals);
-  const scoreInfo = explainScore(score);
-  const n = buildNarrative(signals, score);
-  const links = buildVerifyLinks(data.gps);
+  const narrative = buildNarrative(signals, score);
 
   const riskClass = score>=80?"low":score>=55?"mid":"high";
 
   document.getElementById("result").innerHTML=`
 
+    <button onclick="downloadPDF()">Download Full Report</button>
+    <button class="secondary" onclick="resetAnalysis()">Analyze Another Image</button>
+
     <div class="tabs">
-      <div class="tab active" id="tab-overview" onclick="switchTab('overview')">Overview</div>
-      <div class="tab" id="tab-ela" onclick="switchTab('ela')">ELA</div>
-      <div class="tab" id="tab-metadata" onclick="switchTab('metadata')">Metadata</div>
-      <div class="tab" id="tab-map" onclick="switchTab('map')">Map</div>
-      <div class="tab" id="tab-raw" onclick="switchTab('raw')">Full Metadata</div>
+      <div class="tab active" onclick="switchTab('overview')">Overview</div>
+      <div class="tab" onclick="switchTab('ela')">ELA</div>
+      <div class="tab" onclick="switchTab('metadata')">Metadata</div>
     </div>
 
     <div id="overview" class="tab-content active">
@@ -245,35 +175,18 @@ async function analyze(){
         <div class="score ${riskClass}">${score}/100</div>
       </div>
 
-      <div class="card">
-        <div class="section-title">What the score means</div>
-        <strong>${scoreInfo.label}</strong><br><br>
-        ${scoreInfo.meaning}<br><br>
-
-        <div class="small">
-        This score (0–100) reflects how closely the image matches normal, unedited images.<br><br>
-
-        It is calculated using:<br>
-        • Compression consistency (30%)<br>
-        • Localized anomalies (30%)<br>
-        • Metadata presence (20%)<br>
-        • AI likelihood (20%)<br><br>
-
-        Higher scores = more consistent with original images<br>
-        Lower scores = stronger signs of manipulation or processing
-        </div>
-      </div>
-
-      <div class="card"><div class="section-title">What was found</div>${n.what}</div>
-      <div class="card"><div class="section-title">Why this matters</div>${n.why}</div>
-      <div class="card"><div class="section-title">What this means</div>${n.meaning}</div>
+      <div class="card"><div class="section-title">Who</div>${narrative.who}</div>
+      <div class="card"><div class="section-title">What</div>${narrative.what}</div>
+      <div class="card"><div class="section-title">Why</div>${narrative.why}</div>
+      <div class="card"><div class="section-title">How</div>${narrative.how}</div>
+      <div class="card"><div class="section-title">Where</div>${narrative.where}</div>
+      <div class="card"><div class="section-title">What this means</div>${narrative.meaning}</div>
 
       <div class="card">
-        <div class="section-title">How to verify this image</div>
+        <div class="section-title">Verify this image</div>
         <div class="verify-buttons">
-          <a href="${links.reverse}" target="_blank">Search image online</a>
-          <a href="${links.news}" target="_blank">Check news sources</a>
-          ${links.maps ? `<a href="${links.maps}" target="_blank">Verify location</a>` : ""}
+          <a href="https://images.google.com" target="_blank">Search image online</a>
+          <a href="https://news.google.com" target="_blank">Check news sources</a>
         </div>
       </div>
 
@@ -281,8 +194,7 @@ async function analyze(){
 
     <div id="ela" class="tab-content">
       <div class="card">
-        <strong>What is ELA?</strong><br><br>
-        ELA highlights differences in how parts of an image were saved.
+        ELA shows compression differences. Bright areas may indicate edits.
       </div>
 
       <div class="slider-container">
@@ -297,30 +209,10 @@ async function analyze(){
 
     <div id="metadata" class="tab-content">
       <div class="card">
-        ImageWidth: ${data.exif?.ImageWidth || "-"}<br>
-        ImageHeight: ${data.exif?.ImageHeight || "-"}<br>
-        ResolutionUnit: ${data.exif?.ResolutionUnit || "-"}<br>
         Make: ${data.exif?.Make || "-"}<br>
         Model: ${data.exif?.Model || "-"}<br>
-        XResolution: ${data.exif?.XResolution || "-"}<br>
-        YResolution: ${data.exif?.YResolution || "-"}<br>
-        ModifyDate: ${data.exif?.ModifyDate || "-"}<br>
-        Latitude: ${data.gps?.lat ?? "N/A"}<br>
-        Longitude: ${data.gps?.lon ?? "N/A"}
+        Date: ${data.exif?.DateTimeOriginal || "-"}
       </div>
-    </div>
-
-    <div id="map" class="tab-content">
-      ${
-        data.gps?.lat
-        ? `<iframe class="map-container"
-           src="https://www.google.com/maps?q=${data.gps.lat},${data.gps.lon}&output=embed&t=k"></iframe>`
-        : "No GPS data"
-      }
-    </div>
-
-    <div id="raw" class="tab-content">
-      <pre>${JSON.stringify(data.exif,null,2)}</pre>
     </div>
   `;
 
@@ -329,10 +221,30 @@ async function analyze(){
   };
 }
 
+/* ===== PDF ===== */
+async function downloadPDF(){
+  const form = new FormData();
+  form.append("image", currentFile);
+
+  const res = await fetch(API + "/report", { method:"POST", body:form });
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "report.pdf";
+  a.click();
+}
+
+/* ===== RESET ===== */
+function resetAnalysis(){
+  document.getElementById("fileInput").value="";
+  document.getElementById("result").innerHTML="";
+}
+
+/* ===== TABS ===== */
 function switchTab(name){
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
-  document.getElementById("tab-"+name).classList.add("active");
   document.getElementById(name).classList.add("active");
 }
 
