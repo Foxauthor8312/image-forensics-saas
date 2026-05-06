@@ -145,7 +145,9 @@ button {
 /* MAP */
 .map-container {
   width: 100%;
-  height: 300px;
+  height: 60vh;          /* 👈 scales with screen */
+  min-height: 320px;     /* 👈 never too small */
+  max-height: 500px;     /* 👈 never too big */
   border-radius: 8px;
   overflow: hidden;
 }
@@ -376,7 +378,14 @@ async function analyze() {
         ${
           (lat && lon)
           ? `<div class="map-container">
-               <iframe src="https://www.google.com/maps?q=${lat},${lon}&z=18&output=embed&t=k"></iframe>
+              <iframe
+  width="100%"
+  height="100%"
+  style="border:0"
+  loading="lazy"
+  referrerpolicy="no-referrer-when-downgrade"
+  src="https://www.google.com/maps?q=${lat},${lon}&z=18&output=embed&t=k">
+</iframe>
              </div>`
           : `<div style="color:#9ca3af;">No GPS data available</div>`
         }
