@@ -11,7 +11,7 @@
 html, body {
   background: #000;
   color: #fff;
-  font-family: Arial, sans-serif;
+  font-family: Arial;
   margin: 0;
   padding: 16px;
 }
@@ -24,16 +24,13 @@ html, body {
 .back {
   color: #9ca3af;
   text-decoration: none;
-  font-size: 14px;
 }
 
-/* INPUT + BUTTON */
 input { width: 100%; margin: 15px 0; }
 
 button {
   width: 100%;
   padding: 14px;
-  font-size: 16px;
   background: #1f2937;
   border: none;
   color: white;
@@ -50,37 +47,25 @@ button {
   animation: spin 1s linear infinite;
   margin: auto;
 }
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.loader-text {
-  margin-top: 10px;
-  color: #9ca3af;
-  font-size: 14px;
-  text-align: center;
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* TABS */
 .tabs {
   display: flex;
   gap: 8px;
-  margin-top: 20px;
-  border-bottom: 1px solid #333;
   overflow-x: auto;
+  border-bottom: 1px solid #333;
 }
 
 .tab {
-  padding: 12px 16px;
+  padding: 10px;
   cursor: pointer;
   color: #9ca3af;
-  white-space: nowrap;
 }
 
 .tab.active {
-  color: #fff;
-  border-bottom: 2px solid #fff;
+  color: white;
+  border-bottom: 2px solid white;
 }
 
 .tab-content {
@@ -98,21 +83,10 @@ button {
   border-bottom: 1px solid #222;
 }
 
-/* SIGNALS */
-.signal { margin: 6px 0; }
-.good { color: #22c55e; }
-.warn { color: #f59e0b; }
-.bad { color: #ef4444; }
-
 /* SLIDER */
-.slider-container {
-  position: relative;
-  touch-action: pan-y;
-}
+.slider-container { position: relative; }
 
-.slider-container img {
-  width: 100%;
-}
+.slider-container img { width: 100%; }
 
 .overlay {
   position: absolute;
@@ -122,34 +96,25 @@ button {
   overflow: hidden;
 }
 
-.overlay img {
-  width: 100%;
-  opacity: 0.9;
-}
+.overlay img { width: 100%; }
 
 .divider {
   position: absolute;
-  top: 0;
   left: 50%;
+  top: 0;
   width: 2px;
   height: 100%;
   background: white;
 }
 
-.slider {
-  width: 100%;
-  height: 30px;
-  margin-top: 10px;
-}
+.slider { width: 100%; }
 
 /* MAP */
 .map-container {
   width: 100%;
-  height: 60vh;          /* 👈 scales with screen */
-  min-height: 320px;     /* 👈 never too small */
-  max-height: 500px;     /* 👈 never too big */
-  border-radius: 8px;
-  overflow: hidden;
+  height: 60vh;
+  min-height: 320px;
+  max-height: 500px;
 }
 </style>
 </head>
@@ -160,7 +125,7 @@ button {
 
 <a href="index.html" class="back">← Back</a>
 
-<input type="file" id="fileInput" accept="image/*" />
+<input type="file" id="fileInput" />
 <button onclick="analyze()">Analyze Image</button>
 
 <div id="result"></div>
@@ -170,242 +135,104 @@ button {
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
-function buildForensicReport(type, conf, hasExif, hasGPS) {
-
-  const integrity = Math.round(conf);
-  let risk = "Moderate";
-
-  if (integrity >= 80) risk = "Low";
-  else if (integrity <= 50) risk = "High";
-
-  const explanations = {
-    "Likely Original": {
-      summary: "No strong indicators of manipulation were detected.",
-      detail: "Compression patterns are consistent across the image, and no localized anomalies were identified in the ELA overlay.",
-      whatToLook: "Uniform brightness across the ELA map with no isolated hotspots.",
-      conclusion: "The image is likely authentic."
-    },
-
-    "Recompressed": {
-      summary: "The image shows signs of recompression.",
-      detail: "Compression differences are distributed broadly, which typically occurs when an image is resaved or processed.",
-      whatToLook: "Even compression variation across the entire image.",
-      conclusion: "Recompression is present, but does not confirm editing."
-    },
-
-    "Edited": {
-      summary: "Compression inconsistencies suggest localized changes.",
-      detail: "The ELA overlay reveals uneven compression patterns, often associated with edited regions.",
-      whatToLook: "Brighter or patchy areas in specific regions of the image.",
-      conclusion: "This image may have been altered."
-    },
-
-    "Unknown": {
-      summary: "No strong or consistent signal was detected.",
-      detail: "The compression pattern does not clearly match known indicators.",
-      whatToLook: "Weak or inconsistent ELA signals.",
-      conclusion: "Result is inconclusive."
-    }
-  };
-
-  const base = explanations[type] || explanations["Unknown"];
-
-  return {
-    integrity,
-    risk,
-    ...base,
-    metaNote: hasExif
-      ? "Metadata is present and supports structural analysis."
-      : "Metadata is missing, which may indicate removal or privacy filtering.",
-    gpsNote: hasGPS
-      ? "Location data is embedded in the image."
-      : "No GPS data found."
-  };
-}
-  
-function switchTab(name) {
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-
-  document.getElementById("tab-" + name).classList.add("active");
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
+  document.getElementById("tab-"+name).classList.add("active");
   document.getElementById(name).classList.add("active");
 }
 
-function getCompressionExplanation(type) {
-  const base = "The ELA overlay highlights compression differences. Brighter areas indicate regions that compress differently.";
-
-  const map = {
-    "Likely Original": "Compression appears uniform across the image.",
-    "Recompressed": "Compression differences are spread across the image.",
-    "Edited": "Localized bright areas suggest possible editing.",
-    "Unknown": "No clear compression pattern detected."
-  };
-
-  return base + " " + (map[type] || map["Unknown"]);
-}
-
-async function analyze() {
+async function analyze(){
 
   const file = document.getElementById("fileInput").files[0];
   const resultEl = document.getElementById("result");
 
-  if (!file) return alert("Select an image");
+  if(!file) return alert("Select image");
 
-  // ✅ LOADER START
   resultEl.innerHTML = `
     <div style="text-align:center;margin-top:40px;">
       <div class="spinner"></div>
-      <div class="loader-text">Analyzing image...</div>
+      <div style="color:#9ca3af;">Analyzing image...</div>
     </div>
   `;
 
   const form = new FormData();
   form.append("image", file);
 
-  try {
+  const res = await fetch(API + "/analyze", {
+    method:"POST",
+    body:form
+  });
 
-    const res = await fetch(API + "/analyze", {
-      method: "POST",
-      body: form
-    });
+  const data = await res.json();
 
-    const data = await res.json();
+  const type = data.classification?.type || "Unknown";
+  const conf = Math.round((data.classification?.confidence || 0.5)*100);
 
-    const type = data.classification?.type || "Unknown";
-    const conf = Math.round((data.classification?.confidence || 0.5) * 100);
+  const lat = data.gps?.lat;
+  const lon = data.gps?.lon;
 
-    const lat = data.gps?.lat;
-    const lon = data.gps?.lon;
+  resultEl.innerHTML = `
+    <div style="font-size:22px;">${type}</div>
+    <div style="color:#9ca3af;">Confidence: ${conf}%</div>
 
-    const report = buildForensicReport(
-  type,
-  (data.classification?.confidence || 0.5) * 100,
-  !!data.exif,
-  !!(lat && lon)
-);
-    
-    const signals = [];
-
-    if (data.exif) signals.push('<div class="signal good">✔ Camera data intact</div>');
-    else signals.push('<div class="signal warn">⚠ Metadata missing</div>');
-
-    if (lat && lon) signals.push('<div class="signal good">✔ Location data present</div>');
-    else signals.push('<div class="signal warn">⚠ No GPS data</div>');
-
-    if (type === "Edited") signals.push('<div class="signal bad">✖ Compression anomalies</div>');
-
-    resultEl.innerHTML = `
-      <div style="font-size:22px;font-weight:600;">${type}</div>
-      <div style="color:#9ca3af;margin-bottom:12px;">Confidence: ${conf}%</div>
-
-      <div class="tabs">
-        <div class="tab active" id="tab-overview" onclick="switchTab('overview')">Overview</div>
-        <div class="tab" id="tab-ela" onclick="switchTab('ela')">ELA</div>
-        <div class="tab" id="tab-metadata" onclick="switchTab('metadata')">Metadata</div>
-        <div class="tab" id="tab-map" onclick="switchTab('map')">Map</div>
-      </div>
-
-      <div id="overview" class="tab-content active">
-
-  <div style="margin-bottom:14px;">
-    <div style="font-size:18px;font-weight:600;">
-      Integrity Score: ${report.integrity} / 100
+    <div class="tabs">
+      <div class="tab active" id="tab-overview" onclick="switchTab('overview')">Overview</div>
+      <div class="tab" id="tab-ela" onclick="switchTab('ela')">ELA</div>
+      <div class="tab" id="tab-metadata" onclick="switchTab('metadata')">Metadata</div>
+      <div class="tab" id="tab-map" onclick="switchTab('map')">Map</div>
+      <div class="tab" id="tab-raw" onclick="switchTab('raw')">Full Metadata</div>
     </div>
-    <div style="color:#9ca3af;">
-      Risk Level: ${report.risk}
+
+    <div id="overview" class="tab-content active">
+      <p>ELA highlights compression differences. Bright areas may indicate edits.</p>
     </div>
-  </div>
 
-  <div style="margin-bottom:14px;">
-    <strong>Summary</strong>
-    <div style="margin-top:6px;color:#cbd5f5;">
-      ${report.summary}
-    </div>
-  </div>
-
-  <div style="margin-bottom:14px;">
-    <strong>Technical Findings</strong>
-    <div style="margin-top:6px;color:#cbd5f5;">
-      ${report.detail}
-    </div>
-  </div>
-
-  <div style="margin-bottom:14px;">
-    <strong>What to Look For</strong>
-    <div style="margin-top:6px;color:#cbd5f5;">
-      ${report.whatToLook}
-    </div>
-  </div>
-
-  <div style="margin-bottom:14px;">
-    <strong>Conclusion</strong>
-    <div style="margin-top:6px;color:#cbd5f5;">
-      ${report.conclusion}
-    </div>
-  </div>
-
-  <div style="margin-top:14px;">
-    ${signals.join("")}
-  </div>
-
-  <div style="margin-top:12px;color:#9ca3af;font-size:13px;">
-    ${report.metaNote}<br>
-    ${report.gpsNote}
-  </div>
-
-</div>
-
-      <div id="ela" class="tab-content">
-        <div class="slider-container">
-          <img src="${URL.createObjectURL(file)}">
-          <div class="overlay" id="overlay">
-            <img src="${data.ela?.overlay}">
-          </div>
-          <div class="divider" id="divider"></div>
+    <div id="ela" class="tab-content">
+      <div class="slider-container">
+        <img src="${URL.createObjectURL(file)}">
+        <div class="overlay" id="overlay">
+          <img src="${data.ela?.overlay}">
         </div>
-        <input type="range" id="slider" min="0" max="100" value="50" class="slider">
+        <div class="divider" id="divider"></div>
       </div>
+      <input type="range" id="slider" min="0" max="100" value="50" class="slider">
+    </div>
 
-      <div id="metadata" class="tab-content">
-        <div class="meta-row">Camera: ${data.exif?.Make ?? "-"}</div>
-        <div class="meta-row">Model: ${data.exif?.Model ?? "-"}</div>
-        <div class="meta-row">Date: ${data.exif?.DateTimeOriginal ?? "-"}</div>
-        <div class="meta-row">Latitude: ${lat ?? "-"}</div>
-        <div class="meta-row">Longitude: ${lon ?? "-"}</div>
-      </div>
+    <div id="metadata" class="tab-content">
+      <div class="meta-row">Camera: ${data.exif?.Make ?? "-"}</div>
+      <div class="meta-row">Date: ${data.exif?.DateTimeOriginal ?? "-"}</div>
+      <div class="meta-row">Lat: ${lat ?? "-"}</div>
+      <div class="meta-row">Lon: ${lon ?? "-"}</div>
+    </div>
 
-      <div id="map" class="tab-content">
-        ${
-          (lat && lon)
-          ? `<div class="map-container">
-              <iframe
-  width="100%"
-  height="100%"
-  style="border:0"
-  loading="lazy"
-  referrerpolicy="no-referrer-when-downgrade"
-  src="https://www.google.com/maps?q=${lat},${lon}&z=18&output=embed&t=k">
-</iframe>
-             </div>`
-          : `<div style="color:#9ca3af;">No GPS data available</div>`
-        }
-      </div>
-    `;
+    <div id="map" class="tab-content">
+      ${
+        lat && lon
+        ? `<div class="map-container">
+             <iframe width="100%" height="100%"
+             src="https://www.google.com/maps?q=${lat},${lon}&z=18&output=embed&t=k"></iframe>
+           </div>`
+        : "No GPS data"
+      }
+    </div>
 
-    const slider = document.getElementById("slider");
-    const overlay = document.getElementById("overlay");
-    const divider = document.getElementById("divider");
+    <div id="raw" class="tab-content">
+      <pre style="font-size:12px;white-space:pre-wrap;color:#9ca3af;">
+${JSON.stringify(data.rawMetadata, null, 2)}
+      </pre>
+    </div>
+  `;
 
-    if (slider && overlay) {
-      slider.oninput = () => {
-        overlay.style.width = slider.value + "%";
-        divider.style.left = slider.value + "%";
-      };
-    }
+  const slider=document.getElementById("slider");
+  const overlay=document.getElementById("overlay");
+  const divider=document.getElementById("divider");
 
-  } catch (err) {
-    console.error(err);
-    resultEl.innerHTML = "Server waking up — try again";
+  if(slider){
+    slider.oninput=()=>{
+      overlay.style.width=slider.value+"%";
+      divider.style.left=slider.value+"%";
+    };
   }
 }
 </script>
