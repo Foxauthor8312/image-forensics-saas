@@ -42,16 +42,16 @@ function detectAI(elaScore, exif) {
 
 /* ===== ELA ===== */
 async function runELA(buffer) {
-  const normalized = await sharp(buffer)
+  const normalizedImage = await sharp(buffer)
     .resize({ width: 800, withoutEnlargement: true })
     .jpeg()
     .toBuffer();
 
-  const recompressed = await sharp(normalized)
+  const recompressed = await sharp(normalizedImage)
     .jpeg({ quality: 60 })
     .toBuffer();
 
-  const orig = await sharp(normalized)
+  const orig = await sharp(normalizedImage)
     .raw()
     .toBuffer({ resolveWithObject: true });
 
