@@ -43,6 +43,15 @@ button {
   margin-bottom:14px;
 }
 
+.score {
+  font-size:28px;
+  font-weight:bold;
+}
+
+.low { color:#22c55e; }
+.mid { color:#f59e0b; }
+.high { color:#ef4444; }
+
 .slider-container { position:relative; }
 .slider-container img { width:100%; }
 .overlay { position:absolute; top:0; left:0; width:50%; overflow:hidden; }
@@ -62,7 +71,7 @@ button {
 
 <div id="loader" style="display:none;text-align:center;margin:20px 0;">
   <div class="spinner"></div>
-  <div style="margin-top:10px;">Analyzing image...</div>
+  <div style="margin-top:10px;">Running forensic analysis...</div>
 </div>
 
 <div id="result"></div>
@@ -74,96 +83,100 @@ button {
 const API = "https://image-forensics-saas-1.onrender.com";
 let currentFile=null;
 
-/* ===== SAFE FETCH (RETRY + TIMEOUT) ===== */
-async function safeFetch(url, options, retries = 2, timeout = 15000) {
+/* ===== SAFE FETCH ===== */
+async function safeFetch(url, options, retries = 2) {
   try {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(id);
-
-    if (!res.ok) throw new Error("Bad response");
+    const res = await fetch(url, options);
+    if (!res.ok) throw new Error();
     return res;
-
-  } catch (err) {
+  } catch (e) {
     if (retries > 0) {
       await new Promise(r => setTimeout(r, 1500));
-      return safeFetch(url, options, retries - 1, timeout);
+      return safeFetch(url, options, retries - 1);
     }
-    throw err;
+    throw e;
   }
 }
 
-/* tabs */
-function switchTab(name){
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-  document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
-  document.getElementById("tab-"+name).classList.add("active");
-  document.getElementById(name).classList.add("active");
-}
+/* ===== INTERPRETATION ENGINE ===== */
+function buildInterpretation(type, score){
 
-/* report */
-function buildReport(type, score){
-  const risk = score>=80?"Low":score<=50?"High":"Moderate";
+  let risk = score>=80?"Low":score<=50?"High":"Moderate";
 
-  const map={
-    "Edited":{
-      summary:"Parts of this image may have been altered.",
-      explanation:"Certain regions compress differently than surrounding areas.",
-      meaning:"Verify before trusting."
+  let confidenceText =
+    score >= 85 ? "Very strong indicators"
+    : score >= 70 ? "Strong indicators"
+    : score >= 55 ? "Moderate indicators"
+    : "Weak or conflicting indicators";
+
+  const explanations = {
+
+    "Edited": {
+      headline: "Evidence of Possible Manipulation",
+      summary: "The analysis detected localized inconsistencies in compression patterns.",
+      detail: "When an image is edited, only specific areas are recompressed differently. These differences appear as uneven brightness in ELA and raise the anomaly score.",
+      meaning: "This does not prove manipulation on its own, but it is a strong signal. You should verify this image before relying on it."
     },
-    "Recompressed":{
-      summary:"Image has been saved multiple times.",
-      explanation:"Compression changed but may not indicate edits.",
-      meaning:"Could hide earlier changes."
+
+    "Recompressed": {
+      headline: "Image Has Been Re-Saved or Processed",
+      summary: "The image shows global compression changes.",
+      detail: "Recompression affects the entire image uniformly and often occurs when images are uploaded, resized, or shared.",
+      meaning: "This is usually benign, but recompression can mask earlier edits."
     },
-    "Likely Original":{
-      summary:"No signs of editing detected.",
-      explanation:"Compression is consistent.",
-      meaning:"Image appears authentic."
+
+    "Likely Original": {
+      headline: "No Significant Anomalies Detected",
+      summary: "Compression patterns are consistent across the image.",
+      detail: "Images that have not been altered tend to show uniform compression behavior across all regions.",
+      meaning: "There are no strong indicators of manipulation, though no method can guarantee authenticity."
     },
-    "Unknown":{
-      summary:"Result unclear.",
-      explanation:"Not enough strong signals.",
-      meaning:"Use higher quality image."
+
+    "Unknown": {
+      headline: "Inconclusive Result",
+      summary: "The analysis did not find strong or consistent signals.",
+      detail: "Low resolution, heavy compression, or unusual formats can reduce reliability.",
+      meaning: "Try analyzing a higher-quality version of the image."
     }
   };
 
-  return {risk,...(map[type]||map["Unknown"])};
+  return {
+    risk,
+    confidenceText,
+    ...(explanations[type] || explanations["Unknown"])
+  };
 }
 
-/* confidence */
-function buildConfidence(data){
+/* ===== CONFIDENCE BREAKDOWN ===== */
+function buildBreakdown(data){
+
   const ela=data.ela.score;
+
   return [
-    {label:"Compression Consistency", value:Math.max(0,100-ela*4)},
-    {label:"Localized Anomalies", value:Math.min(ela*4,100)},
-    {label:"Metadata Presence", value:data.exif?85:30},
-    {label:"AI Likelihood", value:data.ai?.likelihood||0}
+    {
+      label:"Compression Consistency",
+      value:Math.max(0,100-ela*4),
+      explanation:"Measures how uniform compression is across the image."
+    },
+    {
+      label:"Localized Anomalies",
+      value:Math.min(ela*4,100),
+      explanation:"Detects areas that differ from surrounding pixels."
+    },
+    {
+      label:"Metadata Integrity",
+      value:data.exif?85:30,
+      explanation:"Presence of camera metadata supports authenticity."
+    },
+    {
+      label:"AI Generation Likelihood",
+      value:data.ai?.likelihood||0,
+      explanation:"Estimates whether image characteristics resemble AI generation."
+    }
   ];
 }
 
-/* download */
-async function downloadReport(){
-  try {
-    const form=new FormData();
-    form.append("image",currentFile);
-
-    const res = await safeFetch(API+"/report",{method:"POST",body:form});
-    const blob=await res.blob();
-
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;
-    a.download="report.pdf";
-    a.click();
-  } catch {
-    alert("Server unavailable. Try again.");
-  }
-}
-
-/* analyze */
+/* ===== ANALYZE ===== */
 async function analyze(){
 
   const file=document.getElementById("fileInput").files[0];
@@ -182,9 +195,9 @@ async function analyze(){
   try {
     const res = await safeFetch(API+"/analyze",{method:"POST",body:form});
     data = await res.json();
-  } catch (err) {
+  } catch {
     document.getElementById("loader").style.display="none";
-    alert("Server is waking up or connection failed. Try again.");
+    alert("Server unavailable. Try again.");
     return;
   }
 
@@ -193,8 +206,12 @@ async function analyze(){
   const type=data.classification.type;
   const score=Math.round(data.classification.confidence*100);
 
-  const report=buildReport(type,score);
-  const breakdown=buildConfidence(data);
+  const interp = buildInterpretation(type, score);
+  const breakdown = buildBreakdown(data);
+
+  const riskClass =
+    interp.risk==="Low"?"low":
+    interp.risk==="Moderate"?"mid":"high";
 
   document.getElementById("result").innerHTML=`
 
@@ -203,39 +220,69 @@ async function analyze(){
       <div class="tab" id="tab-ela" onclick="switchTab('ela')">ELA</div>
       <div class="tab" id="tab-metadata" onclick="switchTab('metadata')">Metadata</div>
       <div class="tab" id="tab-map" onclick="switchTab('map')">Map</div>
-      <div class="tab" id="tab-raw" onclick="switchTab('raw')">Full Metadata</div>
-      <div class="tab" id="tab-guide" onclick="switchTab('guide')">Guide</div>
+      <div class="tab" id="tab-guide" onclick="switchTab('guide')">How to Read</div>
       <div class="tab" id="tab-ai" onclick="switchTab('ai')">AI</div>
     </div>
 
     <div id="overview" class="tab-content active">
-      <div class="card"><strong>${type}</strong><br>Score: ${score}/100 (${report.risk})</div>
-      <div class="card"><strong>Summary</strong><br>${report.summary}</div>
-      <div class="card"><strong>Why</strong><br>${report.explanation}</div>
-      <div class="card"><strong>What this means</strong><br>${report.meaning}</div>
 
       <div class="card">
-        <strong>Confidence Reasoning</strong><br><br>
+        <div class="score ${riskClass}">
+          ${score}/100
+        </div>
+        ${interp.confidenceText}<br>
+        <strong>${interp.headline}</strong>
+      </div>
+
+      <div class="card">
+        <strong>Summary</strong><br><br>
+        ${interp.summary}
+      </div>
+
+      <div class="card">
+        <strong>Technical Explanation</strong><br><br>
+        ${interp.detail}
+      </div>
+
+      <div class="card">
+        <strong>What this means for you</strong><br><br>
+        ${interp.meaning}
+      </div>
+
+      <div class="card">
+        <strong>Confidence Breakdown</strong><br><br>
+
         ${breakdown.map(b=>`
-          ${b.label}
-          <div style="height:6px;background:#1e293b;margin:4px 0;">
-            <div style="width:${b.value}%;height:100%;
-              background:${b.value>70?'#22c55e':b.value>40?'#f59e0b':'#ef4444'};">
+          <div style="margin-bottom:12px;">
+            <div>${b.label}</div>
+
+            <div style="height:6px;background:#1e293b;margin:4px 0;">
+              <div style="width:${b.value}%;height:100%;
+                background:${b.value>70?'#22c55e':b.value>40?'#f59e0b':'#ef4444'};">
+              </div>
+            </div>
+
+            <div style="font-size:12px;color:#9ca3af;">
+              ${b.explanation}
             </div>
           </div>
         `).join("")}
       </div>
 
-      <button onclick="downloadReport()">Download Report</button>
     </div>
 
     <div id="ela" class="tab-content">
+      <div class="card">
+        ELA shows compression differences. Bright areas may indicate edits.
+      </div>
+
       <div class="slider-container">
         <img src="${URL.createObjectURL(file)}">
         <div class="overlay" id="overlay">
           <img src="${data.ela.overlay}">
         </div>
       </div>
+
       <input type="range" id="slider" value="50">
     </div>
 
@@ -255,22 +302,17 @@ async function analyze(){
       }
     </div>
 
-    <div id="raw" class="tab-content">
-      <pre>${JSON.stringify(data.exif,null,2)}</pre>
-    </div>
-
     <div id="guide" class="tab-content">
       <div class="card">
-        Bright patches = edits<br>
-        Uniform = original<br>
-        Even brightness = recompression
+        This tool analyzes compression patterns and metadata.<br><br>
+        No single signal proves manipulation—results must be interpreted together.
       </div>
     </div>
 
     <div id="ai" class="tab-content">
       <div class="card">
         AI Likelihood: ${data.ai.likelihood}%<br>
-        This is an estimate, not proof.
+        This is a probabilistic estimate, not proof.
       </div>
     </div>
   `;
@@ -278,6 +320,14 @@ async function analyze(){
   document.getElementById("slider").oninput=e=>{
     document.getElementById("overlay").style.width=e.target.value+"%";
   };
+}
+
+/* tabs */
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
+  document.getElementById("tab-"+name).classList.add("active");
+  document.getElementById(name).classList.add("active");
 }
 
 </script>
