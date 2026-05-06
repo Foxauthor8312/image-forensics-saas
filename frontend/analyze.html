@@ -9,48 +9,20 @@
 <style>
 body { background:#0a0f1a; color:#e5e7eb; font-family:-apple-system,Segoe UI; padding:16px; }
 .container { max-width:900px; margin:auto; }
-
 .back { color:#9ca3af; text-decoration:none; display:block; margin-bottom:10px; }
-
 .tabs { display:flex; gap:8px; border-bottom:1px solid #1f2937; overflow-x:auto; }
 .tab { padding:10px 14px; cursor:pointer; color:#9ca3af; }
 .tab.active { color:white; border-bottom:2px solid #3b82f6; }
-
 .tab-content { display:none; margin-top:16px; }
 .tab-content.active { display:block; }
-
-.card {
-  background:#0b1220;
-  border:1px solid #1f2937;
-  border-radius:10px;
-  padding:16px;
-  margin-bottom:16px;
-}
-
+.card { background:#0b1220; border:1px solid #1f2937; border-radius:10px; padding:16px; margin-bottom:16px; }
 .section-title { font-weight:600; margin-bottom:6px; }
-
 .slider-container { position:relative; }
 .slider-container img { width:100%; border-radius:8px; }
-  .map-frame {
-  width:100%;
-  height:420px;
-  border:none;
-  border-radius:10px;
-  margin-top:10px;
-}
+.map-frame { width:100%; height:420px; border:none; border-radius:10px; margin-top:10px; }
 .overlay { position:absolute; top:0; left:0; width:50%; overflow:hidden; }
-
-button {
-  width:100%;
-  padding:12px;
-  margin-top:10px;
-  border-radius:8px;
-  background:#1f2937;
-  color:white;
-  border:1px solid #374151;
-}
+button { width:100%; padding:12px; margin-top:10px; border-radius:8px; background:#1f2937; color:white; border:1px solid #374151; }
 .secondary { background:#111827; }
-
 .small { font-size:12px; color:#9ca3af; }
 .score { font-size:34px; font-weight:700; }
 .low { color:#22c55e; }
@@ -77,28 +49,23 @@ button {
 const API = "https://image-forensics-saas-1.onrender.com";
 let currentFile = null;
 
-/* RESET */
 function resetAnalysis(){
   document.getElementById("fileInput").value = "";
   document.getElementById("result").innerHTML = "";
 }
 
-/* PDF */
 async function downloadPDF(){
   const form = new FormData();
   form.append("image", currentFile);
-
   const res = await fetch(API + "/report", { method:"POST", body:form });
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
-
   const a = document.createElement("a");
   a.href = url;
   a.download = "PixelProof_Report.pdf";
   a.click();
 }
 
-/* SIGNALS */
 function buildSignals(data){
   const ela = data.ela.score;
   return {
@@ -109,7 +76,6 @@ function buildSignals(data){
   };
 }
 
-/* SCORE */
 function calcScore(s){
   return Math.round(
     s.compression*0.3 +
@@ -119,7 +85,6 @@ function calcScore(s){
   );
 }
 
-/* SCORE EXPLANATION */
 function explainScore(score){
   if(score >= 80){
     return "The image behaves like a typical, unedited image with no strong indicators of manipulation.";
@@ -129,21 +94,18 @@ function explainScore(score){
   }
   return "Multiple indicators suggest the image may have been altered or processed inconsistently.";
 }
+
 function getDeviceLocation() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(null);
-
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({
-        lat: pos.coords.latitude,
-        lon: pos.coords.longitude
-      }),
+      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
       () => resolve(null),
       { timeout: 5000 }
     );
   });
 }
-/* ANALYZE */
+
 async function analyze(){
 
   const file=document.getElementById("fileInput").files[0];
@@ -157,20 +119,19 @@ async function analyze(){
   const res = await fetch(API+"/analyze",{method:"POST",body:form});
   const data = await res.json();
 
-let gpsData = data.gps;
+  let gpsData = data.gps;
 
-if (!gpsData?.lat) {
-  const deviceGPS = await getDeviceLocation();
-  if (deviceGPS) {
-    gpsData = deviceGPS;
-    gpsData.source = "device";
+  if (!gpsData?.lat) {
+    const deviceGPS = await getDeviceLocation();
+    if (deviceGPS) {
+      gpsData = deviceGPS;
+      gpsData.source = "device";
+    }
   }
-}
   
   const signals = buildSignals(data);
   const score = calcScore(signals);
   const scoreText = explainScore(score);
-
   const riskClass = score>=80?"low":score>=55?"mid":"high";
 
   document.getElementById("result").innerHTML=`
@@ -189,261 +150,58 @@ if (!gpsData?.lat) {
 
   <div id="overview" class="tab-content active">
 
-   <div class="card">
+  <div class="card">
   <div class="section-title">Analysis Summary</div>
-
   This image was analyzed using compression patterns, structural consistency, metadata, and synthetic image indicators.<br><br>
-
   The goal is to determine whether the image behaves like a typical, unedited photograph or shows signs of alteration or artificial generation.
 </div>
 
 <div class="card">
-  <div class="section-title">What was found</div>
-
-${signals.anomalies > 65
+<div class="section-title">Why this matters</div>
+${
+  signals.anomalies > 65
   ? `
-  The image shows non-uniform compression patterns, meaning different parts of the image were processed differently.
-
-  This is commonly seen when:
-  • A portion of the image has been edited or inserted  
-  • The image was selectively modified and re-saved  
-  • Multiple image sources were combined
+  When part of an image is edited, that section is often saved differently. This creates subtle inconsistencies.<br><br>
+  These inconsistencies are strong indicators the image may not be fully original.
   `
   : `
-  The image shows consistent compression across all areas, meaning it was likely processed as a single, uniform file.
-
-  This is typical of:
-  • Original photos from a camera or phone  
-  • Images that have only been resized or lightly compressed
+  Consistent compression suggests no targeted editing.
   `
 }
 </div>
 
 <div class="card">
-  <div class="section-title">Why this matters</div>
-
-  <strong>What is image compression?</strong><br><br>
-
-  Digital images are compressed to reduce file size. This process slightly simplifies the image so it can be stored and shared efficiently.<br><br>
-
-  When an image is saved normally, compression is applied evenly across the entire image.<br><br>
-
-  ${
-    signals.anomalies > 65
-    ? 
-    When part of an image is edited, that section is often saved differently. This creates subtle inconsistencies that are not visible to the eye but can be detected through analysis.<br><br>
-
-    These inconsistencies are one of the strongest indicators that an image may not be fully original.
-    
-    : 
-    Because this image shows consistent compression, there are no strong signs of selective editing based on this analysis.<br><br>
-
-    This consistency is a strong indicator that the image has not been altered in a targeted way.
-    
-  }
+<div class="section-title">How strong is this finding?</div>
+${
+  score >= 80
+  ? `<strong>High confidence</strong>`
+  : score >= 55
+  ? `<strong>Moderate confidence</strong>`
+  : `<strong>Elevated concern</strong>`
+}
 </div>
 
 <div class="card">
-  <div class="section-title">How strong is this finding?</div>
-
-  ${
-    score >= 80
-    ? 
-    **High confidence:**  
-    The image behaves like a normal, unedited photograph.  
-    There are no meaningful indicators of manipulation.
-    
-    : score >= 55
-    ? 
-    **Moderate confidence:**  
-    Some inconsistencies are present. These could be caused by editing or normal recompression (such as social media uploads).
-
-    This result is **inconclusive** and should be verified using additional context.
-    
-    : 
-    **Elevated concern:**  
-    Multiple indicators suggest the image may have been altered or processed in a non-uniform way.
-
-    This pattern is commonly associated with edited or manipulated images.
-    
-  }
+<div class="section-title">What this means for you</div>
+${
+  score >= 70
+  ? `Verify the image with trusted sources.`
+  : `No strong manipulation indicators, but verify context.`
+}
 </div>
 
-<div class="card">
-  <div class="section-title">What this means for you</div>
-
-  ${
-    score >= 70
-    ? 
-    You should **not rely on this image without verification**.
-
-    Recommended next steps:
-    • Search for other versions of the image  
-    • Check trusted news or original sources  
-    • Compare details across multiple copies  
-    
-    : 
-    There are no strong indicators of manipulation, but this does **not guarantee authenticity**.
-
-    Images can still be misleading even if they are technically unedited.
-
-    Always consider:
-    • Source credibility  
-    • Context of where the image was found  
-    
-  }
 </div>
-
-  </div>
-
-  <div id="ela" class="tab-content">
-   <div class="card">
-  <div class="section-title">Error Level Analysis (ELA)</div>
-
-  <strong>What you are seeing</strong><br><br>
-
-  This view highlights how different parts of the image were compressed when it was saved.<br><br>
-
-  • Bright areas = parts of the image that were saved differently<br>
-  • Dark/consistent areas = parts that were saved uniformly<br><br>
-
-  <strong>How to use the slider</strong><br><br>
-
-  Move the slider to compare the original image with the analysis overlay.<br>
-  This helps you visually identify areas that behave differently from the rest of the image.<br><br>
-
-  <strong>What to look for</strong><br><br>
-
-  ${
-    signals.anomalies > 65
-    ? 
-    In this image, look for **bright or inconsistent regions** that stand out from surrounding areas.<br><br>
-
-    These areas may indicate:
-    • Edited or altered sections<br>
-    • Objects added or removed<br>
-    • Selective re-saving of part of the image<br><br>
-
-    The presence of these differences supports the finding that the image may not be fully original.
-    
-    : `
-    In this image, the brightness appears **fairly uniform across the entire image**.<br><br>
-
-    This suggests:
-    • The image was processed consistently<br>
-    • No strong signs of localized editing are visible<br><br>
-
-    This supports the finding that the image behaves like a typical, unedited photo.
-    `
-  }
-</div>
-
-    <div class="slider-container">
-      <img src="${URL.createObjectURL(file)}">
-      <div class="overlay" id="overlay">
-        <img src="${data.ela.overlay}">
-      </div>
-    </div>
-
-    <input type="range" id="slider" value="50">
-  </div>
-
-  <div id="metadata" class="tab-content">
-    <div class="card">
-      <strong>Metadata Explanation</strong><br><br>
-      Metadata is embedded data about how the image was created.
-      Missing metadata can indicate editing or platform stripping.
-    </div>
-
-    <div class="card">
-      Make: ${data.exif?.Make || "-"}<br>
-      Model: ${data.exif?.Model || "-"}<br>
-      Date: ${data.exif?.DateTimeOriginal || "-"}<br>
-      <div>Latitude: ${gpsData?.lat ?? "N/A"}</div>
-      <div>Longitude: ${gpsData?.lon ?? "N/A"}</div>
-
-<strong>Debug:</strong><br>
-https://maps.google.com?q=${gpsData?.lat},${gpsData?.lon}
-    </div>
-  </div>
 
 <div id="map" class="tab-content">
-  ${
-    gpsData?.lat
-      ? `
-        <div class="small">
-          Location source: ${gpsData?.source === "device"
-            ? "Device location (approximate)"
-            : "Image metadata"}
-        </div>
-
-        <iframe 
-          class="map-frame"
-          src="https://maps.google.com?q=${gpsData.lat},${gpsData.lon}&output=embed">
-        </iframe>
-      `
-      : `
-        <div class="card">
-          <div class="section-title">No GPS Data Available</div>
-
-          This image does not contain location data.<br><br>
-
-          This is common when:
-          • The photo was uploaded from a phone browser  
-          • The image was shared via text, email, or social media  
-          • Privacy settings removed location information<br><br>
-
-          To retain GPS data:
-          • Upload the original file directly from your device  
-          • Avoid screenshots or downloaded copies  
-        </div>
-      `
-  }
-</div>
-  
-
-  <div id="raw" class="tab-content">
-    <pre>${JSON.stringify(data.exif,null,2)}</pre>
-  </div>
-
-  <div id="ai" class="tab-content">
-    <div class="card">
-  <div class="section-title">Synthetic / AI Pattern Indicator</div>
-
-  <strong>${data.ai.likelihood}%</strong><br><br>
-
-  This score does not directly detect AI. Instead, it looks for image patterns that are commonly found in AI-generated or heavily processed images.<br><br>
-
-  These patterns include:<br>
-  • Missing or stripped metadata<br>
-  • Extremely uniform compression<br>
-  • Low variation across the image<br><br>
-
-  <strong>How to interpret this:</strong><br>
-  • 0–15% → Typical of real camera images<br>
-  • 15–30% → Could be recompressed, edited, or a screenshot<br>
-  • 30–50% → Unusual patterns, may require verification<br>
-  • 50%+ → Strong synthetic or heavily processed characteristics<br><br>
-
-  This is an indicator, not proof. Always verify using multiple signals.
-</div>
-  </div>
-  `;
-
-  document.getElementById("slider").oninput=e=>{
-    document.getElementById("overlay").style.width=e.target.value+"%";
-  };
+${
+  gpsData?.lat
+  ? `<iframe class="map-frame" src="https://maps.google.com?q=${gpsData.lat},${gpsData.lon}&output=embed"></iframe>`
+  : `<div class="card">No GPS Data Available</div>`
 }
+</div>
 
-function switchTab(name){
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-  document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
+<div id="raw" class="tab-content">
+<pre>${JSON.stringify(data.exif,null,2)}</pre>
+</div>
 
-  document.querySelector(`[onclick="switchTab('${name}')"]`).classList.add("active");
-  document.getElementById(name).classList.add("active");
-}
-
-</script>
-
-</body>
-</html>
+`;
