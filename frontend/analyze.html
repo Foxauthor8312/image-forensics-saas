@@ -6,13 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <style>
-body {
-  background:#0a0f1a;
-  color:#e5e7eb;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;
-  padding:16px;
-}
-
+body { background:#0a0f1a; color:#e5e7eb; font-family:-apple-system,Segoe UI; padding:16px; }
 .container { max-width:900px; margin:auto; }
 
 .header { font-size:22px; font-weight:600; margin-bottom:6px; }
@@ -21,13 +15,9 @@ body {
 .back { color:#9ca3af; text-decoration:none; display:inline-block; margin-bottom:12px; }
 
 button {
-  width:100%;
-  padding:12px;
-  background:#1f2937;
-  border:1px solid #374151;
-  border-radius:8px;
-  color:white;
-  margin-top:10px;
+  width:100%; padding:12px;
+  background:#1f2937; border:1px solid #374151;
+  border-radius:8px; color:white;
 }
 
 .spinner {
@@ -55,11 +45,7 @@ button {
   margin-bottom:16px;
 }
 
-.section-title {
-  font-size:14px;
-  font-weight:600;
-  margin-bottom:8px;
-}
+.section-title { font-size:14px; font-weight:600; margin-bottom:8px; }
 
 .score { font-size:36px; font-weight:700; }
 .low { color:#22c55e; }
@@ -102,7 +88,7 @@ button {
 <a href="index.html" class="back">← Back</a>
 
 <div class="header">PixelProof Analysis</div>
-<div class="sub">This report explains what was found, why it matters, and what you should do next.</div>
+<div class="sub">Clear explanation of findings, confidence, and how to verify this image</div>
 
 <input type="file" id="fileInput" />
 <button onclick="analyze()">Analyze Image</button>
@@ -135,7 +121,7 @@ async function safeFetch(url, options, retries=2){
   }
 }
 
-/* SCORING MODEL */
+/* SCORING */
 function buildSignals(data){
   const ela = data.ela.score;
   return {
@@ -155,47 +141,27 @@ function calcScore(s){
   );
 }
 
-/* CONFIDENCE */
-function getConfidence(score){
-  if(score>=85) return "Very Strong – The findings are consistent and highly reliable.";
-  if(score>=70) return "Strong – Most indicators agree and support this result.";
-  if(score>=55) return "Moderate – Some indicators suggest this result, but there may be alternative explanations.";
-  if(score>=40) return "Weak – The findings are inconsistent and uncertain.";
-  return "Insufficient – There is not enough reliable information to form a conclusion.";
+/* NARRATIVE */
+function buildNarrative(s, score){
+  return {
+    what: s.anomalies > 65
+      ? "Different parts of the image appear to have been saved differently."
+      : "The image appears uniformly processed.",
+    why: s.anomalies > 65
+      ? "This often occurs when part of an image is edited separately."
+      : "This is typical of normal resizing or recompression.",
+    meaning: score >= 70
+      ? "There is a meaningful chance this image has been altered. Verification is recommended."
+      : "No strong signs of manipulation, but results should be considered alongside context."
+  };
 }
 
-/* NARRATIVE ENGINE */
-function buildNarrative(s, score){
-
+/* VERIFY LINKS */
+function buildVerifyLinks(gps){
   return {
-
-    what:
-    s.anomalies > 65
-    ? "Different parts of the image appear to have been saved or processed differently."
-    : "The image appears to have been processed consistently as a whole.",
-
-    why:
-    s.anomalies > 65
-    ? "This usually happens when a portion of an image is edited and then re-saved separately from the rest."
-    : "This is typical of images that have not been selectively edited, or have only been resized or compressed uniformly.",
-
-    how:
-    "The system analyzes how the image is stored internally. Images are compressed to reduce file size. When edits occur, the edited areas often compress differently, which can be detected.",
-
-    when:
-    s.anomalies > 65
-    ? "These patterns typically occur after an image has been modified using editing software."
-    : "These patterns typically occur when an image is saved normally or shared online without selective edits.",
-
-    where:
-    s.anomalies > 65
-    ? "The differences are localized, meaning only certain areas of the image behave differently."
-    : "No specific areas stand out as behaving differently from the rest of the image.",
-
-    meaning:
-    score >= 70
-    ? "There is a meaningful chance this image has been altered. You should verify it before relying on it."
-    : "There is no strong evidence of manipulation, but results are not guaranteed and should be considered alongside other information."
+    reverse:"https://images.google.com/",
+    news:"https://news.google.com/",
+    maps: gps?.lat ? `https://maps.google.com?q=${gps.lat},${gps.lon}` : null
   };
 }
 
@@ -226,8 +192,8 @@ async function analyze(){
 
   const signals = buildSignals(data);
   const score = calcScore(signals);
-  const confidence = getConfidence(score);
   const n = buildNarrative(signals, score);
+  const links = buildVerifyLinks(data.gps);
 
   const riskClass = score>=80?"low":score>=55?"mid":"high";
 
@@ -245,67 +211,65 @@ async function analyze(){
 
       <div class="card">
         <div class="score ${riskClass}">${score}/100</div>
-        <strong>Confidence:</strong> ${confidence}
       </div>
 
-      <div class="card">
-        <div class="section-title">What was found</div>
-        ${n.what}
-      </div>
+      <div class="card"><div class="section-title">What was found</div>${n.what}</div>
+      <div class="card"><div class="section-title">Why this matters</div>${n.why}</div>
+      <div class="card"><div class="section-title">What this means</div>${n.meaning}</div>
 
       <div class="card">
-        <div class="section-title">Why this matters</div>
-        ${n.why}
-      </div>
-
-      <div class="card">
-        <div class="section-title">How this was determined</div>
-        ${n.how}
-      </div>
-
-      <div class="card">
-        <div class="section-title">When this typically occurs</div>
-        ${n.when}
-      </div>
-
-      <div class="card">
-        <div class="section-title">Where this appears in the image</div>
-        ${n.where}
-      </div>
-
-      <div class="card">
-        <div class="section-title">What this means for you</div>
-        ${n.meaning}
-      </div>
-
-      <div class="card">
-        <div class="section-title">How the score was calculated</div>
-        This score is based on four factors:<br><br>
-        • Compression consistency (30%)<br>
-        • Localized anomalies (30%)<br>
-        • Metadata presence (20%)<br>
-        • AI likelihood (20%)<br><br>
-        These are combined to estimate how consistent the image is with normal, unedited images.
+        <div class="section-title">How to verify this image</div>
+        <div class="verify-buttons">
+          <a href="${links.reverse}" target="_blank">Search image online</a>
+          <a href="${links.news}" target="_blank">Check news sources</a>
+          ${links.maps ? `<a href="${links.maps}" target="_blank">Verify location</a>` : ""}
+        </div>
       </div>
 
     </div>
 
     <div id="ela" class="tab-content">
+
+      <div class="card">
+        <div class="section-title">What is ELA (Error Level Analysis)?</div>
+        ELA shows how different parts of an image were compressed when saved.<br><br>
+        When an image is edited, the edited areas are often saved differently from the rest.
+      </div>
+
+      <div class="card">
+        <div class="section-title">What you are looking at</div>
+        Bright or inconsistent areas may indicate parts of the image that were modified.
+        Uniform brightness usually indicates consistent processing.
+      </div>
+
+      <div class="card">
+        <div class="section-title">How the slider works</div>
+        The slider compares the original image with the ELA view.<br><br>
+        Moving the slider lets you directly compare areas to see where differences appear.
+      </div>
+
       <div class="slider-container">
         <img src="${URL.createObjectURL(file)}">
         <div class="overlay" id="overlay">
           <img src="${data.ela.overlay}">
         </div>
       </div>
+
       <input type="range" id="slider" value="50">
     </div>
 
     <div id="metadata" class="tab-content">
       <div class="card">
-        Camera: ${data.exif?.Make||"-"}<br>
-        Date: ${data.exif?.DateTimeOriginal||"-"}<br>
-        Lat: ${data.gps?.lat ?? "N/A"}<br>
-        Lon: ${data.gps?.lon ?? "N/A"}
+        ImageWidth: ${data.exif?.ImageWidth || "-"}<br>
+        ImageHeight: ${data.exif?.ImageHeight || "-"}<br>
+        ResolutionUnit: ${data.exif?.ResolutionUnit || "-"}<br>
+        Make: ${data.exif?.Make || "-"}<br>
+        Model: ${data.exif?.Model || "-"}<br>
+        XResolution: ${data.exif?.XResolution || "-"}<br>
+        YResolution: ${data.exif?.YResolution || "-"}<br>
+        ModifyDate: ${data.exif?.ModifyDate || "-"}<br>
+        Latitude: ${data.gps?.lat ?? "N/A"}<br>
+        Longitude: ${data.gps?.lon ?? "N/A"}
       </div>
     </div>
 
