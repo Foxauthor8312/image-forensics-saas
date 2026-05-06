@@ -76,7 +76,7 @@ async function downloadPDF(){
   const form = new FormData();
   form.append("image", currentFile);
  
-  const res = await fetch(API + "/report", { method:"POST", body:form });
+  const res = await fetchWithRetry(API+"/analyze",{method:"POST",body:form});
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -114,6 +114,16 @@ function explainScore(score){
   return "Multiple indicators suggest the image may have been altered or processed inconsistently.";
 }
 
+async function fetchWithRetry(url, options, retries = 2) {
+  try {
+    return await fetch(url, options);
+  } catch (err) {
+    if (retries === 0) throw err;
+    await new Promise(r => setTimeout(r, 1000));
+    return fetchWithRetry(url, options, retries - 1);
+  }
+}
+  
 function getDeviceLocation() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(null);
@@ -144,29 +154,31 @@ async function analyze(){
 let data;
 
 try {
-  const res = await fetch(API+"/analyze",{method:"POST",body:form});
+  const res = await fetchWithRetry(API + "/analyze", {
+    method: "POST",
+    body: form
+  });
 
-  if(!res.ok){
+  if (!res.ok) {
     throw new Error("Server error");
   }
 
   data = await res.json();
 
-} catch(err){
-
+} catch (err) {
   document.getElementById("result").innerHTML = `
     <div class="card">
-      <div class="section-title">Analysis Failed</div>
-      Unable to process the image.<br><br>
-
-      This is usually a temporary connection issue.<br><br>
+      <div class="section-title">Connection Issue</div>
+      The server didn’t respond.<br><br>
+      This usually happens if it’s waking up.<br><br>
 
       <button onclick="analyze()">Try Again</button>
     </div>
   `;
-
   return;
 }
+
+console.log("API RESPONSE:", data);
 
 console.log("API RESPONSE:", data);
   let gpsData = data.gps;
