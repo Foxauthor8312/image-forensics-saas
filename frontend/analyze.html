@@ -159,34 +159,75 @@ async function analyze(){
 <div class="card">
 <div class="section-title">Why this matters</div>
 ${
-  signals.anomalies > 65
-  ? `
-  When part of an image is edited, that section is often saved differently. This creates subtle inconsistencies.<br><br>
-  These inconsistencies are strong indicators the image may not be fully original.
-  `
-  : `
-  Consistent compression suggests no targeted editing.
-  `
+ signals.anomalies > 65
+? `
+In this image, look for <strong>bright or inconsistent regions</strong> that stand out from surrounding areas.<br><br>
+
+These areas may indicate:<br>
+• Edited or altered sections<br>
+• Objects added or removed<br>
+• Selective re-saving of part of the image<br><br>
+
+The presence of these differences supports the finding that the image may not be fully original.
+`
+: `
+In this image, the brightness appears <strong>fairly uniform across the entire image</strong>.<br><br>
+
+This suggests:<br>
+• The image was processed consistently<br>
+• No strong signs of localized editing are visible<br><br>
+
+This supports the finding that the image behaves like a typical, unedited photo.
+`
 }
 </div>
 
 <div class="card">
 <div class="section-title">How strong is this finding?</div>
 ${
-  score >= 80
-  ? `<strong>High confidence</strong>`
-  : score >= 55
-  ? `<strong>Moderate confidence</strong>`
-  : `<strong>Elevated concern</strong>`
+ score >= 80
+? `
+<strong>High confidence:</strong><br>
+The image behaves like a normal, unedited photograph.
+There are no meaningful indicators of manipulation.
+`
+: score >= 55
+? `
+<strong>Moderate confidence:</strong><br>
+Some inconsistencies are present. These could be caused by editing or normal recompression.
+
+This result is <strong>inconclusive</strong> and should be verified using additional context.
+`
+: `
+<strong>Elevated concern:</strong><br>
+Multiple indicators suggest the image may have been altered.
+
+This pattern is commonly associated with edited or manipulated images.
+`
 }
 </div>
 
 <div class="card">
 <div class="section-title">What this means for you</div>
 ${
-  score >= 70
-  ? `Verify the image with trusted sources.`
-  : `No strong manipulation indicators, but verify context.`
+ score >= 70
+? `
+You should <strong>not rely on this image without verification</strong>.<br><br>
+
+Recommended next steps:<br>
+• Search for other versions of the image<br>
+• Check trusted news or original sources<br>
+• Compare details across multiple copies
+`
+: `
+There are no strong indicators of manipulation, but this does <strong>not guarantee authenticity</strong>.<br><br>
+
+Images can still be misleading even if they are technically unedited.<br><br>
+
+Always consider:<br>
+• Source credibility<br>
+• Context of where the image was found
+`
 }
 </div>
 
