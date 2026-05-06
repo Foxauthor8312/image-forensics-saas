@@ -6,7 +6,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <style>
-body { background:#0a0f1a; color:#e5e7eb; font-family:-apple-system,Segoe UI; padding:16px; }
+body {
+  background:#0a0f1a;
+  color:#e5e7eb;
+  font-family:-apple-system,Segoe UI;
+  padding:16px;
+}
 .container { max-width:900px; margin:auto; }
 
 .header { font-size:22px; font-weight:600; margin-bottom:6px; }
@@ -88,7 +93,7 @@ button {
 <a href="index.html" class="back">← Back</a>
 
 <div class="header">PixelProof Analysis</div>
-<div class="sub">Clear explanation of findings, confidence, and how to verify this image</div>
+<div class="sub">Understand what was found, why it matters, and what to do next</div>
 
 <input type="file" id="fileInput" />
 <button onclick="analyze()">Analyze Image</button>
@@ -121,7 +126,7 @@ async function safeFetch(url, options, retries=2){
   }
 }
 
-/* SCORING */
+/* SIGNALS */
 function buildSignals(data){
   const ela = data.ela.score;
   return {
@@ -132,6 +137,7 @@ function buildSignals(data){
   };
 }
 
+/* SCORE */
 function calcScore(s){
   return Math.round(
     s.compression*0.3 +
@@ -141,22 +147,47 @@ function calcScore(s){
   );
 }
 
+/* SCORE EXPLANATION */
+function explainScore(score){
+
+  if(score >= 80){
+    return {
+      label:"High consistency",
+      meaning:"The image behaves like a typical unedited image. There are no strong indicators of manipulation."
+    };
+  }
+
+  if(score >= 55){
+    return {
+      label:"Mixed signals",
+      meaning:"Some parts of the image behave differently than others. This may be caused by editing or normal recompression."
+    };
+  }
+
+  return {
+    label:"Low consistency",
+    meaning:"Multiple indicators suggest the image may have been altered or processed in a non-uniform way."
+  };
+}
+
 /* NARRATIVE */
 function buildNarrative(s, score){
   return {
     what: s.anomalies > 65
       ? "Different parts of the image appear to have been saved differently."
-      : "The image appears uniformly processed.",
+      : "The image appears to have been processed consistently as a whole.",
+
     why: s.anomalies > 65
-      ? "This often occurs when part of an image is edited separately."
-      : "This is typical of normal resizing or recompression.",
+      ? "This typically happens when a portion of an image is edited separately and then saved again."
+      : "This pattern is typical of images that have only been resized or compressed normally.",
+
     meaning: score >= 70
-      ? "There is a meaningful chance this image has been altered. Verification is recommended."
-      : "No strong signs of manipulation, but results should be considered alongside context."
+      ? "There is a meaningful chance this image has been altered. You should verify it before relying on it."
+      : "There are no strong indicators of manipulation, but results should always be considered alongside context."
   };
 }
 
-/* VERIFY LINKS */
+/* VERIFY */
 function buildVerifyLinks(gps){
   return {
     reverse:"https://images.google.com/",
@@ -192,6 +223,7 @@ async function analyze(){
 
   const signals = buildSignals(data);
   const score = calcScore(signals);
+  const scoreInfo = explainScore(score);
   const n = buildNarrative(signals, score);
   const links = buildVerifyLinks(data.gps);
 
@@ -213,6 +245,25 @@ async function analyze(){
         <div class="score ${riskClass}">${score}/100</div>
       </div>
 
+      <div class="card">
+        <div class="section-title">What the score means</div>
+        <strong>${scoreInfo.label}</strong><br><br>
+        ${scoreInfo.meaning}<br><br>
+
+        <div class="small">
+        This score (0–100) reflects how closely the image matches normal, unedited images.<br><br>
+
+        It is calculated using:<br>
+        • Compression consistency (30%)<br>
+        • Localized anomalies (30%)<br>
+        • Metadata presence (20%)<br>
+        • AI likelihood (20%)<br><br>
+
+        Higher scores = more consistent with original images<br>
+        Lower scores = stronger signs of manipulation or processing
+        </div>
+      </div>
+
       <div class="card"><div class="section-title">What was found</div>${n.what}</div>
       <div class="card"><div class="section-title">Why this matters</div>${n.why}</div>
       <div class="card"><div class="section-title">What this means</div>${n.meaning}</div>
@@ -229,23 +280,9 @@ async function analyze(){
     </div>
 
     <div id="ela" class="tab-content">
-
       <div class="card">
-        <div class="section-title">What is ELA (Error Level Analysis)?</div>
-        ELA shows how different parts of an image were compressed when saved.<br><br>
-        When an image is edited, the edited areas are often saved differently from the rest.
-      </div>
-
-      <div class="card">
-        <div class="section-title">What you are looking at</div>
-        Bright or inconsistent areas may indicate parts of the image that were modified.
-        Uniform brightness usually indicates consistent processing.
-      </div>
-
-      <div class="card">
-        <div class="section-title">How the slider works</div>
-        The slider compares the original image with the ELA view.<br><br>
-        Moving the slider lets you directly compare areas to see where differences appear.
+        <strong>What is ELA?</strong><br><br>
+        ELA highlights differences in how parts of an image were saved.
       </div>
 
       <div class="slider-container">
