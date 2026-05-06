@@ -18,13 +18,20 @@ body {
 .header {
   font-size:22px;
   font-weight:600;
-  margin-bottom:10px;
+  margin-bottom:6px;
 }
 
 .sub {
   font-size:13px;
   color:#9ca3af;
   margin-bottom:20px;
+}
+
+.back {
+  color:#9ca3af;
+  text-decoration:none;
+  display:inline-block;
+  margin-bottom:12px;
 }
 
 button {
@@ -113,8 +120,10 @@ button {
 
 <div class="container">
 
+<a href="index.html" class="back">← Back</a>
+
 <div class="header">PixelProof Analysis</div>
-<div class="sub">Forensic indicators based on compression, metadata, and structural consistency</div>
+<div class="sub">Forensic evaluation of image authenticity using compression, metadata, and AI signals</div>
 
 <input type="file" id="fileInput" />
 <button onclick="analyze()">Analyze Image</button>
@@ -132,7 +141,7 @@ button {
 
 const API = "https://image-forensics-saas-1.onrender.com";
 
-/* ===== SAFE FETCH ===== */
+/* SAFE FETCH */
 async function safeFetch(url, options, retries=2){
   try{
     const res = await fetch(url, options);
@@ -147,7 +156,7 @@ async function safeFetch(url, options, retries=2){
   }
 }
 
-/* ===== SCORING ===== */
+/* SCORING */
 function buildSignals(data){
   const ela = data.ela.score;
 
@@ -165,24 +174,39 @@ function calcScore(signals){
   return Math.round(t);
 }
 
-function interpret(score){
-
-  const risk = score>=80?"Low":score<=50?"High":"Moderate";
-
-  const summary =
-    score>=80?"No significant indicators of manipulation detected."
-    :score>=55?"Some inconsistencies detected."
-    :"Indicators suggest possible manipulation.";
-
-  const next =
-    score>=80?"Image appears consistent. Verify source if needed."
-    :score>=55?"Check source and compare versions."
-    :"Do not rely on this image without verification.";
-
-  return {risk,summary,next};
+/* CONFIDENCE (HUMAN MEANING) */
+function getConfidence(score){
+  if(score>=85) return {label:"Very Strong", meaning:"You can rely on this result. The evidence is consistent across multiple checks."};
+  if(score>=70) return {label:"Strong", meaning:"This result is reliable. Most indicators agree."};
+  if(score>=55) return {label:"Moderate", meaning:"Some signals suggest this result, but normal processing could also explain it."};
+  if(score>=40) return {label:"Weak", meaning:"The result is uncertain and should not be relied on alone."};
+  return {label:"Insufficient", meaning:"Not enough reliable data to determine anything meaningful."};
 }
 
-/* ===== ANALYZE ===== */
+/* FINAL INTERPRETATION */
+function interpret(score){
+
+  if(score>=80){
+    return {
+      conclusion:"No significant signs of manipulation detected.",
+      action:"Image appears consistent. Verify source if needed."
+    };
+  }
+
+  if(score>=55){
+    return {
+      conclusion:"Some inconsistencies detected.",
+      action:"Check the source and compare with other versions before relying on this image."
+    };
+  }
+
+  return {
+    conclusion:"Indicators suggest possible manipulation.",
+    action:"Do not rely on this image without independent verification."
+  };
+}
+
+/* ANALYZE */
 async function analyze(){
 
   const file=document.getElementById("fileInput").files[0];
@@ -209,9 +233,10 @@ async function analyze(){
 
   const signals = buildSignals(data);
   const score = calcScore(signals);
-  const interp = interpret(score);
+  const confidence = getConfidence(score);
+  const result = interpret(score);
 
-  const riskClass = interp.risk==="Low"?"low":interp.risk==="Moderate"?"mid":"high";
+  const riskClass = score>=80?"low":score>=55?"mid":"high";
 
   document.getElementById("result").innerHTML=`
 
@@ -228,34 +253,24 @@ async function analyze(){
 
       <div class="card">
         <div class="score ${riskClass}">${score}/100</div>
-        Risk: ${interp.risk}
+        <strong>${confidence.label} confidence</strong><br>
+        ${confidence.meaning}
       </div>
 
       <div class="card">
-        <div class="section-title">Executive Summary</div>
-        ${interp.summary}
+        <div class="section-title">Conclusion</div>
+        ${result.conclusion}
+      </div>
+
+      <div class="card">
+        <div class="section-title">What you should do</div>
+        ${result.action}
       </div>
 
       <div class="card">
         <div class="section-title">AI Assessment</div>
         AI Likelihood: ${data.ai.likelihood}%<br>
         <div class="small">Indicates probability of synthetic origin.</div>
-      </div>
-
-      <div class="card">
-        <div class="section-title">Evidence Breakdown</div>
-        ${Object.values(signals).map(s=>`
-          ${s.label} (${Math.round(s.weight*100)}%)
-          <div style="height:6px;background:#1e293b;margin:4px 0;">
-            <div style="width:${s.value}%;height:100%;
-              background:${s.value>70?'#22c55e':s.value>40?'#f59e0b':'#ef4444'};"></div>
-          </div>
-        `).join("")}
-      </div>
-
-      <div class="card">
-        <div class="section-title">Recommended Next Steps</div>
-        ${interp.next}
       </div>
 
     </div>
