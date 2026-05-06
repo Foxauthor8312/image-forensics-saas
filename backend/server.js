@@ -77,7 +77,7 @@ async function runELA(buffer) {
     }
   }).jpeg().toBuffer();
 
-  return {
+  
   const rawScore = total / orig.data.length;
 
 // normalize to 0–100 range
@@ -131,8 +131,8 @@ app.post('/report', upload.single('image'), async (req, res) => {
   const signals = {
    compression: Math.max(0,100-ela),
     anomalies: ela,
-    metadata: data.exif
-  ? (data.exif.Make ? 90 : 70)
+    metadata: rawExif
+  ? (rawExif.Make ? 90 : 70)
   : 20,
     ai: aiScore
   };
