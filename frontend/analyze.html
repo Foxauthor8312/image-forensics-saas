@@ -129,7 +129,20 @@ function explainScore(score){
   }
   return "Multiple indicators suggest the image may have been altered or processed inconsistently.";
 }
+function getDeviceLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
 
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude
+      }),
+      () => resolve(null),
+      { timeout: 5000 }
+    );
+  });
+}
 /* ANALYZE */
 async function analyze(){
 
@@ -144,6 +157,16 @@ async function analyze(){
   const res = await fetch(API+"/analyze",{method:"POST",body:form});
   const data = await res.json();
 
+let gpsData = data.gps;
+
+if (!gpsData?.lat) {
+  const deviceGPS = await getDeviceLocation();
+  if (deviceGPS) {
+    gpsData = deviceGPS;
+    gpsData.source = "device";
+  }
+}
+  
   const signals = buildSignals(data);
   const score = calcScore(signals);
   const scoreText = explainScore(score);
@@ -336,24 +359,48 @@ async function analyze(){
       Make: ${data.exif?.Make || "-"}<br>
       Model: ${data.exif?.Model || "-"}<br>
       Date: ${data.exif?.DateTimeOriginal || "-"}<br>
-      <div>Latitude: ${data.gps?.lat ?? "N/A"}</div>
-      <div>Longitude: ${data.gps?.lon ?? "N/A"}</div>
+      <div>Latitude: ${gpsData?.lat ?? "N/A"}</div>
+      <div>Longitude: ${gpsData?.lon ?? "N/A"}</div>
 
 <strong>Debug:</strong><br>
-https://maps.google.com?q=${data.gps?.lat},${data.gps?.lon}
+https://maps.google.com?q=${gpsData?.lat},${gpsData?.lon}
     </div>
   </div>
 
   <div id="map" class="tab-content">
-    ${
-      data.gps?.lat
-      ? `<iframe 
+  ${
+    gpsData?.lat
+      ? `
+        <div class="small">
+          Location source: ${gpsData?.source === "device"
+            ? "Device location (approximate)"
+            : "Image metadata"}
+        </div>
+
+        <iframe 
           class="map-frame"
-          src="https://maps.google.com?q=${data.gps.lat},${data.gps.lon}&output=embed">
-        </iframe>`
-      : "No GPS data"
-    }
-  </div>
+          src="https://maps.google.com?q=${gpsData.lat},${gpsData.lon}&output=embed">
+        </iframe>
+      `
+      : `
+        <div class="card">
+          <div class="section-title">No GPS Data Available</div>
+
+          This image does not contain location data.<br><br>
+
+          This is common when:
+          • The photo was uploaded from a phone browser  
+          • The image was shared via text, email, or social media  
+          • Privacy settings removed location information<br><br>
+
+          To retain GPS data:
+          • Upload the original file directly from your device  
+          • Avoid screenshots or downloaded copies  
+        </div>
+      `
+  }
+</div>
+  `
 
   <div id="raw" class="tab-content">
     <pre>${JSON.stringify(data.exif,null,2)}</pre>
