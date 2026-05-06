@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <title>PixelProof Analysis</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Cache-Control" content="no-store" />
 
 <style>
 body { background:#0a0f1a; color:#e5e7eb; font-family:-apple-system,Segoe UI; padding:16px; }
@@ -21,6 +22,13 @@ button {
 
 .secondary { background:#111827; }
 
+.tabs { display:flex; gap:8px; border-bottom:1px solid #1f2937; overflow-x:auto; }
+.tab { padding:10px 14px; cursor:pointer; color:#9ca3af; }
+.tab.active { color:white; border-bottom:2px solid #3b82f6; }
+
+.tab-content { display:none; margin-top:16px; }
+.tab-content.active { display:block; }
+
 .card {
   background:#0b1220;
   border:1px solid #1f2937;
@@ -36,16 +44,18 @@ button {
 .mid { color:#f59e0b; }
 .high { color:#ef4444; }
 
-.tabs { display:flex; gap:8px; border-bottom:1px solid #1f2937; }
-.tab { padding:10px; cursor:pointer; color:#9ca3af; }
-.tab.active { color:white; border-bottom:2px solid #3b82f6; }
-
-.tab-content { display:none; margin-top:16px; }
-.tab-content.active { display:block; }
+.small { font-size:12px; color:#9ca3af; }
 
 .slider-container { position:relative; }
-.slider-container img { width:100%; }
-.overlay { position:absolute; top:0; left:0; width:50%; overflow:hidden; }
+.slider-container img { width:100%; border-radius:8px; }
+
+.overlay {
+  position:absolute;
+  top:0;
+  left:0;
+  width:50%;
+  overflow:hidden;
+}
 
 .verify-buttons a {
   display:block;
@@ -66,7 +76,7 @@ button {
 <div class="container">
 
 <div class="header">PixelProof Analysis</div>
-<div class="sub">Clear explanation of what was found and what it means</div>
+<div class="sub">A clear explanation of what was found, how strong it is, and what you should do next</div>
 
 <input type="file" id="fileInput" />
 <button onclick="analyze()">Analyze Image</button>
@@ -80,45 +90,28 @@ button {
 const API = "https://image-forensics-saas-1.onrender.com";
 let currentFile = null;
 
-/* ===== NARRATIVE ENGINE ===== */
-function buildNarrative(s, score){
-
-  const edited = s.anomalies > 65;
-  const strong = score >= 70;
-
-  return {
-
-    who:
-    edited
-    ? "This analysis system detected patterns commonly associated with edited images."
-    : "This analysis system detected patterns consistent with normal image processing.",
-
-    what:
-    edited
-    ? "Different areas of the image behave differently when analyzed, indicating uneven processing."
-    : "The image behaves consistently across all areas when analyzed.",
-
-    why:
-    edited
-    ? "When part of an image is edited, that section is often saved differently from the rest of the image."
-    : "Images that have not been selectively edited tend to be saved in a uniform way.",
-
-    how:
-    "The system compares how the image is compressed internally. Edited areas often compress differently, which can be detected mathematically.",
-
-    where:
-    edited
-    ? "The differences appear in localized areas, not across the entire image."
-    : "No specific areas stand out as inconsistent.",
-
-    meaning:
-    strong
-    ? "There is a meaningful likelihood this image has been altered. Verification is recommended before relying on it."
-    : "There is no strong evidence of manipulation, but results should still be considered alongside other information."
-  };
+/* RESET */
+function resetAnalysis(){
+  document.getElementById("fileInput").value="";
+  document.getElementById("result").innerHTML="";
 }
 
-/* ===== SCORE ===== */
+/* PDF */
+async function downloadPDF(){
+  const form = new FormData();
+  form.append("image", currentFile);
+
+  const res = await fetch(API + "/report", { method:"POST", body:form });
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "PixelProof_Report.pdf";
+  a.click();
+}
+
+/* SIGNALS */
 function buildSignals(data){
   const ela = data.ela.score;
   return {
@@ -129,6 +122,7 @@ function buildSignals(data){
   };
 }
 
+/* SCORE */
 function calcScore(s){
   return Math.round(
     s.compression*0.3 +
@@ -138,7 +132,62 @@ function calcScore(s){
   );
 }
 
-/* ===== ANALYZE ===== */
+/* SCORE EXPLANATION (REAL VERSION) */
+function explainScore(score){
+
+  if(score >= 80){
+    return {
+      title: "Image appears consistent",
+      text: "The image behaves like a typical, unedited image. There are no strong indicators of manipulation. This does not guarantee authenticity, but there is no meaningful evidence suggesting alteration."
+    };
+  }
+
+  if(score >= 55){
+    return {
+      title: "Mixed or uncertain signals",
+      text: "Some parts of the image behave differently than others. This can happen when an image is edited, but it can also occur during normal recompression (such as uploading to social media). This result should be verified before relying on the image."
+    };
+  }
+
+  return {
+    title: "Signs of possible alteration",
+    text: "Multiple indicators suggest the image may have been altered or processed in a non-uniform way. These patterns are commonly associated with edited images. Verification is strongly recommended before trusting this image."
+  };
+}
+
+/* NARRATIVE (UPGRADED) */
+function buildNarrative(s, score){
+
+  const edited = s.anomalies > 65;
+
+  return {
+
+    what:
+    edited
+    ? "Different areas of the image were saved differently, meaning the image was not processed as a single, consistent file."
+    : "The image was processed consistently across all areas, with no strong localized differences detected.",
+
+    why:
+    edited
+    ? "When part of an image is edited, that section is often re-saved differently than the rest. This creates detectable inconsistencies."
+    : "Images that have not been selectively edited tend to be saved uniformly, resulting in consistent internal patterns.",
+
+    how:
+    "The system analyzes how the image is compressed internally. Images are reduced in size using compression. When edits occur, those areas often compress differently, which can be measured mathematically.",
+
+    where:
+    edited
+    ? "The differences are localized, meaning specific regions behave differently from the rest of the image."
+    : "No specific regions stand out as behaving differently from the rest of the image.",
+
+    meaning:
+    score >= 70
+    ? "There is a meaningful risk that this image has been altered. You should verify it before relying on it."
+    : "There is no strong evidence of manipulation, but this result should still be considered alongside context and source credibility."
+  };
+}
+
+/* ANALYZE */
 async function analyze(){
 
   const file=document.getElementById("fileInput").files[0];
@@ -154,19 +203,23 @@ async function analyze(){
 
   const signals = buildSignals(data);
   const score = calcScore(signals);
+  const scoreInfo = explainScore(score);
   const narrative = buildNarrative(signals, score);
 
   const riskClass = score>=80?"low":score>=55?"mid":"high";
 
   document.getElementById("result").innerHTML=`
 
-    <button onclick="downloadPDF()">Download Full Report</button>
+    <button onclick="downloadPDF()">Download Full Report (PDF)</button>
     <button class="secondary" onclick="resetAnalysis()">Analyze Another Image</button>
 
     <div class="tabs">
       <div class="tab active" onclick="switchTab('overview')">Overview</div>
       <div class="tab" onclick="switchTab('ela')">ELA</div>
       <div class="tab" onclick="switchTab('metadata')">Metadata</div>
+      <div class="tab" onclick="switchTab('map')">Map</div>
+      <div class="tab" onclick="switchTab('raw')">Full Metadata</div>
+      <div class="tab" onclick="switchTab('ai')">AI</div>
     </div>
 
     <div id="overview" class="tab-content active">
@@ -175,15 +228,22 @@ async function analyze(){
         <div class="score ${riskClass}">${score}/100</div>
       </div>
 
-      <div class="card"><div class="section-title">Who</div>${narrative.who}</div>
-      <div class="card"><div class="section-title">What</div>${narrative.what}</div>
-      <div class="card"><div class="section-title">Why</div>${narrative.why}</div>
-      <div class="card"><div class="section-title">How</div>${narrative.how}</div>
-      <div class="card"><div class="section-title">Where</div>${narrative.where}</div>
-      <div class="card"><div class="section-title">What this means</div>${narrative.meaning}</div>
+      <div class="card">
+        <div class="section-title">${scoreInfo.title}</div>
+        ${scoreInfo.text}
+        <div class="small" style="margin-top:10px;">
+        This score is based on compression consistency, localized anomalies, metadata presence, and AI pattern detection.
+        </div>
+      </div>
+
+      <div class="card"><div class="section-title">What was found</div>${narrative.what}</div>
+      <div class="card"><div class="section-title">Why this matters</div>${narrative.why}</div>
+      <div class="card"><div class="section-title">How this was determined</div>${narrative.how}</div>
+      <div class="card"><div class="section-title">Where this appears</div>${narrative.where}</div>
+      <div class="card"><div class="section-title">What this means for you</div>${narrative.meaning}</div>
 
       <div class="card">
-        <div class="section-title">Verify this image</div>
+        <div class="section-title">How to verify this image</div>
         <div class="verify-buttons">
           <a href="https://images.google.com" target="_blank">Search image online</a>
           <a href="https://news.google.com" target="_blank">Check news sources</a>
@@ -194,7 +254,9 @@ async function analyze(){
 
     <div id="ela" class="tab-content">
       <div class="card">
-        ELA shows compression differences. Bright areas may indicate edits.
+        <strong>What is ELA (Error Level Analysis)?</strong><br><br>
+        ELA shows differences in how parts of the image were saved. Bright or inconsistent areas may indicate edits, while uniform areas usually indicate consistent processing.<br><br>
+        Use the slider to compare the original image with the analysis.
       </div>
 
       <div class="slider-container">
@@ -214,6 +276,24 @@ async function analyze(){
         Date: ${data.exif?.DateTimeOriginal || "-"}
       </div>
     </div>
+
+    <div id="map" class="tab-content">
+      ${
+        data.gps?.lat
+        ? `<iframe src="https://maps.google.com?q=${data.gps.lat},${data.gps.lon}&output=embed"></iframe>`
+        : "No GPS data"
+      }
+    </div>
+
+    <div id="raw" class="tab-content">
+      <pre>${JSON.stringify(data.exif,null,2)}</pre>
+    </div>
+
+    <div id="ai" class="tab-content">
+      <div class="card">
+        AI Likelihood: ${data.ai.likelihood}%
+      </div>
+    </div>
   `;
 
   document.getElementById("slider").oninput=e=>{
@@ -221,30 +301,12 @@ async function analyze(){
   };
 }
 
-/* ===== PDF ===== */
-async function downloadPDF(){
-  const form = new FormData();
-  form.append("image", currentFile);
-
-  const res = await fetch(API + "/report", { method:"POST", body:form });
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "report.pdf";
-  a.click();
-}
-
-/* ===== RESET ===== */
-function resetAnalysis(){
-  document.getElementById("fileInput").value="";
-  document.getElementById("result").innerHTML="";
-}
-
-/* ===== TABS ===== */
+/* TABS */
 function switchTab(name){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
+
+  document.querySelector(`[onclick="switchTab('${name}')"]`).classList.add("active");
   document.getElementById(name).classList.add("active");
 }
 
