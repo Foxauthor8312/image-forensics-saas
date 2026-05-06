@@ -111,6 +111,52 @@ function applyCode(){
 updateDisplay();
 
 </script>
+<script>
+const MAX_FREE = 3;
 
+function getUsage(){
+  return parseInt(localStorage.getItem("usage") || "0");
+}
+
+function updateUsageDisplay(){
+  const el = document.getElementById("usageDisplay");
+  if(!el) return;
+
+  const remaining = Math.max(0, MAX_FREE - getUsage());
+  el.innerText = `You have ${remaining} free analyses remaining`;
+}
+
+function trackUsage(){
+  const used = getUsage();
+  localStorage.setItem("usage", used + 1);
+}
+
+function checkAccess(){
+  const used = getUsage();
+  const override = localStorage.getItem("override");
+
+  if(used >= MAX_FREE && !override){
+    alert("Free limit reached. Enter override code.");
+    return false;
+  }
+
+  trackUsage();
+  return true;
+}
+
+function applyOverride(){
+  const code = document.getElementById("overrideInput").value;
+
+  if(code === "PIXELVIP"){
+    localStorage.setItem("override", "true");
+    alert("Override activated");
+    updateUsageDisplay();
+  } else {
+    alert("Invalid code");
+  }
+}
+
+window.onload = updateUsageDisplay;
+</script>
 </body>
 </html>
