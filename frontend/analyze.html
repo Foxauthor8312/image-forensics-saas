@@ -140,12 +140,12 @@ console.log("API RESPONSE:", data);
   <button class="secondary" onclick="resetAnalysis()">Analyze Another</button>
 
   <div class="tabs">
-    <div class="tab active" onclick="switchTab('overview')">Overview</div>
-    <div class="tab" onclick="switchTab('ela')">ELA</div>
-    <div class="tab" onclick="switchTab('metadata')">Metadata</div>
-    <div class="tab" onclick="switchTab('map')">Map</div>
-    <div class="tab" onclick="switchTab('raw')">Full Metadata</div>
-    <div class="tab" onclick="switchTab('ai')">AI</div>
+    <div class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</div>
+    <div class="tab" data-tab="ela" onclick="switchTab('ela')">ELA</div>
+    <div class="tab" data-tab="metadata" onclick="switchTab('metadata')">Metadata</div>
+    <div class="tab" data-tab="map" onclick="switchTab('map')">Map</div>
+    <div class="tab" data-tab="raw" onclick="switchTab('raw')">Full Metadata</div>
+    <div class="tab" data-tab="ai" onclick="switchTab('ai')">AI</div>
   </div>
 
   <div id="overview" class="tab-content active">
@@ -291,7 +291,7 @@ function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
 
-  const tab = document.querySelector(`[onclick="switchTab('${name}')"]`);
+  const tab = document.querySelector(`.tab[data-tab="${name}"]`);
   if(tab) tab.classList.add("active");
 
   const content = document.getElementById(name);
