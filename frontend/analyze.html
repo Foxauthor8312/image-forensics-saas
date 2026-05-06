@@ -6,12 +6,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <style>
+* { box-sizing: border-box; }
+
 html, body {
   background: #000;
   color: #fff;
   font-family: Arial, sans-serif;
   margin: 0;
-  padding: 20px;
+  padding: 16px;
 }
 
 .container {
@@ -25,31 +27,34 @@ html, body {
   font-size: 14px;
 }
 
+/* INPUT + BUTTON */
 input { width: 100%; margin: 15px 0; }
 
 button {
-  display: block;
-  margin: auto;
-  padding: 10px 20px;
+  width: 100%;
+  padding: 14px;
+  font-size: 16px;
   background: #1f2937;
   border: none;
   color: white;
-  border-radius: 6px;
-  cursor: pointer;
+  border-radius: 8px;
 }
 
 /* TABS */
 .tabs {
   display: flex;
-  gap: 20px;
+  gap: 8px;
   margin-top: 20px;
   border-bottom: 1px solid #333;
+  overflow-x: auto;
 }
 
 .tab {
-  padding: 10px 0;
+  padding: 12px 16px;
   cursor: pointer;
   color: #9ca3af;
+  white-space: nowrap;
+  font-size: 14px;
 }
 
 .tab.active {
@@ -66,6 +71,12 @@ button {
   display: block;
 }
 
+/* TEXT */
+p {
+  font-size: 15px;
+  line-height: 1.6;
+}
+
 /* META */
 .meta-row {
   padding: 6px 0;
@@ -79,7 +90,10 @@ button {
 .bad { color: #ef4444; }
 
 /* SLIDER */
-.slider-container { position: relative; }
+.slider-container {
+  position: relative;
+  touch-action: pan-y;
+}
 
 .slider-container img {
   width: 100%;
@@ -109,13 +123,14 @@ button {
 
 .slider {
   width: 100%;
+  height: 30px;
   margin-top: 10px;
 }
 
 /* MAP */
 .map-container {
   width: 100%;
-  height: 400px;
+  height: 300px;
   border-radius: 8px;
   overflow: hidden;
 }
@@ -138,7 +153,6 @@ button {
 <script>
 const API = "https://image-forensics-saas-1.onrender.com";
 
-/* ===== TAB SWITCH ===== */
 function switchTab(name) {
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
@@ -147,44 +161,20 @@ function switchTab(name) {
   document.getElementById(name).classList.add("active");
 }
 
-/* ===== IMPROVED COMPRESSION EXPLANATION ===== */
-function getCompressionExplanation(type, hasExif) {
-
-  const base = "The ELA (Error Level Analysis) overlay highlights differences in compression. Brighter areas indicate regions that compress differently than the rest of the image.";
+function getCompressionExplanation(type) {
+  const base = "The ELA overlay highlights compression differences. Brighter areas indicate regions that compress differently.";
 
   const map = {
-    "Likely Original": {
-      text: `${base} In this case, compression appears evenly distributed, which is typical of an unedited image.`,
-      insight: "No localized anomalies detected."
-    },
-    "Recompressed": {
-      text: `${base} The differences appear spread across the image, suggesting it was resaved or recompressed.`,
-      insight: "This pattern is consistent with platform compression or resaving."
-    },
-    "Edited": {
-      text: `${base} Notice brighter or uneven regions—these indicate localized compression differences often caused by editing.`,
-      insight: "Localized anomalies are commonly associated with manipulation."
-    },
-    "Unknown": {
-      text: `${base} No clear compression pattern was detected.`,
-      insight: "Result is inconclusive."
-    }
+    "Likely Original": "Compression appears uniform across the image.",
+    "Recompressed": "Compression differences are spread across the image, typical of resaving.",
+    "Edited": "Localized bright areas suggest possible editing.",
+    "Unknown": "No clear compression pattern detected."
   };
 
-  const result = map[type] || map["Unknown"];
-
-  return {
-    main: result.text,
-    detail: result.insight,
-    meta: hasExif
-      ? "Metadata is present and supports the structural analysis."
-      : "Missing metadata may indicate removal or privacy filtering."
-  };
+  return base + " " + (map[type] || map["Unknown"]);
 }
 
-/* ===== ANALYZE ===== */
 async function analyze() {
-
   const file = document.getElementById("fileInput").files[0];
   const resultEl = document.getElementById("result");
 
@@ -196,7 +186,6 @@ async function analyze() {
   form.append("image", file);
 
   try {
-
     const res = await fetch(API + "/analyze", {
       method: "POST",
       body: form
@@ -206,8 +195,6 @@ async function analyze() {
 
     const type = data.classification?.type || "Unknown";
     const conf = Math.round((data.classification?.confidence || 0.5) * 100);
-
-    const comp = getCompressionExplanation(type, !!data.exif);
 
     const lat = data.gps?.lat;
     const lon = data.gps?.lon;
@@ -220,67 +207,35 @@ async function analyze() {
     if (lat && lon) signals.push('<div class="signal good">✔ Location data present</div>');
     else signals.push('<div class="signal warn">⚠ No GPS data</div>');
 
-    if (type === "Edited") signals.push('<div class="signal bad">✖ Compression anomalies detected</div>');
+    if (type === "Edited") signals.push('<div class="signal bad">✖ Compression anomalies</div>');
 
     resultEl.innerHTML = `
-      <div style="font-size:24px;font-weight:600;">
-        ${type}
-      </div>
-
-      <div style="color:#9ca3af;margin-bottom:15px;">
-        Confidence: ${conf}%
-      </div>
+      <div style="font-size:22px;font-weight:600;">${type}</div>
+      <div style="color:#9ca3af;margin-bottom:12px;">Confidence: ${conf}%</div>
 
       <div class="tabs">
         <div class="tab active" id="tab-overview" onclick="switchTab('overview')">Overview</div>
-        <div class="tab" id="tab-ela" onclick="switchTab('ela')">ELA (Compression Map)</div>
+        <div class="tab" id="tab-ela" onclick="switchTab('ela')">ELA</div>
         <div class="tab" id="tab-metadata" onclick="switchTab('metadata')">Metadata</div>
         <div class="tab" id="tab-map" onclick="switchTab('map')">Map</div>
       </div>
 
-      <!-- OVERVIEW -->
       <div id="overview" class="tab-content active">
-
-        <div style="margin-bottom:12px;">
-          <strong>Compression Analysis</strong>
-          <div style="margin-top:6px;color:#cbd5f5;">
-            ${comp.main}
-          </div>
-        </div>
-
-        <div style="margin-bottom:12px;">
-          ${signals.join("")}
-        </div>
-
-        <div style="margin-bottom:12px;">
-          <strong>Interpretation</strong>
-          <div style="margin-top:6px;color:#cbd5f5;">
-            ${comp.detail}
-          </div>
-        </div>
-
-        <div style="color:#9ca3af;font-size:13px;">
-          ${comp.meta}
-        </div>
-
+        <p>${getCompressionExplanation(type)}</p>
+        ${signals.join("")}
       </div>
 
-      <!-- ELA -->
       <div id="ela" class="tab-content">
         <div class="slider-container">
           <img src="${URL.createObjectURL(file)}">
-
           <div class="overlay" id="overlay">
             <img src="${data.ela?.overlay}">
           </div>
-
           <div class="divider" id="divider"></div>
         </div>
-
         <input type="range" id="slider" min="0" max="100" value="50" class="slider">
       </div>
 
-      <!-- METADATA -->
       <div id="metadata" class="tab-content">
         <div class="meta-row">Camera: ${data.exif?.Make ?? "-"}</div>
         <div class="meta-row">Model: ${data.exif?.Model ?? "-"}</div>
@@ -289,7 +244,6 @@ async function analyze() {
         <div class="meta-row">Longitude: ${lon ?? "-"}</div>
       </div>
 
-      <!-- MAP -->
       <div id="map" class="tab-content">
         ${
           (lat && lon)
@@ -297,10 +251,7 @@ async function analyze() {
                <iframe
                  width="100%"
                  height="100%"
-                 frameborder="0"
-                 style="border:0"
-                 src="https://www.google.com/maps?q=${lat},${lon}&z=18&output=embed&t=k"
-                 allowfullscreen>
+                 src="https://www.google.com/maps?q=${lat},${lon}&z=18&output=embed&t=k">
                </iframe>
              </div>`
           : `<div style="color:#9ca3af;">No GPS data available</div>`
