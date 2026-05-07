@@ -203,12 +203,25 @@ console.log("ALL KEYS:", Object.keys(data));
 let gpsData = data.gps;
 
 // ALWAYS try device GPS on mobile if image GPS missing
-if (!gpsData?.lat || gpsData.lat === 0) {
-  const deviceGPS = await getDeviceLocation();
+if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
+
+  console.log("No image GPS — requesting device location");
+
+  let deviceGPS = await getDeviceLocation();
+
+  // retry once if it failed (common on mobile)
+  if (!deviceGPS) {
+    console.log("Retrying device GPS...");
+    await new Promise(r => setTimeout(r, 1500));
+    deviceGPS = await getDeviceLocation();
+  }
 
   if (deviceGPS) {
     gpsData = deviceGPS;
     gpsData.source = "device";
+    console.log("Using device GPS:", gpsData);
+  } else {
+    console.log("Device GPS unavailable");
   }
 }
 
