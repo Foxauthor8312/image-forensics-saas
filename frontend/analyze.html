@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script src="https://cdn.jsdelivr.net/npm/exifr/dist/lite.umd.js"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta http-equiv="Cache-Control" content="no-store" />
@@ -153,96 +154,13 @@ async function getDeviceLocation() {
     );
   });
 }
-async function readExifFromFile(file){
-  const buffer = await file.arrayBuffer();
-  const view = new DataView(buffer);
 
-  // very small EXIF parser for GPS (JPEG only)
-  // looks for "Exif" header and GPS IFD
-  function getString(off, len){
-    let s = "";
-    for(let i=0;i<len;i++) s += String.fromCharCode(view.getUint8(off+i));
-    return s;
-  }
-
-  // find EXIF header (0xFFE1)
-  let offset = 2;
-  while (offset < view.byteLength) {
-    if (view.getUint16(offset) === 0xFFE1) break;
-    offset += 2 + view.getUint16(offset+2);
-  }
-  if (offset >= view.byteLength) return null;
-
-  const exifStart = offset + 4;
-  if (getString(exifStart, 4) !== "Exif") return null;
-
-  // TIFF header
-  const tiff = exifStart + 6;
-  const little = view.getUint16(tiff) === 0x4949;
-  const get16 = (o)=> little ? view.getUint16(o,true) : view.getUint16(o,false);
-  const get32 = (o)=> little ? view.getUint32(o,true) : view.getUint32(o,false);
-
-  const firstIFD = tiff + get32(tiff+4);
-  const entries = get16(firstIFD);
-
-  let gpsIFDOffset = null;
-  for(let i=0;i<entries;i++){
-    const entry = firstIFD + 2 + i*12;
-    const tag = get16(entry);
-    if(tag === 0x8825){ // GPS IFD pointer
-      gpsIFDOffset = tiff + get32(entry+8);
-      break;
-    }
-  }
-  if(!gpsIFDOffset) return null;
-
-  const gpsEntries = get16(gpsIFDOffset);
-
-  function readRational(off){
-    const num = get32(off);
-    const den = get32(off+4);
-    return den ? num/den : 0;
-  }
-
-  let lat=null, lon=null, latRef=null, lonRef=null;
-
-  for(let i=0;i<gpsEntries;i++){
-    const entry = gpsIFDOffset + 2 + i*12;
-    const tag = get16(entry);
-    const valOffset = tiff + get32(entry+8);
-
-    if(tag === 1) latRef = String.fromCharCode(view.getUint8(valOffset));
-    if(tag === 3) lonRef = String.fromCharCode(view.getUint8(valOffset));
-
-    if(tag === 2){ // lat
-      const d = readRational(valOffset);
-      const m = readRational(valOffset+8);
-      const s = readRational(valOffset+16);
-      lat = d + m/60 + s/3600;
-    }
-
-    if(tag === 4){ // lon
-      const d = readRational(valOffset);
-      const m = readRational(valOffset+8);
-      const s = readRational(valOffset+16);
-      lon = d + m/60 + s/3600;
-    }
-  }
-
-  if(lat && lon){
-    if(latRef === "S") lat = -lat;
-    if(lonRef === "W") lon = -lon;
-    return { lat, lon, source: "exif-client" };
-  }
-
-  return null;
-}
   
 async function analyze(){
 
   const file=document.getElementById("fileInput").files[0];
   // Try to read EXIF locally BEFORE upload
-let localExifGPS = await readExifFromFile(file);
+let localExifGPS = await exifr.gps(file);
 console.log("Local EXIF GPS:", localExifGPS);
   if(!file) return alert("Select image");
 
@@ -288,8 +206,26 @@ console.log("API RESPONSE:", data);
 
 console.log("ALL KEYS:", Object.keys(data));
   
-let gpsData = localExifGPS || data.gps;
-if (gpsData) gpsData.source = gpsData.source || "metadata";
+let gpsData = null;
+
+// Prefer client-side EXIF (most accurate if available)
+if (
+  localExifGPS &&
+  typeof localExifGPS.latitude === "number" &&
+  typeof localExifGPS.longitude === "number" &&
+  localExifGPS.latitude !== 0 &&
+  localExifGPS.longitude !== 0
+) {
+  gpsData = {
+    lat: localExifGPS.latitude,
+    lon: localExifGPS.longitude,
+    source: "metadata"
+  };
+} else {
+  gpsData = data.gps;
+
+  if (gpsData) gpsData.source = gpsData.source || "metadata";
+}
 
 // ALWAYS try device GPS on mobile if image GPS missing
 if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
