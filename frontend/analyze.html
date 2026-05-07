@@ -127,17 +127,32 @@ async function fetchWithRetry(url, options, retries = 2) {
   }
 }
   
-function getDeviceLocation() {
+async function getDeviceLocation() {
   return new Promise((resolve) => {
-    if (!navigator.geolocation) return resolve(null);
+    if (!navigator.geolocation) {
+      alert("Geolocation not supported on this device.");
+      return resolve(null);
+    }
+
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => resolve(null),
-      { timeout: 5000 }
+      (pos) => {
+        resolve({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude
+        });
+      },
+      (err) => {
+        alert("Location access denied or unavailable.\n\nEnable location permissions in your browser settings.");
+        resolve(null);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
     );
   });
 }
-
 async function analyze(){
 
   const file=document.getElementById("fileInput").files[0];
@@ -185,21 +200,17 @@ console.log("API RESPONSE:", data);
 
 console.log("ALL KEYS:", Object.keys(data));
   
- let gpsData = data.gps;
+let gpsData = data.gps;
 
-// If no GPS in image → try device location (mobile-safe)
+// ALWAYS try device GPS on mobile if image GPS missing
 if (!gpsData?.lat || gpsData.lat === 0) {
-  const useDevice = confirm(
-    "This image has no location data (common on mobile).\n\nUse your device location instead?"
-  );
+  const deviceGPS = await getDeviceLocation();
 
-  if (useDevice) {
-    const deviceGPS = await getDeviceLocation();
-    if (deviceGPS) {
-      gpsData = deviceGPS;
-      gpsData.source = "device";
-    }
+  if (deviceGPS) {
+    gpsData = deviceGPS;
+    gpsData.source = "device";
   }
+}
 }
   
   const signals = buildSignals(data);
@@ -378,12 +389,12 @@ ${
     gpsData?.lat
       ? `
         <div class="small">
-  Location source: ${
-    gpsData.source === "device"
-      ? "Device location (approximate)"
-      : "Image metadata"
-  }
-</div>
+          Location source: ${
+            gpsData.source === "device"
+              ? "Device location (approximate)"
+              : "Image metadata"
+          }
+        </div>
 
         <iframe 
           class="map-frame"
@@ -393,15 +404,7 @@ ${
       : `
         <div class="card">
           <div class="section-title">No GPS Data Available</div>
-
-          This image does not contain location data.<br><br>
-
-          This is common when:
-          • Uploaded from a mobile browser<br>
-          • Shared via text, email, or social media<br>
-          • Privacy settings removed metadata<br><br>
-
-          Tip: Upload the original image file directly from your device to retain GPS data.
+          Location data is not available for this image.
         </div>
       `
   }
