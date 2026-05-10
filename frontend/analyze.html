@@ -108,6 +108,25 @@ button { width:100%; padding:12px; margin-top:10px; border-radius:8px; backgroun
 .analyze-btn:hover {
   opacity:0.92;
 }
+
+.custom-upload{
+  display:block;
+  width:100%;
+  text-align:center;
+  padding:16px;
+  border-radius:12px;
+  border:2px dashed #3b82f6;
+  background:#111827;
+  color:white;
+  cursor:pointer;
+  font-weight:600;
+  transition:.2s ease;
+}
+
+.custom-upload:hover{
+  background:#172033;
+  border-color:#60a5fa;
+}
   
 </style>
 </head>
@@ -130,7 +149,20 @@ button { width:100%; padding:12px; margin-top:10px; border-radius:8px; backgroun
 
 <div class="upload-card">
 
-  <input type="file" id="fileInput">
+  <label for="fileInput" class="custom-upload">
+  Select Image
+</label>
+
+<input
+  type="file"
+  id="fileInput"
+  accept="image/*"
+  style="display:none;"
+>
+
+<div id="fileName" class="small" style="margin-top:10px;text-align:center;">
+  No image selected
+</div>
 
   <button class="analyze-btn" onclick="analyze()">
     Analyze Image
@@ -671,6 +703,18 @@ function switchTab(name){
   if(content) content.classList.add("active");
 }
 
+document
+  .getElementById("fileInput")
+  .addEventListener("change", e => {
+
+    const file = e.target.files[0];
+
+    document.getElementById("fileName").innerText =
+      file
+      ? file.name
+      : "No image selected";
+});
+  
 </script>
 
 </body>
