@@ -534,33 +534,33 @@ ${
 </div>
 `;
 
-document.getElementById("result").innerHTML += `
-  <div class="card" style="margin-top:20px;">
+document.getElementById("result").innerHTML = `
 
-    <div class="section-title">METADATA TEST</div>
+<div class="card">
+  <div class="section-title">Metadata Test</div>
 
-    <div style="
-      background:red;
-      color:white;
-      padding:20px;
-      font-size:20px;
-      border-radius:10px;
-      margin-bottom:20px;
-    ">
-      TEST BLOCK WORKING
-    </div>
-
-    <div class="metadata-status full">
-      ✔ Metadata Status: FULL
-    </div>
-
-    <br><br>
-
-    Make: ${data.exif?.Make || "-"}<br>
-    Model: ${data.exif?.Model || "-"}<br>
-    Date: ${data.exif?.DateTimeOriginal || "-"}<br>
-
+  <div class="metadata-status ${metadataStatus.className}">
+    ${metadataStatus.text}
   </div>
+
+  <br>
+
+  <strong>Make:</strong> ${data.exif?.Make || "-"}<br>
+  <strong>Model:</strong> ${data.exif?.Model || "-"}<br>
+  <strong>Date:</strong> ${data.exif?.DateTimeOriginal || "-"}<br>
+
+</div>
+
+<div class="card">
+  <div class="section-title">ELA Score</div>
+  ${data.ela?.score || "N/A"}
+</div>
+
+<div class="card">
+  <div class="section-title">AI Likelihood</div>
+  ${data.ai?.likelihood || 0}%
+</div>
+
 `;
 
 }
