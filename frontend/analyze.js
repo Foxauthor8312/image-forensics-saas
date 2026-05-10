@@ -1,20 +1,508 @@
-export default async function handler(req, res) {
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/exifr/dist/lite.umd.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta http-equiv="Cache-Control" content="no-store" />
+<title>PixelProof Analysis</title>
+
+<style>
+body { background:#0a0f1a; color:#e5e7eb; font-family:-apple-system,Segoe UI; padding:16px; }
+.container { max-width:900px; margin:auto; }
+.back { color:#9ca3af; text-decoration:none; display:block; margin-bottom:10px; }
+.tabs { display:flex; gap:8px; border-bottom:1px solid #1f2937; overflow-x:auto; }
+.tab { padding:10px 14px; cursor:pointer; color:#9ca3af; }
+.tab.active { color:white; border-bottom:2px solid #3b82f6; }
+.tab-content { display:none; margin-top:16px; }
+.tab-content.active { display:block; }
+.card { background:#0b1220; border:1px solid #1f2937; border-radius:10px; padding:16px; margin-bottom:16px; }
+.section-title { font-weight:600; margin-bottom:6px; }
+.slider-container { position:relative; }
+.slider-container img { width:100%; border-radius:8px; }
+.map-frame { width:100%; height:420px; border:none; border-radius:10px; margin-top:10px; }
+.overlay { 
+  position:absolute; 
+  top:0; 
+  left:0; 
+  width:50%; 
+  overflow:hidden;
+}
+
+.overlay img {
+  width:100%;
+  display:block;
+}
+button { width:100%; padding:12px; margin-top:10px; border-radius:8px; background:#1f2937; color:white; border:1px solid #374151; }
+.secondary { background:#111827; }
+.small { font-size:12px; color:#9ca3af; }
+.score { font-size:34px; font-weight:700; }
+.low { color:#22c55e; }
+.mid { color:#f59e0b; }
+.high { color:#ef4444; }
+
+/* spinner animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<a href="index.html" class="back">← Back to Home</a>
+
+<input type="file" id="fileInput">
+<button onclick="analyze()">Analyze Image</button>
+
+<div id="result"></div>
+
+</div>
+
+<script>
+
+const API = "https://image-forensics-saas-1.onrender.com";
+let currentFile = null;
+
+function resetAnalysis(){
+  document.getElementById("fileInput").value = "";
+  document.getElementById("result").innerHTML = "";
+}
+
+async function downloadPDF(){
+  const form = new FormData();
+  form.append("image", currentFile);
+ 
+  const res = await fetchWithRetry(API+"/analyze",{method:"POST",body:form});
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "PixelProof_Report.pdf";
+  a.click();
+}
+
+function buildSignals(data){
+  const ela = data.ela.score;
+  return {
+    compression: Math.max(0,100-ela*4),
+    anomalies: Math.min(ela*4,100),
+    metadata: data.exif?85:30,
+    ai: data.ai?.likelihood||0
+  };
+}
+
+function calcScore(s){
+  return Math.round(
+    s.compression*0.3 +
+    s.anomalies*0.3 +
+    s.metadata*0.2 +
+    s.ai*0.2
+  );
+}
+
+function explainScore(score){
+  if(score >= 80){
+    return "The image behaves like a typical, unedited image with no strong indicators of manipulation.";
+  }
+  if(score >= 55){
+    return "Some inconsistencies are present. This may be due to editing or normal recompression.";
+  }
+  return "Multiple indicators suggest the image may have been altered or processed inconsistently.";
+}
+
+async function fetchWithRetry(url, options, retries = 2) {
   try {
-    const response = await fetch(
-      "https://pixelproof-backend-v2.onrender.com/api/analyze",
-      {
-        method: "POST",
-        body: req.body,
-        headers: {
-          "Content-Type": req.headers["content-type"]
-        }
-      }
-    );
-
-    const data = await response.json();
-    res.status(200).json(data);
-
+    return await fetch(url, options);
   } catch (err) {
-    res.status(500).json({ error: "Proxy failed" });
+    if (retries === 0) throw err;
+
+    console.log("Retrying request...");
+
+    await new Promise(r => setTimeout(r, 1200)); // smoother retry
+    return fetchWithRetry(url, options, retries - 1);
   }
 }
+  
+async function getDeviceLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      alert("Geolocation not supported on this device.");
+      return resolve(null);
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        resolve({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude
+        });
+      },
+      (err) => {
+        alert("Location access denied or unavailable.\n\nEnable location permissions in your browser settings.");
+        resolve(null);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  });
+}
+
+  
+async function analyze(){
+
+  const file=document.getElementById("fileInput").files[0];
+  // Try to read EXIF locally BEFORE upload
+let localExifGPS = await exifr.gps(file);
+console.log("Local EXIF GPS:", localExifGPS);
+  if(!file) return alert("Select image");
+
+  currentFile = file;
+
+  const form=new FormData();
+  form.append("image",file);
+  
+  document.getElementById("result").innerHTML = `
+  <div class="card" style="text-align:center">
+    <div style="width:40px;height:40px;border:4px solid #374151;border-top:4px solid #3b82f6;border-radius:50%;margin:auto;animation:spin 1s linear infinite"></div>
+    <div class="small" style="margin-top:10px">Analyzing image... (may take a few seconds)</div>
+  </div>
+`;
+let data;
+
+try {
+  const res = await fetchWithRetry(API + "/analyze", {
+    method: "POST",
+    body: form
+  });
+
+  if (!res.ok) {
+    throw new Error("Server error");
+  }
+
+  data = await res.json();
+
+} catch (err) {
+  document.getElementById("result").innerHTML = `
+    <div class="card">
+      <div class="section-title">Connection Issue</div>
+      The server didn’t respond.<br><br>
+      This usually happens if it’s waking up.<br><br>
+
+      <button onclick="analyze()">Try Again</button>
+    </div>
+  `;
+  return;
+}
+
+console.log("API RESPONSE:", data);
+
+console.log("ALL KEYS:", Object.keys(data));
+  
+let gpsData = null;
+
+// Prefer client-side EXIF (most accurate if available)
+if (
+  localExifGPS &&
+  typeof localExifGPS.latitude === "number" &&
+  typeof localExifGPS.longitude === "number" &&
+  localExifGPS.latitude !== 0 &&
+  localExifGPS.longitude !== 0
+) {
+  gpsData = {
+    lat: localExifGPS.latitude,
+    lon: localExifGPS.longitude,
+    source: "metadata"
+  };
+} else {
+  gpsData = data.gps;
+
+  if (gpsData) gpsData.source = gpsData.source || "metadata";
+}
+
+// ALWAYS try device GPS on mobile if image GPS missing
+if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
+
+  console.log("No image GPS — requesting device location");
+
+  let deviceGPS = await getDeviceLocation();
+
+  // retry once if it failed (common on mobile)
+  if (!deviceGPS) {
+    console.log("Retrying device GPS...");
+    await new Promise(r => setTimeout(r, 1500));
+    deviceGPS = await getDeviceLocation();
+  }
+
+  if (deviceGPS) {
+    gpsData = deviceGPS;
+    gpsData.source = "device";
+    console.log("Using device GPS:", gpsData);
+  } else {
+    console.log("Device GPS unavailable");
+  }
+}
+
+  
+  const signals = buildSignals(data);
+  const score = calcScore(signals);
+  const scoreText = explainScore(score);
+  const riskClass = score>=80?"low":score>=55?"mid":"high";
+
+  document.getElementById("result").innerHTML=`
+
+  <button onclick="downloadPDF()">Download Report</button>
+  <button class="secondary" onclick="resetAnalysis()">Analyze Another</button>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</div>
+    <div class="tab" data-tab="ela" onclick="switchTab('ela')">ELA</div>
+    <div class="tab" data-tab="metadata" onclick="switchTab('metadata')">Metadata</div>
+    <div class="tab" data-tab="map" onclick="switchTab('map')">Map</div>
+    <div class="tab" data-tab="raw" onclick="switchTab('raw')">Full Metadata</div>
+    <div class="tab" data-tab="ai" onclick="switchTab('ai')">AI</div>
+  </div>
+
+  <div id="overview" class="tab-content active">
+
+  <div class="card">
+  <div class="section-title">Analysis Summary</div>
+  This image was analyzed using compression patterns, structural consistency, metadata, and synthetic image indicators.<br><br>
+  The goal is to determine whether the image behaves like a typical, unedited photograph or shows signs of alteration or artificial generation.
+</div>
+
+<div class="card">
+<div class="section-title">Why this matters</div>
+${
+ signals.anomalies > 65
+? `
+In this image, look for <strong>bright or inconsistent regions</strong> that stand out from surrounding areas.<br><br>
+
+These areas may indicate:<br>
+• Edited or altered sections<br>
+• Objects added or removed<br>
+• Selective re-saving of part of the image<br><br>
+
+The presence of these differences supports the finding that the image may not be fully original.
+`
+: `
+In this image, the brightness appears <strong>fairly uniform across the entire image</strong>.<br><br>
+
+This suggests:<br>
+• The image was processed consistently<br>
+• No strong signs of localized editing are visible<br><br>
+
+This supports the finding that the image behaves like a typical, unedited photo.
+`
+}
+</div>
+
+<div class="card">
+<div class="section-title">How strong is this finding?</div>
+${
+ score >= 80
+? `
+<strong>High confidence:</strong><br>
+The image behaves like a normal, unedited photograph.
+There are no meaningful indicators of manipulation.
+`
+: score >= 55
+? `
+<strong>Moderate confidence:</strong><br>
+Some inconsistencies are present. These could be caused by editing or normal recompression.
+
+This result is <strong>inconclusive</strong> and should be verified using additional context.
+`
+: `
+<strong>Elevated concern:</strong><br>
+Multiple indicators suggest the image may have been altered.
+
+This pattern is commonly associated with edited or manipulated images.
+`
+}
+</div>
+
+<div class="card">
+<div class="section-title">What this means for you</div>
+${
+ score >= 70
+? `
+You should <strong>not rely on this image without verification</strong>.<br><br>
+
+Recommended next steps:<br>
+• Search for other versions of the image<br>
+• Check trusted news or original sources<br>
+• Compare details across multiple copies
+`
+: `
+There are no strong indicators of manipulation, but this does <strong>not guarantee authenticity</strong>.<br><br>
+
+Images can still be misleading even if they are technically unedited.<br><br>
+
+Always consider:<br>
+• Source credibility<br>
+• Context of where the image was found
+`
+}
+</div>
+
+</div>
+
+<div id="ela" class="tab-content">
+  <div class="card">
+   <div class="section-title">Error Level Analysis</div>
+
+    ${data.ela?.overlay
+  ? `
+  <div class="slider-container">
+    <img src="${URL.createObjectURL(file)}">
+    <div class="overlay" id="overlay">
+      <img src="${data.ela.overlay}">
+    </div>
+  </div>
+
+  <input type="range" id="slider" min="0" max="100" value="50">
+  `
+  : `No ELA data available`
+}
+
+    <br><br>
+
+    <div class="small">
+      ELA Score: ${data.ela?.score?.toFixed(2) ?? "N/A"}
+    </div>
+  </div>
+
+  <!-- 👇 PASTE HERE -->
+  <div class="card">
+Error Level Analysis highlights differences in compression across the image.<br><br>
+
+${
+  signals.anomalies > 65
+  ? `
+  Bright or inconsistent areas may indicate edited regions or compositing.
+  `
+  : `
+  Compression appears consistent, which is typical of an unedited image.
+  `
+}
+  
+   </div>
+
+   </div>
+
+</div>   <!-- ✅ CLOSE ELA TAB -->
+
+<div id="metadata" class="tab-content">
+  <div class="card">
+    <div class="section-title">Metadata</div>
+
+    ${
+      data.exif
+      ? (() => {
+          const m = data.exif;
+
+          return `
+          Make: ${m.Make || m.make || "-"}<br>
+          Model: ${m.Model || m.model || "-"}<br>
+          Date: ${m.DateTimeOriginal || m.ModifyDate || m.CreateDate || "-"}<br>
+          Width: ${m.ExifImageWidth || m.ImageWidth || m.width || "-"}<br>
+          Height: ${m.ExifImageHeight || m.ImageHeight || m.height || "-"}<br>
+          `;
+        })()
+      : `No metadata found`
+    }
+
+  </div>
+</div>
+<div id="map" class="tab-content">
+  ${
+    gpsData?.lat
+      ? `
+        <div class="small">
+          Location source: ${
+            gpsData.source === "device"
+              ? "Device location (approximate)"
+              : "Image metadata"
+          }
+        </div>
+
+        <iframe 
+          class="map-frame"
+          src="https://maps.google.com?q=${gpsData.lat},${gpsData.lon}&output=embed">
+        </iframe>
+      `
+      : `
+        <div class="card">
+          <div class="section-title">No GPS Data Available</div>
+          Location data is not available for this image.
+        </div>
+      `
+  }
+</div>
+
+<div id="raw" class="tab-content">
+<pre>${JSON.stringify(data, null, 2)}</pre>
+</div>
+<div id="ai" class="tab-content">
+  <div class="card">
+    <div class="section-title">AI Generation Analysis</div>
+
+    <strong>AI Likelihood: ${data.ai?.likelihood ?? 0}%</strong><br><br>
+
+    ${
+      data.ai?.likelihood > 70
+      ? `
+      This image shows strong indicators commonly associated with AI-generated content.<br><br>
+
+      These may include:
+      • Highly uniform textures  
+      • Lack of natural compression variation  
+      • Missing or inconsistent metadata  
+      `
+      : data.ai?.likelihood > 40
+      ? `
+      Some characteristics of this image could be consistent with AI generation, but they may also result from normal processing or compression.<br><br>
+
+      This result is inconclusive and should be considered alongside other findings.
+      `
+      : `
+      There are no strong indicators that this image was generated by AI based on this analysis.<br><br>
+
+      The image behaves more like a traditionally captured or edited photograph.
+      `
+    }
+  </div>
+</div>
+`;
+}
+
+document.addEventListener("input", e=>{
+  if(e.target.id === "slider"){
+    const overlay = document.getElementById("overlay");
+    if(overlay) overlay.style.width = e.target.value + "%";
+  }
+});
+
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
+
+  const tab = document.querySelector(`.tab[data-tab="${name}"]`);
+  if(tab) tab.classList.add("active");
+
+  const content = document.getElementById(name);
+  if(content) content.classList.add("active");
+}
+
+</script>
+
+</body>
+</html>
