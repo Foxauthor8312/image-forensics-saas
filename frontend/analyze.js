@@ -41,53 +41,6 @@ button { width:100%; padding:12px; margin-top:10px; border-radius:8px; backgroun
 .mid { color:#f59e0b; }
 .high { color:#ef4444; }
 
-.metadata-status {
-  margin:12px 0;
-  padding:10px 14px;
-  border-radius:8px;
-  font-weight:600;
-  display:inline-block;
-  font-size:14px;
-}
-
-.metadata-status.full {
-  background:#14532d;
-  color:white;
-}
-
-.metadata-status.partial {
-  background:#92400e;
-  color:white;
-}
-
-.metadata-status.missing {
-  background:#7f1d1d;
-  color:white;
-}
-
-.metadata-status {
-  margin: 12px 0;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-weight: 600;
-  display: inline-block;
-  font-size: 14px;
-}
-
-.metadata-status.full {
-  background:#14532d;
-  color:white;
-}
-
-.metadata-status.partial {
-  background:#92400e;
-  color:white;
-}
-
-.metadata-status.missing {
-  background:#7f1d1d;
-  color:white;
-}
 
 /* spinner animation */
 @keyframes spin {
@@ -207,53 +160,6 @@ const hasGPS =
   return {
     className: "missing",
     text: "✖ Metadata Status: MISSING"
-  };
-}
-function getMetadataStatus(exif){
-
-  if(!exif || Object.keys(exif).length === 0){
-    return {
-      className:"missing",
-      text:"✖ Metadata Status: MISSING"
-    };
-  }
-
-  const hasGPS =
-    (exif.latitude && exif.longitude) ||
-    (exif.lat && exif.lon) ||
-    exif.GPSLatitude ||
-    exif.gps;
-
-  const hasCamera =
-    exif.Make ||
-    exif.Model;
-
-  const hasDate =
-    exif.DateTimeOriginal ||
-    exif.CreateDate;
-
-  const score =
-    (hasGPS ? 1 : 0) +
-    (hasCamera ? 1 : 0) +
-    (hasDate ? 1 : 0);
-
-  if(score === 3){
-    return {
-      className:"full",
-      text:"✔ Metadata Status: FULL"
-    };
-  }
-
-  if(score >= 1){
-    return {
-      className:"partial",
-      text:"⚠ Metadata Status: PARTIAL"
-    };
-  }
-
-  return {
-    className:"missing",
-    text:"✖ Metadata Status: MISSING"
   };
 }
 
@@ -400,7 +306,7 @@ if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
   console.log("EXIF DATA:", data.exif);
   const scoreText = explainScore(score);
   const riskClass = score>=80?"low":score>=55?"mid":"high";
-  const metadataStatus = getMetadataStatus(data.exif);
+  
   document.getElementById("result").innerHTML=`
 
   <button onclick="downloadPDF()">Download Report</button>
@@ -633,6 +539,17 @@ ${
   </div>
 </div>
 `;
+
+const metadataEl = document.getElementById("metadataStatus");
+
+if(metadataEl){
+
+  metadataEl.className =
+    "metadata-status " + metadataStatus.className;
+
+  metadataEl.innerHTML =
+    metadataStatus.text;
+}
 
 }
 
