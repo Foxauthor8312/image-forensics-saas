@@ -358,7 +358,29 @@ Always consider:<br>
 <div id="ela" class="tab-content">
   <div class="card">
    <div class="section-title">Error Level Analysis</div>
+<div class="small" style="margin-bottom:14px;line-height:1.6;">
 
+<strong>What is Error Level Analysis?</strong><br><br>
+
+ELA compares compression levels across different parts of the image.<br><br>
+
+When an image is saved normally, compression patterns are usually consistent throughout the photo.<br><br>
+
+Edited or manipulated areas may compress differently and appear brighter or more pronounced in the analysis overlay.<br><br>
+
+<strong>What the analysis looks for:</strong><br>
+
+• <strong>Compression patterns</strong> — whether the image was saved uniformly or altered in sections<br>
+
+• <strong>Structural consistency</strong> — whether textures, edges, and detail levels behave naturally across the image<br>
+
+• <strong>Metadata consistency</strong> — whether camera, GPS, and timestamp information appear complete and believable<br>
+
+• <strong>Synthetic image indicators</strong> — patterns commonly associated with AI-generated or heavily synthesized images<br><br>
+
+ELA alone does not prove manipulation, but it can highlight areas that deserve closer inspection.
+
+</div>
     ${data.ela?.overlay
   ? `
   <div class="slider-container">
