@@ -452,7 +452,7 @@ ${
   <div class="card">
 
     <div class="section-title">Metadata</div>
-
+TEST VERSION 105
     <div id="metadataStatus"></div>
 
     ${
