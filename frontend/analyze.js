@@ -535,8 +535,6 @@ ${
 `;
 }
 
-</div>
-`;
 
 document.getElementById("result").innerHTML += `
   <div class="card" style="margin-top:20px;">
