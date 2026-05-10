@@ -325,6 +325,8 @@ if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
   const signals = buildSignals(data);
   const score = calcScore(signals);
   const metadataStatus = getMetadataStatus(data.exif);
+  console.log("Metadata Status:", metadataStatus);
+  console.log("EXIF DATA:", data.exif);
   const scoreText = explainScore(score);
   const riskClass = score>=80?"low":score>=55?"mid":"high";
 
@@ -476,8 +478,8 @@ ${
   <div class="card">
     <div class="section-title">Metadata</div>
 
-    <div id="metadataStatus" class="metadata-status ${metadataStatus.className}">
-  ${metadataStatus.text}
+  <div style="background:red;color:white;padding:20px;font-size:20px;">
+  TEST METADATA STATUS
 </div>
 
     ${
