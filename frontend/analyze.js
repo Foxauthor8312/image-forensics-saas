@@ -42,6 +42,30 @@ button { width:100%; padding:12px; margin-top:10px; border-radius:8px; backgroun
 .high { color:#ef4444; }
 
 .metadata-status {
+  margin:12px 0;
+  padding:10px 14px;
+  border-radius:8px;
+  font-weight:600;
+  display:inline-block;
+  font-size:14px;
+}
+
+.metadata-status.full {
+  background:#14532d;
+  color:white;
+}
+
+.metadata-status.partial {
+  background:#92400e;
+  color:white;
+}
+
+.metadata-status.missing {
+  background:#7f1d1d;
+  color:white;
+}
+
+.metadata-status {
   margin: 12px 0;
   padding: 10px 14px;
   border-radius: 8px;
@@ -183,6 +207,53 @@ const hasGPS =
   return {
     className: "missing",
     text: "✖ Metadata Status: MISSING"
+  };
+}
+function getMetadataStatus(exif){
+
+  if(!exif || Object.keys(exif).length === 0){
+    return {
+      className:"missing",
+      text:"✖ Metadata Status: MISSING"
+    };
+  }
+
+  const hasGPS =
+    (exif.latitude && exif.longitude) ||
+    (exif.lat && exif.lon) ||
+    exif.GPSLatitude ||
+    exif.gps;
+
+  const hasCamera =
+    exif.Make ||
+    exif.Model;
+
+  const hasDate =
+    exif.DateTimeOriginal ||
+    exif.CreateDate;
+
+  const score =
+    (hasGPS ? 1 : 0) +
+    (hasCamera ? 1 : 0) +
+    (hasDate ? 1 : 0);
+
+  if(score === 3){
+    return {
+      className:"full",
+      text:"✔ Metadata Status: FULL"
+    };
+  }
+
+  if(score >= 1){
+    return {
+      className:"partial",
+      text:"⚠ Metadata Status: PARTIAL"
+    };
+  }
+
+  return {
+    className:"missing",
+    text:"✖ Metadata Status: MISSING"
   };
 }
 
@@ -329,7 +400,7 @@ if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
   console.log("EXIF DATA:", data.exif);
   const scoreText = explainScore(score);
   const riskClass = score>=80?"low":score>=55?"mid":"high";
-
+  const metadataStatus = getMetadataStatus(data.exif);
   document.getElementById("result").innerHTML=`
 
   <button onclick="downloadPDF()">Download Report</button>
@@ -471,7 +542,31 @@ ${
    </div>
 
 </div>   <!-- ✅ CLOSE ELA TAB -->
+<div id="metadata" class="tab-content">
+  <div class="card">
 
+    <div class="section-title">Metadata</div>
+
+    <div id="metadataStatus"></div>
+
+    ${
+      data.exif
+      ? (() => {
+          const m = data.exif;
+
+          return `
+          Make: ${m.Make || m.make || "-"}<br>
+          Model: ${m.Model || m.model || "-"}<br>
+          Date: ${m.DateTimeOriginal || m.ModifyDate || m.CreateDate || "-"}<br>
+          Width: ${m.ExifImageWidth || m.ImageWidth || m.width || "-"}<br>
+          Height: ${m.ExifImageHeight || m.ImageHeight || m.height || "-"}<br>
+          `;
+        })()
+      : `No metadata found`
+    }
+
+  </div>
+</div>
    
 <div id="map" class="tab-content">
   ${
@@ -537,7 +632,7 @@ ${
 document.getElementById("result").innerHTML = `
 
 <div class="card">
-  <div class="section-title">Metadata Test</div>
+  <div class="section-title">Metadata Status</div>
 
   <div class="metadata-status ${metadataStatus.className}">
     ${metadataStatus.text}
@@ -545,9 +640,26 @@ document.getElementById("result").innerHTML = `
 
   <br>
 
-  <strong>Make:</strong> ${data.exif?.Make || "-"}<br>
-  <strong>Model:</strong> ${data.exif?.Model || "-"}<br>
-  <strong>Date:</strong> ${data.exif?.DateTimeOriginal || "-"}<br>
+  <strong>Camera:</strong> ${data.exif?.Make || "-"} ${data.exif?.Model || ""}<br>
+
+  <strong>Date:</strong>
+  ${data.exif?.DateTimeOriginal || "-"}
+
+</div>
+
+<div class="card">
+  <div class="section-title">GPS</div>
+
+  ${
+    gpsData?.lat
+    ? `
+      Latitude: ${gpsData.lat}<br>
+      Longitude: ${gpsData.lon}
+    `
+    : `
+      No GPS data found
+    `
+  }
 
 </div>
 
