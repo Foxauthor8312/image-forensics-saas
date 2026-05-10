@@ -426,7 +426,7 @@ Always consider:<br>
 `
 }
 </div>
-</div>
+
 </div>
 
 <div id="ela" class="tab-content">
