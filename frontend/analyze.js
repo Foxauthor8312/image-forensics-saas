@@ -470,8 +470,6 @@ ${
   
    </div>
 
-   </div>
-
 </div>   <!-- ✅ CLOSE ELA TAB -->
 
 <div id="metadata" class="tab-content">
