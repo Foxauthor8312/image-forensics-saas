@@ -517,24 +517,22 @@ ${
       data.exif
       ? (() => {
           const m = data.exif;
-console.log("FULL DATA OBJECT", data);
+          console.log("FULL DATA OBJECT", data);
           return `
          
 Make:
 ${
-  m.Make ||
-  m.make ||
-  data["271"] ||
-  "Not Available"
+  JSON.stringify(data).includes('"271"')
+  ? JSON.stringify(data).match(/"271":\s*"([^"]+)"/)?.[1]
+  : "Not Available"
 }
 <br>
 
 Model:
 ${
-  m.Model ||
-  m.model ||
-  data["272"] ||
-  "Not Available"
+  JSON.stringify(data).includes('"272"')
+  ? JSON.stringify(data).match(/"272":\s*"([^"]+)"/)?.[1]
+  : "Not Available"
 }
 <br>
           Date: ${m.DateTimeOriginal || m.ModifyDate || m.CreateDate || "-"}<br>
