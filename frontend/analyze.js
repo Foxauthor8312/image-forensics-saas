@@ -629,52 +629,6 @@ ${
 </div>
 `;
 
-document.getElementById("result").innerHTML = `
-
-<div class="card">
-  <div class="section-title">Metadata Status</div>
-
-  <div class="metadata-status ${metadataStatus.className}">
-    ${metadataStatus.text}
-  </div>
-
-  <br>
-
-  <strong>Camera:</strong> ${data.exif?.Make || "-"} ${data.exif?.Model || ""}<br>
-
-  <strong>Date:</strong>
-  ${data.exif?.DateTimeOriginal || "-"}
-
-</div>
-
-<div class="card">
-  <div class="section-title">GPS</div>
-
-  ${
-    gpsData?.lat
-    ? `
-      Latitude: ${gpsData.lat}<br>
-      Longitude: ${gpsData.lon}
-    `
-    : `
-      No GPS data found
-    `
-  }
-
-</div>
-
-<div class="card">
-  <div class="section-title">ELA Score</div>
-  ${data.ela?.score || "N/A"}
-</div>
-
-<div class="card">
-  <div class="section-title">AI Likelihood</div>
-  ${data.ai?.likelihood || 0}%
-</div>
-
-`;
-
 }
 
 document.addEventListener("input", e=>{
