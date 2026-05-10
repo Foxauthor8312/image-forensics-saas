@@ -412,8 +412,23 @@ TEST NEW HTML FILE
           const m = data.exif;
 
           return `
-          Make: ${m.Make || m.make || "-"}<br>
-          Model: ${m.Model || m.model || "-"}<br>
+         Make:
+${
+  m.Make ||
+  m.make ||
+  m["271"] ||
+  "Not Available"
+}
+<br>
+
+Model:
+${
+  m.Model ||
+  m.model ||
+  m["272"] ||
+  "Not Available"
+}
+<br>
           Date: ${m.DateTimeOriginal || m.ModifyDate || m.CreateDate || "-"}<br>
      
           GPS:
