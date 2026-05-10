@@ -472,34 +472,7 @@ ${
 
 </div>   <!-- ✅ CLOSE ELA TAB -->
 
-<div id="metadata" class="tab-content active" style="display:block;">
-  <div class="card">
-    <div class="section-title">Metadata</div>
-<div id="metadataStatus" class="metadata-status ${metadataStatus.className}">
-  ${metadataStatus.text}
-</div>
-  <div style="background:red;color:white;padding:20px;font-size:20px;">
-  TEST METADATA STATUS
-</div>
-
-    ${
-      data.exif
-      ? (() => {
-          const m = data.exif;
-
-          return `
-          Make: ${m.Make || m.make || "-"}<br>
-          Model: ${m.Model || m.model || "-"}<br>
-          Date: ${m.DateTimeOriginal || m.ModifyDate || m.CreateDate || "-"}<br>
-          Width: ${m.ExifImageWidth || m.ImageWidth || m.width || "-"}<br>
-          Height: ${m.ExifImageHeight || m.ImageHeight || m.height || "-"}<br>
-          `;
-        })()
-      : `No metadata found`
-    }
-
-  </div>
-</div>
+   
 <div id="map" class="tab-content">
   ${
     gpsData?.lat
@@ -560,6 +533,40 @@ ${
   </div>
 </div>
 `;
+}
+
+</div>
+`;
+
+document.getElementById("result").innerHTML += `
+  <div class="card" style="margin-top:20px;">
+
+    <div class="section-title">METADATA TEST</div>
+
+    <div style="
+      background:red;
+      color:white;
+      padding:20px;
+      font-size:20px;
+      border-radius:10px;
+      margin-bottom:20px;
+    ">
+      TEST BLOCK WORKING
+    </div>
+
+    <div class="metadata-status full">
+      ✔ Metadata Status: FULL
+    </div>
+
+    <br><br>
+
+    Make: ${data.exif?.Make || "-"}<br>
+    Model: ${data.exif?.Model || "-"}<br>
+    Date: ${data.exif?.DateTimeOriginal || "-"}<br>
+
+  </div>
+`;
+
 }
 
 document.addEventListener("input", e=>{
