@@ -344,7 +344,7 @@ if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
     <div class="tab" data-tab="ai" onclick="switchTab('ai')">AI</div>
   </div>
 
-  <div id="overview" class="tab-content active">
+<div id="overview" class="tab-content">
 
   <div class="card">
   <div class="section-title">Analysis Summary</div>
@@ -472,7 +472,7 @@ ${
 
 </div>   <!-- ✅ CLOSE ELA TAB -->
 
-<div id="metadata" class="tab-content">
+<div id="metadata" class="tab-content active" style="display:block;">
   <div class="card">
     <div class="section-title">Metadata</div>
 <div id="metadataStatus" class="metadata-status ${metadataStatus.className}">
