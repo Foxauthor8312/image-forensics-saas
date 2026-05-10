@@ -358,6 +358,7 @@ Always consider:<br>
 <div id="ela" class="tab-content">
   <div class="card">
    <div class="section-title">Error Level Analysis</div>
+   
 <div class="small" style="margin-bottom:14px;line-height:1.6;">
 
 <strong>What is Error Level Analysis?</strong><br><br>
@@ -470,13 +471,49 @@ ${
   ${
     gpsData?.lat
       ? `
-        <div class="small">
-          Location source: ${
-            gpsData.source === "device"
-              ? "Device location (approximate)"
-              : "Image metadata"
-          }
-        </div>
+        <div class="card" style="margin-bottom:12px;">
+
+  <div class="section-title">
+    GPS Reliability
+  </div>
+
+  ${
+    gpsData.source === "metadata"
+    ? `
+      <div class="low">
+        ✔ Embedded GPS Metadata
+      </div>
+
+      <div class="small" style="margin-top:8px;">
+        Location data was found directly inside the image metadata.<br><br>
+
+        This is generally the most reliable form of location evidence and may indicate the image retains original capture information.
+      </div>
+    `
+    : gpsData.source === "device"
+    ? `
+      <div class="mid">
+        Approximate Device Location
+      </div>
+
+      <div class="small" style="margin-top:8px;">
+        GPS was not found inside the image itself.<br><br>
+
+        The current device location was used as a fallback and should not be treated as proof of where the image was originally captured.
+      </div>
+    `
+    : `
+      <div class="high">
+        No GPS Information Available
+      </div>
+
+      <div class="small" style="margin-top:8px;">
+        No reliable location information could be extracted from the image or device.
+      </div>
+    `
+  }
+
+</div>
 
         <iframe 
           class="map-frame"
