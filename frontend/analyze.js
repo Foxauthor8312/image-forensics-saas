@@ -558,8 +558,13 @@ ${
           Make: ${m.Make || m.make || "-"}<br>
           Model: ${m.Model || m.model || "-"}<br>
           Date: ${m.DateTimeOriginal || m.ModifyDate || m.CreateDate || "-"}<br>
-          Width: ${m.ExifImageWidth || m.ImageWidth || m.width || "-"}<br>
-          Height: ${m.ExifImageHeight || m.ImageHeight || m.height || "-"}<br>
+          GPS:
+${
+  gpsData?.lat
+  ? `${gpsData.lat}, ${gpsData.lon}`
+  : "Not Available"
+}
+<br>
           `;
         })()
       : `No metadata found`
