@@ -426,7 +426,7 @@ Always consider:<br>
 `
 }
 </div>
-
+</div>
 </div>
 
 <div id="ela" class="tab-content">
@@ -475,7 +475,9 @@ ${
 <div id="metadata" class="tab-content">
   <div class="card">
     <div class="section-title">Metadata</div>
-
+<div id="metadataStatus" class="metadata-status ${metadataStatus.className}">
+  ${metadataStatus.text}
+</div>
   <div style="background:red;color:white;padding:20px;font-size:20px;">
   TEST METADATA STATUS
 </div>
