@@ -342,7 +342,9 @@ if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
 
   document.getElementById("result").innerHTML=`
 
-  <button onclick="downloadPDF()">Download Report</button>
+ <button disabled style="opacity:.5;cursor:not-allowed;">
+  PDF Report Coming Soon
+</button>
   <button class="secondary" onclick="resetAnalysis()">Analyze Another</button>
 
   <div class="tabs">
