@@ -787,8 +787,8 @@ ${
 
 Approximate Altitude:
 ${
-  data.gps?.altitude
-  ? `${Math.round(data.gps.altitude)} ft`
+  m.GPSAltitude
+  ? `${Math.round(m.GPSAltitude * 3.28084)} ft`
   : "Not Available"
 }
 <br>
