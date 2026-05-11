@@ -311,12 +311,13 @@ function buildSignals(data){
   };
 }
 
-return Math.round(
-  s.compression*0.15 +
-  s.anomalies*0.15 +
-  s.metadata*0.4 +
-  s.ai*0.3
-);
+function calcScore(s){
+  return Math.round(
+    s.compression*0.15 +
+    s.anomalies*0.15 +
+    s.metadata*0.4 +
+    s.ai*0.3
+  );
 }
 
 function explainScore(score){
