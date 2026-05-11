@@ -145,6 +145,38 @@ button { width:100%; padding:12px; margin-top:10px; border-radius:8px; backgroun
   color:#fbbf24;
   border:1px solid rgba(245,158,11,.35);
 }
+
+ .modal{
+  display:none;
+  position:fixed;
+  z-index:9999;
+  left:0;
+  top:0;
+  width:100%;
+  height:100%;
+  background:rgba(0,0,0,.75);
+  padding:20px;
+  box-sizing:border-box;
+}
+
+.modal-content{
+  background:#0b1220;
+  border:1px solid #1f2937;
+  border-radius:14px;
+  max-width:700px;
+  margin:40px auto;
+  padding:24px;
+  position:relative;
+}
+
+.close-modal{
+  position:absolute;
+  right:18px;
+  top:10px;
+  font-size:28px;
+  cursor:pointer;
+  color:#9ca3af;
+}
 </style>
 </head>
 
@@ -422,6 +454,12 @@ if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
 
   <div id="overview" class="tab-content active">
 
+</div>
+
+<button class="secondary" onclick="openMethodology()">
+  How Confidence Is Evaluated
+</button>
+
   <div class="card">
   <div class="section-title">Analysis Summary</div>
   This image was analyzed using compression patterns, structural consistency, metadata, and synthetic image indicators.<br><br>
@@ -502,37 +540,6 @@ Always consider:<br>
 `
 }
 </div>
-
-</div>
-<div class="card" style="margin-top:16px;">
-
-  <div class="section-title">
-    How Confidence Is Evaluated
-  </div>
-
-  <div class="small" style="line-height:1.7;">
-
-    This assessment combines multiple forensic indicators rather than relying on a single test.<br><br>
-
-    The analysis considers:<br><br>
-
-    • <strong>Metadata completeness</strong> — whether original camera and capture information appears intact<br>
-
-    • <strong>GPS provenance</strong> — whether location data exists within the image metadata itself<br>
-
-    • <strong>Camera consistency</strong> — whether device information appears normal and believable<br>
-
-    • <strong>Compression behavior</strong> — whether image compression patterns remain visually consistent<br>
-
-    • <strong>Structural consistency</strong> — whether textures, edges, and detail patterns behave naturally across the image<br>
-
-    • <strong>Synthetic image indicators</strong> — whether analysis detects traits commonly associated with AI-generated imagery<br><br>
-
-    No automated analysis can guarantee authenticity.<br><br>
-
-    This tool is intended to assist review and verification workflows by highlighting indicators that may support or reduce confidence in an image.
-
-  </div>
 
 </div>
 
@@ -837,7 +844,19 @@ document
       ? file.name
       : "No image selected";
 });
-  
+
+function openMethodology(){
+  document.getElementById(
+    "methodologyModal"
+  ).style.display = "block";
+}
+
+function closeMethodology(){
+  document.getElementById(
+    "methodologyModal"
+  ).style.display = "none";
+}
+ 
 </script>
 <div class="small" style="text-align:center;margin-top:40px;padding-bottom:20px;line-height:1.6;">
 
@@ -850,5 +869,40 @@ document
   AI-assisted development workflow powered by OpenAI tools and forensic imaging research.
 
 </div>
+<div id="methodologyModal" class="modal">
+
+  <div class="modal-content">
+
+    <span class="close-modal" onclick="closeMethodology()">
+      &times;
+    </span>
+
+    <div class="section-title">
+      How Confidence Is Evaluated
+    </div>
+
+    <div class="small" style="line-height:1.8;">
+
+      This assessment combines multiple forensic indicators rather than relying on a single test.<br><br>
+
+      The analysis considers:<br><br>
+
+      • <strong>Metadata completeness</strong><br>
+      • <strong>GPS provenance</strong><br>
+      • <strong>Camera consistency</strong><br>
+      • <strong>Compression behavior</strong><br>
+      • <strong>Structural consistency</strong><br>
+      • <strong>Synthetic image indicators</strong><br><br>
+
+      No automated analysis can guarantee authenticity.<br><br>
+
+      This tool is intended to assist review and verification workflows by highlighting indicators that may support or reduce confidence in an image.
+
+    </div>
+
+  </div>
+
+</div>
+ 
 </body>
 </html>
