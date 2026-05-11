@@ -787,6 +787,33 @@ ${
 </details>
 
 ${
+  recompressionDetected
+  ? `
+  <details style="margin-top:12px;">
+    <summary>What does Possible Recompression mean?</summary>
+
+    <div class="small" style="margin-top:12px;line-height:1.7;">
+
+      Recompression occurs when an image is resaved, optimized, screenshotted, edited, or transferred through services that alter image quality or metadata.<br><br>
+
+      Common causes include:<br><br>
+
+      • Social media uploads<br>
+      • Messaging apps<br>
+      • Screenshots<br>
+      • Cloud optimization<br>
+      • Mobile image enhancement<br>
+      • Photo editing software<br><br>
+
+      Recompression alone does <strong>not</strong> prove manipulation, but it can reduce forensic reliability and may affect metadata integrity.
+
+    </div>
+  </details>
+  `
+  : ""
+}
+
+${
   data.exif
       ? (() => {
           const m = data.exif;
