@@ -177,6 +177,31 @@ button { width:100%; padding:12px; margin-top:10px; border-radius:8px; backgroun
   cursor:pointer;
   color:#9ca3af;
 }
+.methodology-btn{
+  width:100%;
+  padding:14px;
+  margin-top:14px;
+  margin-bottom:18px;
+  border:none;
+  border-radius:12px;
+  background:linear-gradient(
+    135deg,
+    #1d4ed8,
+    #2563eb
+  );
+  color:white;
+  font-size:15px;
+  font-weight:700;
+  cursor:pointer;
+  transition:.2s ease;
+  box-shadow:0 4px 14px rgba(37,99,235,.25);
+}
+
+.methodology-btn:hover{
+  transform:translateY(-1px);
+  opacity:.96;
+}
+ 
 </style>
 </head>
 
@@ -454,8 +479,8 @@ if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
 
   <div id="overview" class="tab-content active">
 
-<button class="secondary" onclick="openMethodology()">
-  How Confidence Is Evaluated
+<button class="methodology-btn" onclick="openMethodology()">
+  ⓘ How Confidence Is Evaluated
 </button>
 
   <div class="card">
