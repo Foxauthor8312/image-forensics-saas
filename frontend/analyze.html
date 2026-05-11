@@ -502,7 +502,7 @@ if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
 <div class="card">
 <div class="section-title">Why this matters</div>
 ${
- signals.anomalies > 65
+score < 55
 ? `
 In this image, look for <strong>bright or inconsistent regions</strong> that stand out from surrounding areas.<br><br>
 
