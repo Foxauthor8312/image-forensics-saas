@@ -494,7 +494,10 @@ else if(data.exif){
 if (
   score < 55 ||
   !gpsData?.lat ||
-  softwareUsed !== "Not Detected"
+  (
+    softwareUsed !== "Not Detected" &&
+    !softwareUsed.includes("HDR+")
+  )
 ){
   recompressionDetected = true;
 }
