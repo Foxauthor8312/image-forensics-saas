@@ -19,7 +19,17 @@ body { background:#000000; color:#e5e7eb; font-family:-apple-system,Segoe UI; pa
 .card { background:#0b1220; border:1px solid #1f2937; border-radius:10px; padding:16px; margin-bottom:16px; }
 .section-title { font-weight:600; margin-bottom:6px; }
 .slider-container { position:relative; }
-.slider-container img { width:100%; border-radius:8px; }
+.slider-container {
+  max-width:700px;
+  margin:auto;
+}
+
+.slider-container img {
+  width:100%;
+  max-height:500px;
+  object-fit:contain;
+  border-radius:8px;
+}
 .map-frame { width:100%; height:420px; border:none; border-radius:10px; margin-top:10px; }
 .overlay { 
   position:absolute; 
@@ -294,20 +304,19 @@ async function downloadPDF(){
 function buildSignals(data){
   const ela = data.ela.score;
   return {
-    compression: Math.max(0,100-ela*4),
-    anomalies: Math.min(ela*4,100),
+    compression: Math.max(0,100-ela*2),
+    anomalies: Math.min(ela*2,100),
     metadata: data.exif?85:30,
     ai: data.ai?.likelihood||0
   };
 }
 
-function calcScore(s){
-  return Math.round(
-    s.compression*0.3 +
-    s.anomalies*0.3 +
-    s.metadata*0.2 +
-    s.ai*0.2
-  );
+return Math.round(
+  s.compression*0.15 +
+  s.anomalies*0.15 +
+  s.metadata*0.4 +
+  s.ai*0.3
+);
 }
 
 function explainScore(score){
