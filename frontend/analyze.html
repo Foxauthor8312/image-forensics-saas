@@ -500,29 +500,36 @@ if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
 </div>
 
 <div class="card">
-<div class="section-title">Why this matters</div>
+ <div class="section-title">Why this matters</div>
 ${
-score < 55
-? `
-In this image, look for <strong>bright or inconsistent regions</strong> that stand out from surrounding areas.<br><br>
+ score < 55
+ ? `
+ In this image, look for <strong>bright or inconsistent regions</strong> that stand out from surrounding areas.<br><br>
 
-These areas may indicate:<br>
-• Edited or altered sections<br>
-• Objects added or removed<br>
-• Selective re-saving of part of the image<br><br>
+ These areas may indicate:<br>
+ • Edited or altered sections<br>
+ • Objects added or removed<br>
+ • Selective re-saving of part of the image<br><br>
 
-The presence of these differences supports the finding that the image may not be fully original.
-`
-: `
-In this image, the brightness appears <strong>fairly uniform across the entire image</strong>.<br><br>
+ The presence of these differences supports the finding that the image may not be fully original.
+ `
+ : `
+ In this image, the brightness appears <strong>fairly uniform across the entire image</strong>.<br><br>
 
-This suggests:<br>
-• The image was processed consistently<br>
-• No strong signs of localized editing are visible<br><br>
+ This suggests:<br>
+ • The image was processed consistently<br>
+ • No strong signs of localized editing are visible<br><br>
 
-This supports the finding that the image behaves like a typical, unedited photo.
-`
+ This supports the finding that the image behaves like a typical, unedited photo.
+ `
 }
+
+<br><br>
+
+<div class="small">
+  See <strong>How Confidence Is Evaluated</strong> for additional information about how these findings are interpreted.
+</div>
+
 </div>
 
 <div class="card">
