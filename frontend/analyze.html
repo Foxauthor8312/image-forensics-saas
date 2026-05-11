@@ -794,7 +794,18 @@ ${
 <br>
 
 Editing Software:
-${softwareUsed}<br>
+${
+  softwareUsed.includes("HDR+")
+  ? "Computational Photography Detected (Google HDR+)"
+  : softwareUsed.includes("Adobe")
+  ? "Adobe Editing Software Detected"
+  : softwareUsed.includes("Snapseed")
+  ? "Snapseed Editing Detected"
+  : softwareUsed.includes("Photos")
+  ? "Mobile Photo Processing Detected"
+  : softwareUsed
+}
+<br>
 
           `;
         })()
