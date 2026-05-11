@@ -468,6 +468,18 @@ if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
   
   const signals = buildSignals(data);
   const score = calcScore(signals);
+let integrityRating = "Limited";
+
+if (
+  data.exif &&
+  gpsData?.lat &&
+  data.exif?.Make
+){
+  integrityRating = "Original";
+}
+else if(data.exif){
+  integrityRating = "Partial";
+}
   const scoreText = explainScore(score);
   const riskClass = score>=80?"low":score>=55?"mid":"high";
 
@@ -644,7 +656,7 @@ ELA alone does not prove manipulation, but it can highlight areas that deserve c
 Error Level Analysis highlights differences in compression across the image.<br><br>
 
 ${
-  signals.anomalies > 65
+  score < 55
   ? `
   Bright or inconsistent areas may indicate edited regions or compositing.
   `
@@ -721,6 +733,14 @@ ${
     `
   }
 
+  <div class="badge ${
+    integrityRating === "Original"
+      ? "badge-good"
+      : "badge-warn"
+  }">
+    Metadata Integrity: ${integrityRating}
+  </div>
+
 </div>
 
     ${
@@ -744,6 +764,12 @@ const cameraModel =
   m.model ||
   (modelMatch ? modelMatch[1] : null) ||
   "Not Available";
+
+const softwareUsed =
+  m.Software ||
+  m.ProcessingSoftware ||
+  m.CreatorTool ||
+  "Not Detected";
           console.log("FULL DATA OBJECT", data);
           return `
          
@@ -766,6 +792,10 @@ ${
   : "Not Available"
 }
 <br>
+
+Editing Software:
+${softwareUsed}<br>
+
           `;
         })()
       : `No metadata found`
