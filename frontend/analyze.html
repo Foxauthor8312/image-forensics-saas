@@ -467,8 +467,17 @@ if (!gpsData || !gpsData.lat || gpsData.lat === 0) {
 }
 
   
-  const signals = buildSignals(data);
-  const score = calcScore(signals);
+const signals = buildSignals(data);
+const score = calcScore(signals);
+
+const softwareUsed =
+  data.exif?.Software ||
+  data.exif?.ProcessingSoftware ||
+  data.exif?.CreatorTool ||
+  "Not Detected";
+
+let recompressionDetected = false;
+
 let integrityRating = "Limited";
 
 if (
@@ -481,8 +490,17 @@ if (
 else if(data.exif){
   integrityRating = "Partial";
 }
-  const scoreText = explainScore(score);
-  const riskClass = score>=80?"low":score>=55?"mid":"high";
+
+if (
+  score < 55 ||
+  !gpsData?.lat ||
+  softwareUsed !== "Not Detected"
+){
+  recompressionDetected = true;
+}
+
+const scoreText = explainScore(score);
+const riskClass = score>=80?"low":score>=55?"mid":"high";
 
   document.getElementById("result").innerHTML=`
 
@@ -741,6 +759,16 @@ ${
   }">
     Metadata Integrity: ${integrityRating}
   </div>
+
+  ${
+    recompressionDetected
+    ? `
+      <div class="badge badge-warn">
+        Possible Recompression Detected
+      </div>
+    `
+    : ""
+  }
 
 </div>
 
