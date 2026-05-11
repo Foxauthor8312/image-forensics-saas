@@ -743,11 +743,19 @@ const cameraModel =
 Make: ${cameraMake}<br>
 Model: ${cameraModel}<br>
 Date: ${m.DateTimeOriginal || m.ModifyDate || m.CreateDate || "-"}<br>
-     
-          GPS:
+
+GPS:
 ${
   gpsData?.lat
   ? `${gpsData.lat}, ${gpsData.lon}`
+  : "Not Available"
+}
+<br>
+
+Approximate Altitude:
+${
+  data.gps?.altitude
+  ? `${Math.round(data.gps.altitude)} ft`
   : "Not Available"
 }
 <br>
