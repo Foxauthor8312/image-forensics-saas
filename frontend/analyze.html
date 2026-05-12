@@ -411,11 +411,11 @@ async function getDeviceLocation() {
 
 } else {
 
-  console.log(
-    "Compression Data:",
-    JSON.stringify(compressionData, null, 2)
-  );
-
+ console.log("Compression Data:", {
+  format: compressionData?.format,
+  supported: compressionData?.supported,
+  tables: compressionData?.quantizationTables?.length || 0
+});
 }
 
   // Try to read EXIF locally BEFORE upload
