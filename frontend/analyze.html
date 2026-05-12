@@ -403,7 +403,10 @@ async function getDeviceLocation() {
 
   const compressionData = await analyzeCompression(file);
 
-  console.log("Compression Data:", compressionData);
+ console.log(
+  "Compression Data:",
+  JSON.stringify(compressionData, null, 2)
+);
 
   // Try to read EXIF locally BEFORE upload
   let localExifGPS = await exifr.gps(file);
