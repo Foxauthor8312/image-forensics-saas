@@ -308,7 +308,7 @@ details[open]{
 const API = "https://image-forensics-saas-1.onrender.com";
 let currentFile = null;
 
-function resetAnalysis(){
+window.resetAnalysis = function resetAnalysis(){
   document.getElementById("fileInput").value = "";
   document.getElementById("result").innerHTML = "";
 }
@@ -395,8 +395,7 @@ async function getDeviceLocation() {
   });
 }
 
-  
-async function analyze(){
+  window.analyze = async function analyze(){
 
   const file = document.getElementById("fileInput").files[0];
 
@@ -1119,7 +1118,7 @@ document.addEventListener("input", e=>{
   }
 });
 
-function switchTab(name){
+window.switchTab = function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
 
@@ -1142,13 +1141,13 @@ document
       : "No image selected";
 });
 
-function openMethodology(){
+window.openMethodology = function openMethodology(){
   document.getElementById(
     "methodologyModal"
   ).style.display = "block";
 }
 
-function closeMethodology(){
+window.closeMethodology = function closeMethodology(){
   document.getElementById(
     "methodologyModal"
   ).style.display = "none";
