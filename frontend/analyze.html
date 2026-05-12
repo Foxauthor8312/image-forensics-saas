@@ -645,7 +645,41 @@ Always consider:<br>
 `
 }
 </div>
+<div class="card">
 
+  <div class="section-title">
+    Overall Forensic Interpretation
+  </div>
+
+  ${
+    score >= 80
+    ? `
+    This image behaves similarly to a normally captured and processed photograph.<br><br>
+
+    Metadata appears reasonably intact, compression behavior is relatively consistent, and no strong indicators of synthetic generation or localized manipulation were detected.<br><br>
+
+    While no automated system can guarantee authenticity, the combined findings support a higher-confidence assessment.
+    `
+    : score >= 55
+    ? `
+    This image contains mixed forensic indicators.<br><br>
+
+    Some characteristics appear consistent with a normal image, while other findings suggest recompression, processing, or structural inconsistencies.<br><br>
+
+    These results are inconclusive and should be interpreted alongside the image source, context, and supporting evidence.
+    `
+    : `
+    Multiple forensic indicators suggest this image may have undergone alteration, recompression, synthetic enhancement, or non-standard processing.<br><br>
+
+    Elevated ELA anomalies, metadata inconsistencies, editing indicators, or structural irregularities contributed to this assessment.<br><br>
+
+    However, mobile image pipelines, screenshots, social media compression, and AI-assisted enhancement tools can also produce similar patterns.<br><br>
+
+    Additional verification is recommended before relying on the image as authentic evidence.
+    `
+  }
+
+</div>
 </div>
 
 <div id="ela" class="tab-content">
