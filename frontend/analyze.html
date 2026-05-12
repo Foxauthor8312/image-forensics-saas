@@ -857,6 +857,16 @@ ${
   </div>
 </details>
 
+<div class="small" style="margin-top:12px;line-height:1.7;">
+
+  Metadata integrity and forensic image analysis evaluate different characteristics of an image.<br><br>
+
+  An image may retain original camera metadata while still showing compression anomalies caused by editing, recompression, mobile image processing, or AI enhancement.<br><br>
+
+  For this reason, metadata findings should always be interpreted alongside ELA and structural analysis results.
+
+</div>
+
 ${
   recompressionDetected
   ? `
@@ -880,6 +890,9 @@ ${
 
     </div>
   </details>
+  `
+  : ""
+}
   `
   : ""
 }
