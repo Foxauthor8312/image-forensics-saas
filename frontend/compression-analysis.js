@@ -5,9 +5,10 @@ export async function analyzeCompression(file) {
 
     // Verify JPEG
     if (data[0] !== 0xFF || data[1] !== 0xD8) {
-        console.log("Not a JPEG");
-        return null;
-    }
+       return {
+    format: "non-jpeg",
+    supported: false
+};
 
     const result = {
         quantizationTables: []
