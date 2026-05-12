@@ -403,9 +403,13 @@ function interpretCompression(compression){
   const tableCount =
     compression.quantizationTables?.length || 0;
 
-  if(tableCount >= 3){
-    return "Advanced or non-standard JPEG compression detected.";
-  }
+ if(tableCount >= 4){
+  return "Advanced multi-table JPEG compression detected, commonly associated with computational photography or device-specific image pipelines.";
+}
+
+if(tableCount === 3){
+  return "Extended JPEG compression profile detected.";
+}
 
   if(tableCount === 2){
     return "Standard JPEG compression profile detected.";
@@ -1050,6 +1054,33 @@ Quantization Tables:
 ${
   data.compression?.quantizationTables?.length || 0
 }
+<br>
+Quantization Tables:
+${
+  data.compression?.quantizationTables?.length || 0
+}
+<br>
+
+<details style="margin-top:12px;">
+  <summary>
+    What are Quantization Tables?
+  </summary>
+
+  <div class="small" style="margin-top:12px;line-height:1.7;">
+
+    JPEG images store compression instructions called quantization tables.<br><br>
+
+    These tables influence how image detail, color, and texture are compressed when the image is saved.<br><br>
+
+    Different devices, editing software, and social media platforms often use different compression structures.<br><br>
+
+    Typical camera JPEGs commonly contain 2 tables, while modern computational photography systems or advanced image pipelines may use additional tables.<br><br>
+
+    Non-standard table counts do not necessarily indicate manipulation, but they may provide clues about how the image was processed or exported.
+
+  </div>
+</details>
+
 <br>
 
           `;
