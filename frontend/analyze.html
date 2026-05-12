@@ -693,6 +693,51 @@ ELA alone does not prove manipulation, but it can highlight areas that deserve c
 
     <div class="small">
       ELA Score: ${data.ela?.score?.toFixed(2) ?? "N/A"}
+      <div class="card">
+
+  <div class="section-title">
+    What influenced this ELA score?
+  </div>
+
+  ${
+    signals.anomalies > 65
+    ? `
+    This image contains areas with stronger compression variation than normally expected.<br><br>
+
+    The score was influenced by:<br><br>
+
+    • Bright or isolated regions in the ELA overlay<br>
+    • Uneven compression behavior across the image<br>
+    • Structural inconsistencies between neighboring areas<br><br>
+
+    These patterns can occur when portions of an image are edited, recompressed separately, composited, or heavily processed.
+    `
+    : signals.anomalies > 35
+    ? `
+    Moderate compression variation was detected across portions of the image.<br><br>
+
+    The score was influenced by:<br><br>
+
+    • Mild differences in compression intensity<br>
+    • Slight variations in edge/detail consistency<br>
+    • Reprocessing or optimization artifacts<br><br>
+
+    These findings are inconclusive and may result from normal image handling, mobile processing, or recompression.
+    `
+    : `
+    Compression behavior appears relatively consistent throughout the image.<br><br>
+
+    The score was influenced by:<br><br>
+
+    • Uniform compression distribution<br>
+    • Consistent edge and texture behavior<br>
+    • Lack of strongly isolated ELA hotspots<br><br>
+
+    This pattern is more commonly associated with a normally processed or unedited image.
+    `
+  }
+
+</div>
     </div>
   </div>
 
