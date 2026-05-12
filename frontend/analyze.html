@@ -403,10 +403,20 @@ async function getDeviceLocation() {
 
   const compressionData = await analyzeCompression(file);
 
- console.log(
-  "Compression Data:",
-  JSON.stringify(compressionData, null, 2)
-);
+ if (compressionData?.supported === false) {
+
+  console.log(
+    "Compression Analysis skipped: non-JPEG image"
+  );
+
+} else {
+
+  console.log(
+    "Compression Data:",
+    JSON.stringify(compressionData, null, 2)
+  );
+
+}
 
   // Try to read EXIF locally BEFORE upload
   let localExifGPS = await exifr.gps(file);
