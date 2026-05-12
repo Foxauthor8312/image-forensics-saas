@@ -3,6 +3,12 @@ export async function analyzeCompression(file) {
     const arrayBuffer = await file.arrayBuffer();
     const data = new Uint8Array(arrayBuffer);
 
+    // Verify JPEG
+    if (data[0] !== 0xFF || data[1] !== 0xD8) {
+        console.log("Not a JPEG");
+        return null;
+    }
+
     const result = {
         quantizationTables: []
     };
@@ -11,12 +17,11 @@ export async function analyzeCompression(file) {
 
     while (offset < data.length) {
 
-        // JPEG markers begin with 0xFF
         if (data[offset] === 0xFF) {
 
             const marker = data[offset + 1];
 
-            // DQT = Define Quantization Table
+            // DQT Marker
             if (marker === 0xDB) {
 
                 const segmentLength =
@@ -24,6 +29,7 @@ export async function analyzeCompression(file) {
                     data[offset + 3];
 
                 let qOffset = offset + 4;
+
                 const end = offset + 2 + segmentLength;
 
                 while (qOffset < end) {
