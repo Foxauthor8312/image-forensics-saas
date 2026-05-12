@@ -1070,7 +1070,17 @@ ${
 
     Different devices, editing software, and social media platforms often use different compression structures.<br><br>
 
-    Typical camera JPEGs commonly contain 2 tables, while modern computational photography systems or advanced image pipelines may use additional tables.<br><br>
+    Typical camera JPEGs commonly contain 2 quantization tables, representing luminance and color compression.<br><br>
+
+General interpretation guidelines:<br><br>
+
+• <strong>2 Tables</strong> — Common in standard camera JPEGs and many normal image exports<br>
+
+• <strong>3 Tables</strong> — May indicate extended compression profiles, advanced encoding, or additional processing<br>
+
+• <strong>4+ Tables</strong> — Commonly associated with computational photography, HDR pipelines, mobile image enhancement, or device-specific encoding behavior<br><br>
+
+Table counts alone do <strong>not</strong> prove editing or manipulation, but they can provide useful clues about how the image was captured, processed, or exported.
 
     Non-standard table counts do not necessarily indicate manipulation, but they may provide clues about how the image was processed or exported.
 
