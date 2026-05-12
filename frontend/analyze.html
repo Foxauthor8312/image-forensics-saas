@@ -11,9 +11,37 @@
 body { background:#000000; color:#e5e7eb; font-family:-apple-system,Segoe UI; padding:16px; }
 .container { max-width:900px; margin:auto; }
 .back { color:#9ca3af; text-decoration:none; display:block; margin-bottom:10px; }
-.tabs { display:flex; gap:8px; border-bottom:1px solid #1f2937; overflow-x:auto; }
-.tab { padding:10px 14px; cursor:pointer; color:#9ca3af; }
-.tab.active { color:white; border-bottom:2px solid #3b82f6; }
+.tabs{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:14px;
+}
+
+.tab{
+  padding:7px 12px;
+  border-radius:999px;
+  background:#111827;
+  border:1px solid #374151;
+  cursor:pointer;
+  color:#9ca3af;
+  font-size:13px;
+  font-weight:600;
+  transition:.2s ease;
+  user-select:none;
+}
+
+.tab:hover{
+  border-color:#60a5fa;
+  color:white;
+}
+
+.tab.active{
+  background:rgba(37,99,235,.18);
+  border-color:#60a5fa;
+  color:#93c5fd;
+  box-shadow:0 0 0 1px rgba(96,165,250,.15);
+}
 .tab-content { display:none; margin-top:16px; }
 .tab-content.active { display:block; }
 .card { background:#0b1220; border:1px solid #1f2937; border-radius:10px; padding:16px; margin-bottom:16px; }
