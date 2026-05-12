@@ -302,7 +302,8 @@ details[open]{
 
 </div>
 
-<script>
+<script type="module">
+ import { analyzeCompression } from './compression-analysis.js';
 
 const API = "https://image-forensics-saas-1.onrender.com";
 let currentFile = null;
@@ -398,6 +399,9 @@ async function getDeviceLocation() {
 async function analyze(){
 
   const file=document.getElementById("fileInput").files[0];
+ const compressionData = await analyzeCompression(file);
+
+console.log("Compression Data:", compressionData);
   // Try to read EXIF locally BEFORE upload
 let localExifGPS = await exifr.gps(file);
 console.log("Local EXIF GPS:", localExifGPS);
