@@ -5,12 +5,16 @@ export async function analyzeCompression(file) {
 
     // Verify JPEG
     if (data[0] !== 0xFF || data[1] !== 0xD8) {
-       return {
-    format: "non-jpeg",
-    supported: false
-};
+
+        return {
+            format: "non-jpeg",
+            supported: false
+        };
+    }
 
     const result = {
+        format: "jpeg",
+        supported: true,
         quantizationTables: []
     };
 
@@ -43,7 +47,9 @@ export async function analyzeCompression(file) {
                     const values = [];
 
                     for (let i = 0; i < 64; i++) {
+
                         values.push(data[qOffset]);
+
                         qOffset++;
                     }
 
