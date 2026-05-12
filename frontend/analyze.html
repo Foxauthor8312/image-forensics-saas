@@ -394,7 +394,25 @@ async function getDeviceLocation() {
     );
   });
 }
+function interpretCompression(compression){
 
+  if(!compression?.supported){
+    return "Compression analysis not available for this format.";
+  }
+
+  const tableCount =
+    compression.quantizationTables?.length || 0;
+
+  if(tableCount >= 3){
+    return "Advanced or non-standard JPEG compression detected.";
+  }
+
+  if(tableCount === 2){
+    return "Standard JPEG compression profile detected.";
+  }
+
+  return "Unusual compression structure detected.";
+}
   window.analyze = async function analyze(){
 
   const file = document.getElementById("fileInput").files[0];
@@ -447,7 +465,10 @@ try {
   }
 
   data = await res.json();
-
+  data.compression = compressionData;
+  data.compressionInterpretation =
+  interpretCompression(compressionData);
+ 
 } catch (err) {
   document.getElementById("result").innerHTML = `
     <div class="card">
@@ -1016,6 +1037,18 @@ ${
   : softwareUsed.includes("Photos")
   ? "Mobile Photo Processing Detected"
   : softwareUsed
+}
+<br>
+
+Compression Profile:
+${
+  data.compressionInterpretation || "Not Available"
+}
+<br>
+
+Quantization Tables:
+${
+  data.compression?.quantizationTables?.length || 0
 }
 <br>
 
