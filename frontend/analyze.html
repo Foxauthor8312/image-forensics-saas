@@ -473,9 +473,7 @@ function interpretCompression(compression){
     compression.quantizationTables?.length || 0;
 
  if(tableCount >= 4){
-  return "Advanced multi-table JPEG compression detected, commonly associated with computational photography (Computational photography uses digital algorithms, AI, and software to enhance or<br>
-  create images, going beyond traditional optical limitations. It enables advanced features like HDR, night mode, and depth manipulation in smartphones and cameras by<br>
-  combining multiple frames, reducing noise, and increasing dynamic range) or device-specific image pipelines.";
+  return "Advanced multi-table JPEG compression detected, commonly associated with computational photography or device-specific image pipelines.";
 }
 
 if(tableCount === 3){
@@ -1224,6 +1222,7 @@ General interpretation guidelines:<br><br>
 • <strong>3 Tables</strong> — May indicate extended compression profiles, advanced encoding, or additional processing<br>
 
 • <strong>4+ Tables</strong> — Commonly associated with computational photography, HDR pipelines, mobile image enhancement, or device-specific encoding behavior<br><br>
+ Computational photography refers to advanced image processing techniques used by many modern smartphones and cameras. These systems may combine multiple image frames, reduce noise, enhance detail, expand dynamic range, or apply HDR processing automatically during capture, sometimes resulting in more complex JPEG compression structures.
 
 -Table counts alone do <strong>not</strong> prove editing or manipulation, but they can provide useful clues about how the image was captured, processed, or exported.
 
