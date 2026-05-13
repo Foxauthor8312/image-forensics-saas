@@ -582,6 +582,15 @@ try {
 //console.log("API RESPONSE:", data);
 
 console.log("ALL KEYS:", Object.keys(data));
+
+   document.getElementById("pdfFilename").textContent =
+  "File: " + file.name;
+
+document.getElementById("pdfOriginalImage").src =
+  URL.createObjectURL(file);
+
+document.getElementById("pdfElaImage").src =
+  data.ela?.overlay || "";
   
 let gpsData = null;
 
