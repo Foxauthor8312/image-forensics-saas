@@ -399,12 +399,12 @@ function calcScore(s){
 
 function explainScore(score){
   if(score >= 80){
-    return "The image behaves like a typical, unedited image with no strong indicators of manipulation.";
+    return "* The image behaves like a typical, unedited image with no strong indicators of manipulation.";
   }
   if(score >= 55){
-    return "Some inconsistencies are present. This may be due to editing or normal recompression.";
+    return "* Some inconsistencies are present. This may be due to editing or normal recompression.";
   }
-  return "Multiple indicators suggest the image may have been altered or processed inconsistently.";
+  return "*Multiple indicators suggest the image may have been altered or processed inconsistently.";
 }
 
 async function fetchWithRetry(url, options, retries = 2) {
@@ -810,28 +810,28 @@ Always consider:<br>
   ${
     score >= 80
     ? `
-    This image behaves similarly to a normally captured and processed photograph.<br>
+    -This image behaves similarly to a normally captured and processed photograph.<br>
 
-    Metadata appears reasonably intact, compression behavior is relatively consistent, and no strong indicators of synthetic generation or localized manipulation were detected.<br>
+    -Metadata appears reasonably intact, compression behavior is relatively consistent, and no strong indicators of synthetic generation or localized manipulation were detected.<br>
 
-    While no automated system can guarantee authenticity, the combined findings support a higher-confidence assessment.
+    -While no automated system can guarantee authenticity, the combined findings support a higher-confidence assessment.
     `
     : score >= 55
     ? `
-    This image contains mixed forensic indicators.<br>
+    -This image contains mixed forensic indicators.<br>
 
-    Some characteristics appear consistent with a normal image, while other findings suggest recompression, processing, or structural inconsistencies.<br>
+    -Some characteristics appear consistent with a normal image, while other findings suggest recompression, processing, or structural inconsistencies.<br>
 
-    These results are inconclusive and should be interpreted alongside the image source, context, and supporting evidence.
+    -These results are inconclusive and should be interpreted alongside the image source, context, and supporting evidence.
     `
     : `
-    Multiple forensic indicators suggest this image may have undergone alteration, recompression, synthetic enhancement, or non-standard processing.<br>
+    -Multiple forensic indicators suggest this image may have undergone alteration, recompression, synthetic enhancement, or non-standard processing.<br>
 
-    Elevated ELA anomalies, metadata inconsistencies, editing indicators, or structural irregularities contributed to this assessment.<br>
+    -Elevated ELA anomalies, metadata inconsistencies, editing indicators, or structural irregularities contributed to this assessment.<br>
 
-    However, mobile image pipelines, screenshots, social media compression, and AI-assisted enhancement tools can also produce similar patterns.<br>
+    -However, mobile image pipelines, screenshots, social media compression, and AI-assisted enhancement tools can also produce similar patterns.<br>
 
-    Additional verification is recommended before relying on the image as authentic evidence.
+    -Additional verification is recommended before relying on the image as authentic evidence.
     `
   }
 
@@ -845,15 +845,15 @@ Always consider:<br>
 
   <div class="small" style="line-height:1.4;">
 
-    Modern images frequently undergo processing before analysis.<br>
+   - Modern images frequently undergo processing before analysis.<br>
 
-    Social media platforms, messaging apps, screenshots, cloud optimization, AI enhancement, and mobile computational photography may alter compression behavior, metadata, image structure, or GPS information.<br>
+    -Social media platforms, messaging apps, screenshots, cloud optimization, AI enhancement, and mobile computational photography may alter compression behavior, metadata, image structure, or GPS information.<br>
 
-    Some devices also apply HDR processing, sharpening, denoising, multi-frame fusion, or proprietary image pipelines automatically at capture time.<br>
+    -Some devices also apply HDR processing, sharpening, denoising, multi-frame fusion, or proprietary image pipelines automatically at capture time.<br>
 
-    Because of this, forensic indicators should be interpreted as supporting observations rather than definitive proof of authenticity or manipulation.<br>
+    -Because of this, forensic indicators should be interpreted as supporting observations rather than definitive proof of authenticity or manipulation.<br>
 
-    PixelProof is designed to assist image review and provenance analysis, but results should always be considered alongside source credibility, context, and additional verification.
+    -PixelProof is designed to assist image review and provenance analysis, but results should always be considered alongside source credibility, context, and additional verification.
 
   </div>
 
@@ -869,11 +869,11 @@ Always consider:<br>
 
 <strong>What is Error Level Analysis?</strong><br><br>
 
-ELA compares compression levels across different parts of the image.<br>
+-ELA compares compression levels across different parts of the image.<br>
 
-When an image is saved normally, compression patterns are usually consistent throughout the photo.<br>
+-When an image is saved normally, compression patterns are usually consistent throughout the photo.<br>
 
-Edited or manipulated areas may compress differently and appear brighter or more pronounced in the analysis overlay.<br>
+-Edited or manipulated areas may compress differently and appear brighter or more pronounced in the analysis overlay.<br>
 <strong>What the analysis looks for:</strong><br>
 
 • <strong>Compression patterns</strong> — whether the image was saved uniformly or altered in sections<br>
@@ -1071,11 +1071,11 @@ ${
 
 <div class="small" style="margin-top:12px;line-height:1.7;">
 
-  Metadata integrity and forensic image analysis evaluate different characteristics of an image.<br>
+  -Metadata integrity and forensic image analysis evaluate different characteristics of an image.<br>
 
-  An image may retain original camera metadata while still showing compression anomalies caused by editing, recompression, mobile image processing, or AI enhancement.<br>
+  -An image may retain original camera metadata while still showing compression anomalies caused by editing, recompression, mobile image processing, or AI enhancement.<br>
 
-  For this reason, metadata findings should always be interpreted alongside ELA and structural analysis results.
+  -For this reason, metadata findings should always be interpreted alongside ELA and structural analysis results.
 
 </div>
 
@@ -1190,13 +1190,13 @@ ${
 
   <div class="small" style="margin-top:12px;line-height:1.2;">
 
-    JPEG images store compression instructions called quantization tables.<br>
+    -JPEG images store compression instructions called quantization tables.<br>
 
-    These tables influence how image detail, color, and texture are compressed when the image is saved.<br>
+    -These tables influence how image detail, color, and texture are compressed when the image is saved.<br>
 
-    Different devices, editing software, and social media platforms often use different compression structures.<br>
+    -Different devices, editing software, and social media platforms often use different compression structures.<br>
 
-    Typical camera JPEGs commonly contain 2 quantization tables, representing luminance and color compression.<br>
+    -Typical camera JPEGs commonly contain 2 quantization tables, representing luminance and color compression.<br>
 
 General interpretation guidelines:<br><br>
 
@@ -1206,9 +1206,9 @@ General interpretation guidelines:<br><br>
 
 • <strong>4+ Tables</strong> — Commonly associated with computational photography, HDR pipelines, mobile image enhancement, or device-specific encoding behavior<br><br>
 
-Table counts alone do <strong>not</strong> prove editing or manipulation, but they can provide useful clues about how the image was captured, processed, or exported.
+-Table counts alone do <strong>not</strong> prove editing or manipulation, but they can provide useful clues about how the image was captured, processed, or exported.
 
-    Non-standard table counts do not necessarily indicate manipulation, but they may provide clues about how the image was processed or exported.
+   -Non-standard table counts do not necessarily indicate manipulation, but they may provide clues about how the image was processed or exported.
 
   </div>
 </details>
@@ -1240,9 +1240,9 @@ Table counts alone do <strong>not</strong> prove editing or manipulation, but th
       </div>
 
       <div class="small" style="margin-top:8px;">
-        Location data was found directly inside the image metadata.<br><br>
+        -Location data was found directly inside the image metadata.<br><br>
 
-        This is generally the most reliable form of location evidence and may indicate the image retains original capture information.
+        -This is generally the most reliable form of location evidence and may indicate the image retains original capture information.
       </div>
     `
     : gpsData.source === "device"
@@ -1252,9 +1252,9 @@ Table counts alone do <strong>not</strong> prove editing or manipulation, but th
       </div>
 
       <div class="small" style="margin-top:8px;">
-        GPS was not found inside the image itself.<br><br>
+        -GPS was not found inside the image itself.<br><br>
 
-        The current device location was used as a fallback and should not be treated as proof of where the image was originally captured.
+        -The current device location was used as a fallback and should not be treated as proof of where the image was originally captured.
       </div>
     `
     : `
@@ -1328,14 +1328,14 @@ Table counts alone do <strong>not</strong> prove editing or manipulation, but th
       `
       : data.ai?.likelihood > 40
       ? `
-      Some characteristics of this image could be consistent with AI generation, but they may also result from normal processing or compression.<br>
+      -Some characteristics of this image could be consistent with AI generation, but they may also result from normal processing or compression.<br>
 
-      This result is inconclusive and should be considered alongside other findings.
+      -This result is inconclusive and should be considered alongside other findings.
       `
       : `
-      There are no strong indicators that this image was generated by AI based on this analysis.<br>
+      -There are no strong indicators that this image was generated by AI based on this analysis.<br>
 
-      The image behaves more like a traditionally captured or edited photograph.
+      -The image behaves more like a traditionally captured or edited photograph.
       `
     }
   </div>
@@ -1388,7 +1388,7 @@ window.closeMethodology = function closeMethodology(){
 </script>
 <div class="small" style="text-align:center;margin-top:40px;padding-bottom:20px;line-height:1.6;">
 
-  PixelProof v2026.9.02 Beta Version<br>
+  PixelProof v2026.9.13 Beta Version<br>
 
   Image Integrity & Metadata Analysis Platform<br><br>
 
