@@ -623,7 +623,43 @@ if (
 }
 
 const scoreText = explainScore(score);
+   const findings = [];
 const riskClass = score>=80?"low":score>=55?"mid":"high";
+
+   const findings = [];
+
+if(data.exif){
+  findings.push("Original camera metadata detected");
+}
+
+if(gpsData?.lat){
+  findings.push("Embedded GPS metadata preserved");
+}
+
+if(data.compression?.quantizationTables?.length >= 4){
+  findings.push(
+    "Advanced multi-table JPEG compression observed"
+  );
+}
+
+if(softwareUsed === "Not Detected"){
+  findings.push(
+    "No editing software identified"
+  );
+}
+
+if(recompressionDetected){
+  findings.push(
+    "Recompression indicators present"
+  );
+}
+
+if((data.ai?.likelihood || 0) < 40){
+  findings.push(
+    "No strong synthetic image indicators detected"
+  );
+}
+   
 
   document.getElementById("result").innerHTML=`
 
@@ -646,6 +682,24 @@ const riskClass = score>=80?"low":score>=55?"mid":"high";
 <button class="methodology-btn" onclick="openMethodology()">
   ⓘ How Confidence Is Evaluated
 </button>
+
+<div class="card">
+
+  <div class="section-title">
+    Observed Forensic Findings
+  </div>
+
+  <div style="line-height:1.9;">
+
+    ${
+      findings.map(f =>
+        `• ${f}<br>`
+      ).join("")
+    }
+
+  </div>
+
+</div>
 
   <div class="card">
   <div class="section-title">Analysis Summary</div>
