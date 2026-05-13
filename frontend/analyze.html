@@ -1216,9 +1216,32 @@ Table counts alone do <strong>not</strong> prove editing or manipulation, but th
 </div>
 <div id="ai" class="tab-content">
   <div class="card">
-    <div class="section-title">AI Generation Analysis</div>
+    <div class="section-title">Synthetic Image Indicators</div>
 
-    <strong>AI Likelihood: ${data.ai?.likelihood ?? 0}%</strong><br><br>
+    <strong>Synthetic Indicator Score: ${data.ai?.likelihood ?? 0}%</strong><br><br>
+    <details style="margin-top:14px;">
+  <summary>
+    How are synthetic indicators evaluated?
+  </summary>
+
+  <div class="small" style="margin-top:12px;line-height:1.7;">
+
+    This analysis evaluates visual and structural patterns commonly associated with AI-generated or heavily synthesized images.<br><br>
+
+    Indicators may include:<br><br>
+
+    • Unnatural texture consistency<br>
+    • Uniform compression behavior<br>
+    • Missing or inconsistent metadata<br>
+    • Repeating visual structures<br>
+    • Unusual edge/detail behavior<br><br>
+
+    Synthetic indicators do not prove an image was AI-generated.<br><br>
+
+    Mobile image enhancement, aggressive processing, recompression, screenshots, and editing workflows can sometimes produce similar patterns.
+
+  </div>
+</details>
 
     ${
       data.ai?.likelihood > 70
