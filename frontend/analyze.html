@@ -1319,15 +1319,29 @@ General interpretation guidelines:<br><br>
     View Full Technical Data
   </summary>
 
-  <pre class="raw-json">
-  ${JSON.stringify({
+<pre class="raw-json">
+${JSON.stringify({
+
   ...data,
+
+  compression: {
+    format: data.compression?.format,
+    supported: data.compression?.supported,
+
+    quantizationTables:
+      data.compression?.quantizationTables?.map(t => ({
+        tableId: t.tableId,
+        values: "[64 quantization coefficients hidden]"
+      }))
+  },
+
   ela: {
     ...data.ela,
     overlay: "[ELA overlay hidden]"
   }
+
 }, null, 2)}
-  </pre>
+</pre>
 
 </details>
 
