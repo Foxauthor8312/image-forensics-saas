@@ -306,6 +306,24 @@ details[open]{
 summary::-webkit-details-marker{
   display:none;
 }
+.some-existing-class {
+  color: white;
+}
+
+.action-btn {
+  margin-top: 12px;
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  background: #1e88e5;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+</style>
+
  
 </style>
 </head>
@@ -343,15 +361,21 @@ summary::-webkit-details-marker{
   No image selected
 </div>
 
-  <button class="analyze-btn" onclick="analyze()">
-    Analyze Image
-  </button>
+ <button class="analyze-btn" onclick="analyze()">
+  Analyze Image
+</button>
+
+<button id="downloadPdfBtn" class="action-btn">
+  Download PDF Report
+</button>
 
   <div class="small" style="margin-top:12px;text-align:center;">
   Supported formats: JPG, JPEG, PNG<br>
   Metadata and GPS information are analyzed locally when available.
 </div>
 
+
+ 
 <div class="small" style="margin-top:8px;text-align:center;">
   For best metadata results, upload the original image directly from the device camera roll.
 </div>
@@ -1496,6 +1520,10 @@ window.closeMethodology = function closeMethodology(){
   </div>
 
 </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
  
 </body>
 </html>
