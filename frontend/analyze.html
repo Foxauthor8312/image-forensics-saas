@@ -1320,7 +1320,13 @@ General interpretation guidelines:<br><br>
   </summary>
 
   <pre class="raw-json">
-   ${JSON.stringify(data, null, 2)}
+  ${JSON.stringify({
+  ...data,
+  ela: {
+    ...data.ela,
+    overlay: "[ELA overlay hidden]"
+  }
+}, null, 2)}
   </pre>
 
 </details>
