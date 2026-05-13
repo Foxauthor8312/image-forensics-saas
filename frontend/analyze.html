@@ -322,8 +322,6 @@ summary::-webkit-details-marker{
   cursor: pointer;
 }
 
-</style>
-
  
 </style>
 </head>
@@ -1475,6 +1473,36 @@ window.closeMethodology = function closeMethodology(){
 }
  
 </script>
+
+ <div id="pdfReport"
+     style="
+       position:absolute;
+       left:-9999px;
+       top:0;
+       width:800px;
+       background:white;
+       color:black;
+       padding:40px;
+     ">
+
+  <h1>PixelProof Forensic Report</h1>
+
+  <p id="pdfFilename"></p>
+
+  <img id="pdfOriginalImage"
+       crossorigin="anonymous"
+       style="max-width:100%; margin-top:20px;" />
+
+  <h2>ELA Analysis</h2>
+
+  <img id="pdfElaImage"
+       crossorigin="anonymous"
+       style="max-width:100%; margin-top:20px;" />
+
+  <p id="pdfSummary"></p>
+
+</div>
+
 <div class="small" style="text-align:center;margin-top:40px;padding-bottom:20px;line-height:1.6;">
 
   PixelProof v2026.9.13 Beta Version<br>
