@@ -284,6 +284,23 @@ details[open]{
   background:rgba(255,255,255,.02);
   border-color:rgba(255,255,255,.08);
 }
+
+.raw-json{
+  background:#050814;
+  border:1px solid #1f2937;
+  border-radius:10px;
+
+  padding:14px;
+
+  overflow-x:auto;
+  white-space:pre-wrap;
+  word-break:break-word;
+
+  font-size:12px;
+  line-height:1.6;
+
+  color:#cbd5e1;
+}
 summary::-webkit-details-marker{
   display:none;
 }
@@ -1285,8 +1302,25 @@ General interpretation guidelines:<br><br>
 </div>
 
 <div id="raw" class="tab-content">
-<pre>${JSON.stringify(data, null, 2)}</pre>
+
+  <div class="card">
+
+    <div class="section-title">
+      Full Forensic Metadata
+    </div>
+
+    <div class="small" style="margin-bottom:12px;line-height:1.7;">
+      Raw forensic output including EXIF data, GPS information, compression analysis, AI indicators, and structural findings.
+    </div>
+
+    <pre class="raw-json">
+${JSON.stringify(data, null, 2)}
+    </pre>
+
+  </div>
+
 </div>
+
 <div id="ai" class="tab-content">
   <div class="card">
     <div class="section-title">Synthetic Image Indicators</div>
