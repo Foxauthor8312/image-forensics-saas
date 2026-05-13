@@ -810,26 +810,26 @@ Always consider:<br>
   ${
     score >= 80
     ? `
-    This image behaves similarly to a normally captured and processed photograph.<br><br>
+    This image behaves similarly to a normally captured and processed photograph.<br>
 
-    Metadata appears reasonably intact, compression behavior is relatively consistent, and no strong indicators of synthetic generation or localized manipulation were detected.<br><br>
+    Metadata appears reasonably intact, compression behavior is relatively consistent, and no strong indicators of synthetic generation or localized manipulation were detected.<br>
 
     While no automated system can guarantee authenticity, the combined findings support a higher-confidence assessment.
     `
     : score >= 55
     ? `
-    This image contains mixed forensic indicators.<br><br>
+    This image contains mixed forensic indicators.<br>
 
-    Some characteristics appear consistent with a normal image, while other findings suggest recompression, processing, or structural inconsistencies.<br><br>
+    Some characteristics appear consistent with a normal image, while other findings suggest recompression, processing, or structural inconsistencies.<br>
 
     These results are inconclusive and should be interpreted alongside the image source, context, and supporting evidence.
     `
     : `
-    Multiple forensic indicators suggest this image may have undergone alteration, recompression, synthetic enhancement, or non-standard processing.<br><br>
+    Multiple forensic indicators suggest this image may have undergone alteration, recompression, synthetic enhancement, or non-standard processing.<br>
 
-    Elevated ELA anomalies, metadata inconsistencies, editing indicators, or structural irregularities contributed to this assessment.<br><br>
+    Elevated ELA anomalies, metadata inconsistencies, editing indicators, or structural irregularities contributed to this assessment.<br>
 
-    However, mobile image pipelines, screenshots, social media compression, and AI-assisted enhancement tools can also produce similar patterns.<br><br>
+    However, mobile image pipelines, screenshots, social media compression, and AI-assisted enhancement tools can also produce similar patterns.<br>
 
     Additional verification is recommended before relying on the image as authentic evidence.
     `
@@ -845,13 +845,13 @@ Always consider:<br>
 
   <div class="small" style="line-height:1.8;">
 
-    Modern images frequently undergo processing before analysis.<br><br>
+    Modern images frequently undergo processing before analysis.<br>
 
-    Social media platforms, messaging apps, screenshots, cloud optimization, AI enhancement, and mobile computational photography may alter compression behavior, metadata, image structure, or GPS information.<br><br>
+    Social media platforms, messaging apps, screenshots, cloud optimization, AI enhancement, and mobile computational photography may alter compression behavior, metadata, image structure, or GPS information.<br>
 
-    Some devices also apply HDR processing, sharpening, denoising, multi-frame fusion, or proprietary image pipelines automatically at capture time.<br><br>
+    Some devices also apply HDR processing, sharpening, denoising, multi-frame fusion, or proprietary image pipelines automatically at capture time.<br>
 
-    Because of this, forensic indicators should be interpreted as supporting observations rather than definitive proof of authenticity or manipulation.<br><br>
+    Because of this, forensic indicators should be interpreted as supporting observations rather than definitive proof of authenticity or manipulation.<br>
 
     PixelProof is designed to assist image review and provenance analysis, but results should always be considered alongside source credibility, context, and additional verification.
 
@@ -869,12 +869,11 @@ Always consider:<br>
 
 <strong>What is Error Level Analysis?</strong><br><br>
 
-ELA compares compression levels across different parts of the image.<br><br>
+ELA compares compression levels across different parts of the image.<br>
 
-When an image is saved normally, compression patterns are usually consistent throughout the photo.<br><br>
+When an image is saved normally, compression patterns are usually consistent throughout the photo.<br>
 
-Edited or manipulated areas may compress differently and appear brighter or more pronounced in the analysis overlay.<br><br>
-
+Edited or manipulated areas may compress differently and appear brighter or more pronounced in the analysis overlay.<br>
 <strong>What the analysis looks for:</strong><br>
 
 • <strong>Compression patterns</strong> — whether the image was saved uniformly or altered in sections<br>
@@ -1072,9 +1071,9 @@ ${
 
 <div class="small" style="margin-top:12px;line-height:1.7;">
 
-  Metadata integrity and forensic image analysis evaluate different characteristics of an image.<br><br>
+  Metadata integrity and forensic image analysis evaluate different characteristics of an image.<br>
 
-  An image may retain original camera metadata while still showing compression anomalies caused by editing, recompression, mobile image processing, or AI enhancement.<br><br>
+  An image may retain original camera metadata while still showing compression anomalies caused by editing, recompression, mobile image processing, or AI enhancement.<br>
 
   For this reason, metadata findings should always be interpreted alongside ELA and structural analysis results.
 
@@ -1088,7 +1087,7 @@ ${
 
     <div class="small" style="margin-top:12px;line-height:1.2;">
 
-      Recompression occurs when an image is resaved, optimized, screenshotted, edited, or transferred through services that alter image quality or metadata.<br><br>
+      Recompression occurs when an image is resaved, optimized, screenshotted, edited, or transferred through services that alter image quality or metadata.<br>
 
       Common causes include:<br><br>
 
@@ -1191,13 +1190,13 @@ ${
 
   <div class="small" style="margin-top:12px;line-height:1.2;">
 
-    JPEG images store compression instructions called quantization tables.<br><br>
+    JPEG images store compression instructions called quantization tables.<br>
 
-    These tables influence how image detail, color, and texture are compressed when the image is saved.<br><br>
+    These tables influence how image detail, color, and texture are compressed when the image is saved.<br>
 
-    Different devices, editing software, and social media platforms often use different compression structures.<br><br>
+    Different devices, editing software, and social media platforms often use different compression structures.<br>
 
-    Typical camera JPEGs commonly contain 2 quantization tables, representing luminance and color compression.<br><br>
+    Typical camera JPEGs commonly contain 2 quantization tables, representing luminance and color compression.<br>
 
 General interpretation guidelines:<br><br>
 
@@ -1329,12 +1328,12 @@ Table counts alone do <strong>not</strong> prove editing or manipulation, but th
       `
       : data.ai?.likelihood > 40
       ? `
-      Some characteristics of this image could be consistent with AI generation, but they may also result from normal processing or compression.<br><br>
+      Some characteristics of this image could be consistent with AI generation, but they may also result from normal processing or compression.<br>
 
       This result is inconclusive and should be considered alongside other findings.
       `
       : `
-      There are no strong indicators that this image was generated by AI based on this analysis.<br><br>
+      There are no strong indicators that this image was generated by AI based on this analysis.<br>
 
       The image behaves more like a traditionally captured or edited photograph.
       `
