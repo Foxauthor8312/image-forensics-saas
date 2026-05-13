@@ -363,7 +363,10 @@ summary::-webkit-details-marker{
   Analyze Image
 </button>
 
-<button id="downloadPdfBtn" class="action-btn">
+<button
+  id="downloadPdfBtn"
+  class="action-btn"
+  style="display:none;">
   Download PDF Report
 </button>
 
@@ -402,6 +405,11 @@ const API = "https://image-forensics-saas-1.onrender.com";
 let currentFile = null;
 
 window.resetAnalysis = function resetAnalysis(){
+
+  document.getElementById(
+    "downloadPdfBtn"
+  ).style.display = "none";
+
   document.getElementById("fileInput").value = "";
   document.getElementById("result").innerHTML = "";
 }
@@ -707,7 +715,9 @@ if((data.ai?.likelihood || 0) < 40){
     "No strong synthetic image indicators detected"
   );
 }
-   
+  document.getElementById(
+  "downloadPdfBtn"
+).style.display = "block"; 
 
   document.getElementById("result").innerHTML=`
 
@@ -1473,6 +1483,48 @@ window.openMethodology = function openMethodology(){
   document.getElementById(
     "methodologyModal"
   ).style.display = "block";
+}
+
+ document
+  .getElementById("downloadPdfBtn")
+  .addEventListener("click", generatePdfReport);
+
+async function generatePdfReport(){
+
+  const { jsPDF } = window.jspdf;
+
+  const report =
+    document.getElementById("pdfReport");
+
+  const canvas = await html2canvas(report, {
+    scale: 2,
+    useCORS: true
+  });
+
+  const imgData =
+    canvas.toDataURL("image/jpeg", 1.0);
+
+  const pdf = new jsPDF(
+    "p",
+    "mm",
+    "a4"
+  );
+
+  const pdfWidth = 210;
+
+  const pdfHeight =
+    canvas.height * pdfWidth / canvas.width;
+
+  pdf.addImage(
+    imgData,
+    "JPEG",
+    0,
+    0,
+    pdfWidth,
+    pdfHeight
+  );
+
+  pdf.save("PixelProof_Report.pdf");
 }
 
 window.closeMethodology = function closeMethodology(){
