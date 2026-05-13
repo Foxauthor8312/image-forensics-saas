@@ -599,6 +599,9 @@ document.getElementById("pdfOriginalImage").src =
 
 document.getElementById("pdfElaImage").src =
   data.ela?.overlay || "";
+
+  document.getElementById("pdfSummary").textContent =
+  "Forensic analysis completed successfully.";
   
 let gpsData = null;
 
@@ -1544,23 +1547,94 @@ window.closeMethodology = function closeMethodology(){
        background:white;
        color:black;
        padding:40px;
+       font-family:Arial,sans-serif;
+       box-sizing:border-box;
      ">
 
-  <h1>PixelProof Forensic Report</h1>
+  <div style="
+    border-bottom:2px solid #1e88e5;
+    padding-bottom:16px;
+    margin-bottom:24px;
+  ">
+    <h1 style="
+      margin:0;
+      font-size:28px;
+      color:#111827;
+    ">
+      PixelProof Forensic Report
+    </h1>
 
-  <p id="pdfFilename"></p>
+    <div style="
+      margin-top:8px;
+      color:#6b7280;
+      font-size:14px;
+    ">
+      Digital Image Integrity Analysis
+    </div>
+  </div>
 
-  <img id="pdfOriginalImage"
-       crossorigin="anonymous"
-       style="max-width:100%; margin-top:20px;" />
+  <div style="margin-bottom:24px;">
 
-  <h2>ELA Analysis</h2>
+    <div style="
+      font-size:18px;
+      font-weight:bold;
+      margin-bottom:10px;
+    ">
+      Original Image
+    </div>
 
-  <img id="pdfElaImage"
-       crossorigin="anonymous"
-       style="max-width:100%; margin-top:20px;" />
+    <p id="pdfFilename"></p>
 
-  <p id="pdfSummary"></p>
+    <img id="pdfOriginalImage"
+         crossorigin="anonymous"
+         style="
+           width:100%;
+           max-height:350px;
+           object-fit:contain;
+           border:1px solid #d1d5db;
+           border-radius:8px;
+         " />
+  </div>
+
+  <div style="margin-bottom:24px;">
+
+    <div style="
+      font-size:18px;
+      font-weight:bold;
+      margin-bottom:10px;
+    ">
+      ELA Analysis
+    </div>
+
+    <img id="pdfElaImage"
+         crossorigin="anonymous"
+         style="
+           width:100%;
+           max-height:350px;
+           object-fit:contain;
+           border:1px solid #d1d5db;
+           border-radius:8px;
+         " />
+  </div>
+
+  <div>
+
+    <div style="
+      font-size:18px;
+      font-weight:bold;
+      margin-bottom:10px;
+    ">
+      Summary
+    </div>
+
+    <p id="pdfSummary"
+       style="
+         line-height:1.7;
+         font-size:14px;
+       ">
+    </p>
+
+  </div>
 
 </div>
 
