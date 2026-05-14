@@ -1488,33 +1488,6 @@ window.openMethodology = function openMethodology(){
   ).style.display = "block";
 }
 
-
-  const imgData =
-    canvas.toDataURL("image/jpeg", 1.0);
-
-  const pdf = new jsPDF(
-    "p",
-    "mm",
-    "a4"
-  );
-
-  const pdfWidth = 210;
-
-  const pdfHeight =
-    canvas.height * pdfWidth / canvas.width;
-
-  pdf.addImage(
-    imgData,
-    "JPEG",
-    0,
-    0,
-    pdfWidth,
-    pdfHeight
-  );
-
-  pdf.save("PixelProof_Report.pdf");
-}
-
 window.closeMethodology = function closeMethodology(){
   document.getElementById(
     "methodologyModal"
