@@ -226,6 +226,19 @@ app.post('/report', upload.single('image'), async (req, res) => {
   doc.text("ELA Analysis:");
   doc.image(ela.buffer, { width: 250 });
   doc.moveDown();
+
+  
+  /* NEXT STEPS */
+  doc.text("Recommended Next Steps:");
+  doc.text("- Verify the original source of the image");
+  doc.text("- Compare with other versions online");
+  doc.text("- Check trusted news or official sources");
+  doc.text("- Inspect suspicious areas for inconsistencies");
+  doc.moveDown();
+
+  doc.end();
+});
+
 app.get('/api/event', async (req, res) => {
 
   try {
@@ -248,17 +261,6 @@ app.get('/api/event', async (req, res) => {
 
   }
 
-});
-  
-  /* NEXT STEPS */
-  doc.text("Recommended Next Steps:");
-  doc.text("- Verify the original source of the image");
-  doc.text("- Compare with other versions online");
-  doc.text("- Check trusted news or official sources");
-  doc.text("- Inspect suspicious areas for inconsistencies");
-  doc.moveDown();
-
-  doc.end();
 });
 
 app.listen(PORT, () => console.log("Server running on port " + PORT));
