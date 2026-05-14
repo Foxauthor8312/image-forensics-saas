@@ -1,0 +1,61 @@
+/* PDF REPORT */
+
+#pdfReport {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+
+  width: 650px;
+
+  background: white;
+  color: black;
+
+  padding: 40px;
+
+  font-family: Arial, sans-serif;
+
+  box-sizing: border-box;
+}
+
+.pdf-header {
+  border-bottom: 2px solid #1e88e5;
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+}
+
+.pdf-title {
+  margin: 0;
+  font-size: 28px;
+  color: #111827;
+}
+
+.pdf-subtitle {
+  margin-top: 8px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.pdf-section {
+  margin-bottom: 24px;
+}
+
+.pdf-section-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.pdf-image {
+  width: 100%;
+  max-height: 250px;
+
+  object-fit: contain;
+
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+.pdf-summary {
+  line-height: 1.7;
+  font-size: 14px;
+}
