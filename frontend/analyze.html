@@ -594,6 +594,8 @@ console.log("ALL KEYS:", Object.keys(data));
 
    document.getElementById("pdfFilename").textContent =
   "File: " + file.name;
+   document.getElementById("pdfTimestamp").textContent =
+  "Generated: " + new Date().toLocaleString();
 
 document.getElementById("pdfOriginalImage").src =
   URL.createObjectURL(file);
@@ -1511,26 +1513,36 @@ window.closeMethodology = function closeMethodology(){
      ">
 
   <div style="
-    border-bottom:2px solid #1e88e5;
-    padding-bottom:16px;
-    margin-bottom:24px;
-  ">
-    <h1 style="
-      margin:0;
-      font-size:28px;
-      color:#111827;
-    ">
-      PixelProof Forensic Report
-    </h1>
+  border-bottom:2px solid #1e88e5;
+  padding-bottom:16px;
+  margin-bottom:24px;
+">
 
-    <div style="
-      margin-top:8px;
-      color:#6b7280;
-      font-size:14px;
-    ">
-      Digital Image Integrity Analysis
-    </div>
+  <h1 style="
+    margin:0;
+    font-size:28px;
+    color:#111827;
+  ">
+    PixelProof Forensic Report
+  </h1>
+
+  <div style="
+    margin-top:8px;
+    color:#6b7280;
+    font-size:14px;
+  ">
+    Digital Image Integrity Analysis
   </div>
+
+  <div id="pdfTimestamp"
+       style="
+         margin-top:8px;
+         font-size:12px;
+         color:#6b7280;
+       ">
+  </div>
+
+</div>
 
   <div style="margin-bottom:24px;">
 
@@ -1548,7 +1560,7 @@ window.closeMethodology = function closeMethodology(){
          crossorigin="anonymous"
          style="
            width:100%;
-           max-height:350px;
+           max-height:250px;
            object-fit:contain;
            border:1px solid #d1d5db;
            border-radius:8px;
