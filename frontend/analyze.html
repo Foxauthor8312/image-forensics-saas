@@ -1488,21 +1488,6 @@ window.openMethodology = function openMethodology(){
   ).style.display = "block";
 }
 
- document
-  .getElementById("downloadPdfBtn")
-  .addEventListener("click", generatePdfReport);
-
-async function generatePdfReport(){
-
-  const { jsPDF } = window.jspdf;
-
-  const report =
-    document.getElementById("pdfReport");
-
-  const canvas = await html2canvas(report, {
-    scale: 2,
-    useCORS: true
-  });
 
   const imgData =
     canvas.toDataURL("image/jpeg", 1.0);
