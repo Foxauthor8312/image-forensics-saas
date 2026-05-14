@@ -603,9 +603,7 @@ document.getElementById("pdfOriginalImage").src =
 document.getElementById("pdfElaImage").src =
   data.ela?.overlay || "";
 
-  document.getElementById("pdfSummary").textContent =
-  "Forensic analysis completed successfully.";
-  
+ 
 let gpsData = null;
 
 // Prefer client-side EXIF (most accurate if available)
@@ -687,8 +685,20 @@ if (
 }
 
 const scoreText = explainScore(score);
-   const findings = [];
-const riskClass = score>=80?"low":score>=55?"mid":"high";
+
+const pdfSummary =
+  score >= 80
+  ? "The image behaves consistently with a normally captured and processed photograph with no strong indicators of manipulation."
+
+  : score >= 55
+  ? "Some inconsistencies were detected. These may result from editing, recompression, or mobile image processing."
+
+  : "Multiple forensic indicators suggest the image may have undergone alteration, recompression, or synthetic enhancement.";
+
+document.getElementById("pdfSummary").textContent =
+  pdfSummary;
+
+const findings = [];
 
 if(data.exif){
   findings.push("Original camera metadata detected");
@@ -721,6 +731,16 @@ if((data.ai?.likelihood || 0) < 40){
     "No strong synthetic image indicators detected"
   );
 }
+
+document.getElementById("pdfFindings").innerHTML =
+  findings.join("<br>");
+
+const riskClass =
+  score >= 80
+  ? "low"
+  : score >= 55
+  ? "mid"
+  : "high";
   document.getElementById(
   "downloadPdfBtn"
 ).style.display = "block"; 
@@ -1556,7 +1576,7 @@ window.closeMethodology = function closeMethodology(){
 
     <p id="pdfFilename"></p>
 
-   <img id="pdfElaImage"
+   <img id="pdfOriginalImage"
      crossorigin="anonymous"
      style="
        width:100%;
@@ -1599,12 +1619,29 @@ window.closeMethodology = function closeMethodology(){
     </div>
 
     <p id="pdfSummary"
+   style="
+     line-height:1.7;
+     font-size:14px;
+   ">
+</p>
+
+</div>
+
+<div style="margin-top:30px;">
+
+  <div style="
+    font-size:18px;
+    font-weight:bold;
+    margin-bottom:10px;
+  ">
+    Analysis Findings
+  </div>
+
+  <div id="pdfFindings"
        style="
-         line-height:1.7;
+         line-height:1.8;
          font-size:14px;
        ">
-    </p>
-
   </div>
 
 </div>
