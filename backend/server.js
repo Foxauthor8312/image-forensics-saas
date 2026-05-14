@@ -247,7 +247,14 @@ app.get('/api/event', async (req, res) => {
 
     console.log('Fetching:', url);
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+  headers: {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36',
+    'Accept':
+      'text/html,application/xhtml+xml'
+  }
+});
 
     const html = await response.text();
 
