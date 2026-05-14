@@ -1576,12 +1576,16 @@ window.closeMethodology = function closeMethodology(){
 
     <p id="pdfFilename"></p>
 
-   <img id="pdfOriginalImage"
+  <img id="pdfOriginalImage"
      crossorigin="anonymous"
      style="
-       width:100%;
-       height:auto;
        display:block;
+       width:100%;
+       max-width:720px;
+       height:auto;
+       max-height:320px;
+       object-fit:contain;
+       margin:auto;
        border:1px solid #d1d5db;
        border-radius:8px;
      " />
@@ -1598,14 +1602,18 @@ window.closeMethodology = function closeMethodology(){
     </div>
 
     <img id="pdfElaImage"
-         crossorigin="anonymous"
-         style="
-           width:100%;
-           max-height:350px;
-           object-fit:contain;
-           border:1px solid #d1d5db;
-           border-radius:8px;
-         " />
+     crossorigin="anonymous"
+     style="
+       display:block;
+       width:100%;
+       max-width:720px;
+       height:auto;
+       max-height:320px;
+       object-fit:contain;
+       margin:auto;
+       border:1px solid #d1d5db;
+       border-radius:8px;
+     " />
   </div>
 
   <div>
