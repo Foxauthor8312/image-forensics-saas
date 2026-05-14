@@ -226,7 +226,30 @@ app.post('/report', upload.single('image'), async (req, res) => {
   doc.text("ELA Analysis:");
   doc.image(ela.buffer, { width: 250 });
   doc.moveDown();
+app.get('/api/event', async (req, res) => {
 
+  try {
+
+    const url = req.query.url;
+
+    console.log('Fetching:', url);
+
+    const response = await fetch(url);
+
+    const html = await response.text();
+
+    res.send(html);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).send('Failed to load event');
+
+  }
+
+});
+  
   /* NEXT STEPS */
   doc.text("Recommended Next Steps:");
   doc.text("- Verify the original source of the image");
